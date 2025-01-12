@@ -2,7 +2,8 @@ version: 2
 project_name: nextgen-go-cli
 
 builds:
-  - env:
+  - binary: nextgen-go-cli
+    env:
       - CGO_ENABLED=0
     main: ./main.go
     ldflags:
@@ -14,11 +15,6 @@ builds:
     goarch:
       - amd64
 
-archives:
-  - format: tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-
-# Configure how GoReleaser will create GitHub releases.
 release:
   github:
     owner: guerrilla-interactive
