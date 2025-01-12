@@ -120,19 +120,90 @@ func (m model) updateScreenSelect(msg tea.KeyMsg) model {
 }
 
 func (m model) updateScreenMain(msg tea.KeyMsg) model {
+	// We'll handle horizontal navigation (left/right) as before, but we'll now
+	// modify up/down so they only move in “rows” of 4 if we're still in the recentUsed
+	// commands area. Once we move beyond recentUsed, we treat up/down as cycling
+	// through the additional options (nextSteps). Now, if at the bottom and you press
+	// down, we jump to the first command in recentUsed.
+
 	switch msg.String() {
 	case "ctrl+c", "q":
 		os.Exit(0)
 
-	case "up", "k":
-		m.selectedIndex--
-		if m.selectedIndex < 0 {
-			m.selectedIndex = m.totalItems - 1
+	case "left", "h":
+		// Move one to the left only if we're still in recentUsed
+		if m.selectedIndex < len(recentUsed) {
+			if m.selectedIndex > 0 {
+				m.selectedIndex--
+			}
 		}
+
+	case "right", "l":
+		// Move one to the right only if we're still in recentUsed
+		if m.selectedIndex < len(recentUsed) {
+			if m.selectedIndex < len(recentUsed)-1 {
+				m.selectedIndex++
+			}
+		}
+
+	case "up", "k":
+		if m.selectedIndex < len(recentUsed) {
+			// We are in the recentUsed block, so move up one “row” (4 columns)
+			const columns = 4
+			row := m.selectedIndex / columns
+			if row == 0 {
+				// If we're on the very first row, move up into the additional options
+				// (wrap around to the bottom item).
+				m.selectedIndex = m.totalItems - 1
+			} else {
+				// Move one row up
+				col := m.selectedIndex % columns
+				newIndex := (row-1)*columns + col
+				m.selectedIndex = newIndex
+			}
+		} else {
+			// Already in nextSteps; handle up/down within that range
+			stepIndex := m.selectedIndex - len(recentUsed)
+			stepIndex-- // move up one
+			if stepIndex < 0 {
+				// If we move above the first nextSteps item, jump to last row of recentUsed
+				rowCount := (len(recentUsed)-1)/4 + 1 // total “rows” for recentUsed
+				lastRow := rowCount - 1
+				col := 0
+				newIndex := lastRow*4 + col
+				if newIndex >= len(recentUsed) {
+					// clamp to the last item in recentUsed if fewer than 4 in last row
+					newIndex = len(recentUsed) - 1
+				}
+				m.selectedIndex = newIndex
+			} else {
+				m.selectedIndex = len(recentUsed) + stepIndex
+			}
+		}
+
 	case "down", "j":
-		m.selectedIndex++
-		if m.selectedIndex >= m.totalItems {
-			m.selectedIndex = 0
+		if m.selectedIndex < len(recentUsed) {
+			// We are in the recentUsed block, so move down one “row” (4 columns)
+			const columns = 4
+			row := m.selectedIndex / columns
+			col := m.selectedIndex % columns
+			nextRowIndex := (row+1)*columns + col
+			if nextRowIndex < len(recentUsed) {
+				m.selectedIndex = nextRowIndex
+			} else {
+				// Otherwise, move to the first nextSteps item
+				m.selectedIndex = len(recentUsed)
+			}
+		} else {
+			// Already in nextSteps; handle up/down in that range
+			stepIndex := m.selectedIndex - len(recentUsed)
+			stepIndex++ // move down one
+			if stepIndex >= len(nextSteps) {
+				// wrap around to the very first command in recentUsed
+				m.selectedIndex = 0
+			} else {
+				m.selectedIndex = len(recentUsed) + stepIndex
+			}
 		}
 
 	case "enter":
@@ -146,6 +217,7 @@ func (m model) updateScreenMain(msg tea.KeyMsg) model {
 			m.recordCommand(itemName)
 		}
 	}
+
 	return m
 }
 
@@ -153,19 +225,19 @@ func (m model) updateScreenMain(msg tea.KeyMsg) model {
 func (m model) getItemName(index int) (string, bool) {
 	offset := len(recentUsed) + (len(nextSteps) - 1) // last item index
 	if index == offset {
-		// This is the toggling item => “Login” or “Logout”
+		// This is the toggling item => "Login" or "Logout"
 		if m.isLoggedIn {
 			return "Logout", true
 		}
 		return "Login", true
 	}
 
-	// If index < len(recentUsed), it’s from recentUsed
+	// If index < len(recentUsed), it's from recentUsed
 	if index < len(recentUsed) {
 		return recentUsed[index], false
 	}
 
-	// Else it's nextSteps[0] (the “Show all my commands”), since the last item is offset
+	// Else it's nextSteps[0] ("Show all my commands"), since the last item is offset
 	stepIndex := index - len(recentUsed)
 	return nextSteps[stepIndex], false
 }
@@ -173,8 +245,8 @@ func (m model) getItemName(index int) (string, bool) {
 /*
 recordCommand moves the chosen command to the FRONT of recentUsed, removing duplicates.
 We keep a maximum of e.g. 8 items in recentUsed.
-Since we’re storing everything only in memory, if the user restarts the program,
-the state is lost. But within a single run, we “remember” their selections.
+Since we're storing everything only in memory, if the user restarts the program,
+the state is lost. But within a single run, we "remember" their selections.
 */
 func (m *model) recordCommand(cmd string) {
 	// Remove any existing instance of this command
@@ -188,7 +260,7 @@ func (m *model) recordCommand(cmd string) {
 	if idx != -1 {
 		recentUsed = append(recentUsed[:idx], recentUsed[idx+1:]...)
 	}
-	// Insert @ front
+	// Insert a@ front
 	recentUsed = append([]string{cmd}, recentUsed...)
 
 	// Limit to 8 items max (feel free to adjust)
@@ -200,7 +272,7 @@ func (m *model) recordCommand(cmd string) {
 	m.totalItems = len(recentUsed) + len(nextSteps)
 }
 
-// viewSelectScreen: user picks “Login” or “Stay Offline”
+// viewSelectScreen: user picks "Login" or "Stay Offline"
 func (m model) viewSelectScreen() string {
 	title := titleStyle.Render("=== Welcome ===")
 	body := "Use ↑/↓ (or j/k) to toggle between Login and Stay Offline, then press Enter.\n\n"
@@ -226,7 +298,7 @@ func (m model) viewMainScreen() string {
 	}
 	title := titleStyle.Render(titleText)
 
-	body := "\n\n" + subtitleStyle.Render("Recent used commands (2 lines, up to 4 columns):") + "\n\n"
+	body := "\n\n" + subtitleStyle.Render("Recent used commands:") + "\n\n"
 
 	// Show recentUsed in up-to-2 lines horizontally
 	body += renderItemsHorizontally(recentUsed, &m, 0, 4)
@@ -253,7 +325,7 @@ func (m model) viewMainScreen() string {
 	return title + body
 }
 
-// renderItemsHorizontally arranges items in up to “columns” columns per line.
+// renderItemsHorizontally arranges items in up to "columns" columns per line.
 // Here we specifically want 2 lines total, 4 columns per line for our 5+ possible items.
 func renderItemsHorizontally(items []string, m *model, offset int, columns int) string {
 	var outputLines []string
