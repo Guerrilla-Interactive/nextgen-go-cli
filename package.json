@@ -1,13 +1,19 @@
 {
     "name": "nextgen-go-cli",
-    "version": "v0.0.4",
+    "version": "1.0.0",
     "description": "A CLI tool built in Go",
     "bin": {
-      "nextgen-go-cli": "bin/cli.js"
+      "nextgen-cli": "bin/cli.js",
+      "ngc": "bin/cli.js"
     },
     "scripts": {
       "postinstall": "node scripts/postinstall.js"
     },
+    "files": [
+      "bin/",
+      "scripts/",
+      "dist/"
+    ],
     "dependencies": {}
   }
   

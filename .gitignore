@@ -2,11 +2,12 @@
 node_modules/
 bin/cli-*
 
-# Go
+# Go binaries
+dist/
 *.exe
 *.out
 *.log
-*.test
 
-# System Files
+# System files
 .DS_Store
+.env
