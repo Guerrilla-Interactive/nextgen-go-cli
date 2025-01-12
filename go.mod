@@ -1,6 +1,6 @@
 module github.com/Guerrilla-Interactive/nextgen-go-cli
 
-go 1.21.6
+go 1.21
 
 require (
 	github.com/charmbracelet/bubbletea v1.2.4
