@@ -18,7 +18,7 @@ else {
 
 const binaryPath = path.join(__dirname, binary);
 
-// Execute the binary
+// Execute the binary 
 try {
   execFileSync(binaryPath, process.argv.slice(2), { stdio: 'inherit' });
 } catch (err) {
