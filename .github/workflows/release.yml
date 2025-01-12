@@ -40,15 +40,22 @@ jobs:
         with:
           node-version: '18'
 
+      - name: Debug Dist Directory
+        run: |
+          echo "Checking dist/ directory..."
+          ls -l dist || echo "dist/ directory not found!"
+
       - name: Copy Built Binaries
         run: |
-          # Show what's in dist/ (for debug, optional)
-          ls -l dist
-          
-          # Copy the raw binaries from dist/ into bin/
-          cp dist/nextgen-go-cli_linux_amd64 bin/cli-linux
-          cp dist/nextgen-go-cli_darwin_amd64 bin/cli-macos
-          cp dist/nextgen-go-cli_windows_amd64.exe bin/cli-win.exe
+          echo "Copying binaries to bin/..."
+          if [ -d "dist" ]; then
+            cp dist/nextgen-go-cli_linux_amd64 bin/cli-linux || echo "Linux binary missing!"
+            cp dist/nextgen-go-cli_darwin_amd64 bin/cli-macos || echo "MacOS binary missing!"
+            cp dist/nextgen-go-cli_windows_amd64.exe bin/cli-win.exe || echo "Windows binary missing!"
+          else
+            echo "dist/ directory does not exist."
+            exit 1
+          fi
 
       - name: Install Dependencies
         run: npm install
