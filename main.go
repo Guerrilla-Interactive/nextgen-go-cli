@@ -188,7 +188,7 @@ func (m *model) recordCommand(cmd string) {
 	if idx != -1 {
 		recentUsed = append(recentUsed[:idx], recentUsed[idx+1:]...)
 	}
-	// Insert at front
+	// Insert @ front
 	recentUsed = append([]string{cmd}, recentUsed...)
 
 	// Limit to 8 items max (feel free to adjust)
