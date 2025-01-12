@@ -4,9 +4,6 @@ import (
 	"log"
 	"os"
 
-	// Adjust this import path to match your project layout.
-	// For example: "github.com/guerrilla-interactive/nextgen-go-cli/internal/config"
-	"github.com/Guerrilla-Interactive/nextgen-go-cli/internal/config"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -47,7 +44,7 @@ var (
 			Foreground(lipgloss.Color("#888888"))
 )
 
-// Global slice of recent commands — will be overridden by config if present
+// recentUsed starts with some defaults, but is mutable.
 var recentUsed = []string{
 	"ngc init",
 	"ngc build",
@@ -57,14 +54,13 @@ var recentUsed = []string{
 }
 
 // nextSteps always has 2 items—first is “Show all my commands,” second is a placeholder
-// that toggles between “Login” and “Logout.” This second item is never directly displayed
+// that toggles between “Login” and “Logout.”  This second item is never directly displayed
 // in the slice, but we fill it in at runtime below.
 var nextSteps = []string{
 	"Show all my commands",
 	"LogoutOrLoginPlaceholder",
 }
 
-// The Bubble Tea model now carries isLoggedIn, selectedIndex, etc.
 type model struct {
 	currentScreen screen
 
@@ -153,9 +149,9 @@ func (m model) updateScreenMain(msg tea.KeyMsg) model {
 	return m
 }
 
-// getItemName returns the text of the item at the given index, and a bool indicating if it's the last item.
+// getItemName returns the text of the item at the given index, and whether it's the last item.
 func (m model) getItemName(index int) (string, bool) {
-	offset := len(recentUsed) + (len(nextSteps) - 1) // The index of the last item
+	offset := len(recentUsed) + (len(nextSteps) - 1) // last item index
 	if index == offset {
 		// This is the toggling item => “Login” or “Logout”
 		if m.isLoggedIn {
@@ -169,7 +165,7 @@ func (m model) getItemName(index int) (string, bool) {
 		return recentUsed[index], false
 	}
 
-	// Otherwise it's nextSteps[0] => “Show all my commands”
+	// Else it's nextSteps[0] (the “Show all my commands”), since the last item is offset
 	stepIndex := index - len(recentUsed)
 	return nextSteps[stepIndex], false
 }
@@ -177,6 +173,8 @@ func (m model) getItemName(index int) (string, bool) {
 /*
 recordCommand moves the chosen command to the FRONT of recentUsed, removing duplicates.
 We keep a maximum of e.g. 8 items in recentUsed.
+Since we’re storing everything only in memory, if the user restarts the program,
+the state is lost. But within a single run, we “remember” their selections.
 */
 func (m *model) recordCommand(cmd string) {
 	// Remove any existing instance of this command
@@ -190,7 +188,6 @@ func (m *model) recordCommand(cmd string) {
 	if idx != -1 {
 		recentUsed = append(recentUsed[:idx], recentUsed[idx+1:]...)
 	}
-
 	// Insert at front
 	recentUsed = append([]string{cmd}, recentUsed...)
 
@@ -236,8 +233,9 @@ func (m model) viewMainScreen() string {
 
 	body += "\n" + subtitleStyle.Render("Additional Options:") + "\n\n"
 
-	// nextSteps[0] => "Show all my commands"
-	// nextSteps[1] => toggles between "Logout" and "Login"
+	// We have 2 items in nextSteps:
+	// [0] => "Show all my commands"
+	// [1] => toggles between "Logout" and "Login"
 	var finalItem string
 	if m.isLoggedIn {
 		finalItem = "Logout"
@@ -256,13 +254,14 @@ func (m model) viewMainScreen() string {
 }
 
 // renderItemsHorizontally arranges items in up to “columns” columns per line.
+// Here we specifically want 2 lines total, 4 columns per line for our 5+ possible items.
 func renderItemsHorizontally(items []string, m *model, offset int, columns int) string {
 	var outputLines []string
 	var currentLine string
 
 	for i, val := range items {
+		// Start a new line every time we have multiples of columns
 		if i != 0 && i%columns == 0 {
-			// End the previous line
 			outputLines = append(outputLines, currentLine)
 			currentLine = ""
 		}
@@ -275,10 +274,12 @@ func renderItemsHorizontally(items []string, m *model, offset int, columns int) 
 		}
 	}
 
+	// Append any leftover line
 	if currentLine != "" {
 		outputLines = append(outputLines, currentLine)
 	}
 
+	// Join lines
 	var finalOutput string
 	for _, line := range outputLines {
 		finalOutput += line + "\n"
@@ -301,42 +302,16 @@ func renderItemList(items []string, m *model, offset int) string {
 }
 
 func main() {
-	//-------------------------------------------------------------------
-	// 1) Try to load user config (which might contain prior isLoggedIn and commands)
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		// If loading fails, just log a warning and continue with defaults
-		log.Printf("Warning: Could not load config: %v\n", err)
-	}
-
-	// Override default recentUsed if we have something in config
-	if len(cfg.RecentUsed) > 0 {
-		recentUsed = cfg.RecentUsed
-	}
-
-	//-------------------------------------------------------------------
-	// 2) Build initial model
 	initialModel := model{
 		currentScreen: screenSelect,
-		isLoggedIn:    cfg.IsLoggedIn, // remember whether user was logged in last time
+		isLoggedIn:    false,
 		selectedIndex: 0,
 		totalItems:    len(recentUsed) + len(nextSteps),
 	}
 
-	//-------------------------------------------------------------------
-	// 3) Launch Bubble Tea program
 	p := tea.NewProgram(initialModel)
 	if err := p.Start(); err != nil {
 		log.Fatalf("Error running TUI: %v", err)
 		os.Exit(1)
-	}
-
-	//-------------------------------------------------------------------
-	// 4) After TUI ends, update config with final state and save
-	cfg.IsLoggedIn = initialModel.isLoggedIn
-	cfg.RecentUsed = recentUsed
-
-	if err := config.SaveConfig(cfg); err != nil {
-		log.Printf("Warning: Could not save config: %v\n", err)
 	}
 }
