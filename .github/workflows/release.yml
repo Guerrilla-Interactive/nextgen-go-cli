@@ -34,22 +34,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      
+
+      - name: Copy Built Binaries
+        run: |
+          # Pull or copy the artifacts from GoReleaser (which are in dist/)
+          cp dist/nextgen-go-cli_linux_amd64/nextgen-go-cli bin/cli-linux
+          cp dist/nextgen-go-cli_darwin_amd64/nextgen-go-cli bin/cli-macos
+          cp dist/nextgen-go-cli_windows_amd64/nextgen-go-cli.exe bin/cli-win.exe
+
       - name: Install Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-      
+
       - name: Install Dependencies
         run: npm install
-      
-      # If you want to copy GoReleaser's artifacts:
-      - name: Copy Built Binaries
-        run: |
-          # Example: if the artifacts are placed in dist/ from GoReleaser
-          cp dist/nextgen-go-cli_linux_amd64/nextgen-go-cli bin/cli-linux
-          cp dist/nextgen-go-cli_darwin_amd64/nextgen-go-cli bin/cli-macos
-          cp dist/nextgen-go-cli_windows_amd64/nextgen-go-cli.exe bin/cli-win.exe
       
       - name: Publish
         env:
