@@ -1,63 +1,57 @@
-name: Build and Publish CLI
+name: Build and Publish with GoReleaser
 
 on:
   push:
     tags:
-      - 'v*' # Trigger workflow on version tags (e.g., v1.0.0)
-  workflow_dispatch: # Allows manual trigger
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
-  build:
-    name: Build Binaries
+  release:
+    name: Goreleaser
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.20
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
 
-    - name: Build Binaries
-      run: |
-        mkdir -p dist
-        GOOS=linux GOARCH=amd64 go build -o dist/cli-linux main.go
-        GOOS=darwin GOARCH=amd64 go build -o dist/cli-macos main.go
-        GOOS=windows GOARCH=amd64 go build -o dist/cli-win.exe main.go
+      - name: Set up GoReleaser
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          version: 'latest'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Upload Binaries
-      uses: actions/upload-artifact@v3
-      with:
-        name: cli-binaries
-        path: dist/
-
-  publish:
+  publish-npm:
     name: Publish to NPM
-    needs: build
     runs-on: ubuntu-latest
-
+    needs: release
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v3
-
-    - name: Install Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
-        cache: 'npm'
-
-    - name: Install Dependencies
-      run: npm install
-
-    - name: Copy Binaries to Bin Folder
-      run: |
-        cp dist/cli-linux bin/cli-linux
-        cp dist/cli-macos bin/cli-macos
-        cp dist/cli-win.exe bin/cli-win.exe
-
-    - name: Pack and Publish
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      run: npm publish
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install Dependencies
+        run: npm install
+      
+      # If you want to copy GoReleaser's artifacts:
+      - name: Copy Built Binaries
+        run: |
+          # Example: if the artifacts are placed in dist/ from GoReleaser
+          cp dist/nextgen-go-cli_linux_amd64/nextgen-go-cli bin/cli-linux
+          cp dist/nextgen-go-cli_darwin_amd64/nextgen-go-cli bin/cli-macos
+          cp dist/nextgen-go-cli_windows_amd64/nextgen-go-cli.exe bin/cli-win.exe
+      
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish
