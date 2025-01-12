@@ -1,0 +1,57 @@
+name: Build and Publish CLI
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags (e.g., v1.0.0)
+
+jobs:
+  build:
+    name: Build CLI Binaries
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.20
+
+    - name: Build Binaries
+      run: |
+        mkdir -p dist
+        GOOS=linux GOARCH=amd64 go build -o dist/cli-linux main.go
+        GOOS=darwin GOARCH=amd64 go build -o dist/cli-macos main.go
+        GOOS=windows GOARCH=amd64 go build -o dist/cli-win.exe main.go
+      shell: bash
+
+    - name: Upload Binaries
+      uses: actions/upload-artifact@v3
+      with:
+        name: cli-binaries
+        path: dist/
+
+  publish:
+    name: Publish to NPM
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Install Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Pack and Publish
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      run: npm publish
