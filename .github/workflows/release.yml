@@ -42,8 +42,10 @@ jobs:
 
       - name: Copy Built Binaries
         run: |
+          # Show what's in dist/ (for debug, optional)
+          ls -l dist
+          
           # Copy the raw binaries from dist/ into bin/
-          # These filenames match the "format: binary" output described above
           cp dist/nextgen-go-cli_linux_amd64 bin/cli-linux
           cp dist/nextgen-go-cli_darwin_amd64 bin/cli-macos
           cp dist/nextgen-go-cli_windows_amd64.exe bin/cli-win.exe
