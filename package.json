@@ -1,6 +1,6 @@
 {
     "name": "nextgen-go-cli",
-    "version": "0.0.15",
+    "version": "0.0.16",
     "description": "A CLI tool built in Go",
     "bin": {
       "nextgen-cli": "bin/cli.js",
@@ -11,21 +11,16 @@
       "prepare": "npm run build-binaries",
       "postinstall": "node scripts/postinstall.js"
     },
- "files": [
-  "dist/nextgen-go-cli_darwin_amd64_v1/nextgen-go-cli",
-  "dist/nextgen-go-cli_linux_amd64_v1/nextgen-go-cli",
-  "dist/nextgen-go-cli_windows_amd64_v1/nextgen-go-cli.exe",
-  "scripts/",
-  "bin/"
-],
+    "files": [
+      "dist/nextgen-go-cli_darwin_amd64_v1/nextgen-go-cli",
+      "dist/nextgen-go-cli_linux_amd64_v1/nextgen-go-cli",
+      "dist/nextgen-go-cli_windows_amd64_v1/nextgen-go-cli.exe",
+      "scripts/",
+      "bin/"
+    ],
     "publishConfig": {
       "registry": "https://registry.npmjs.org/"
     },
-    "keywords": [
-      "cli",
-      "go",
-      "tool"
-    ],
     "author": "Frikk Jarl",
     "homepage": "https://github.com/guerrilla-interactive/nextgen-go-cli",
     "repository": {
@@ -37,4 +32,3 @@
     },
     "dependencies": {}
   }
-  
