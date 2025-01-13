@@ -1,22 +1,27 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Identifiers for the two screens in our little TUI
 type screen int
 
 const (
 	screenSelect screen = iota
 	screenMain
+	screenAll
 )
 
-// Stylistic elements via Lip Gloss
+// --- Styles -----------------------------------------------------------------
+
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -42,56 +47,166 @@ var (
 	helpStyle = lipgloss.NewStyle().
 			Italic(true).
 			Foreground(lipgloss.Color("#888888"))
+
+	// New path style (50% grayish)
+	pathStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#888888"))
 )
 
-// recentUsed starts with some defaults, but is mutable.
-var recentUsed = []string{
-	"ng init",
-	"ng build",
-	"ng deploy",
-	"ng config set",
-	"ng help",
+// --- Data -------------------------------------------------------------------
+
+// We’ll look for these known packages in dependencies/devDependencies.
+// Map key = the NPM package name, value = friendlier display label.
+var knownPackages = map[string]string{
+	"next":              "Next.js",
+	"sanity":            "Sanity (CMS)",
+	"tailwindcss":       "Tailwind CSS",
+	"react-email":       "React Email",
+	"styled-components": "styled-components",
+	"gatsby":            "Gatsby",
+	"contentful":        "Contentful",
+	"strapi":            "Strapi",
+	"vue":               "Vue.js",
+	"react":             "React",
+	"angular":           "Angular",
+	// Add or remove as desired
 }
 
-// nextSteps always has 2 items—first is “Show all my commands,” second is a placeholder
-// that toggles between “Login” and “Logout.”  This second item is never directly displayed
-// in the slice, but we fill it in at runtime below.
+// Minimal subset of fields from package.json
+type packageJSON struct {
+	Dependencies    map[string]string `json:"dependencies"`
+	DevDependencies map[string]string `json:"devDependencies"`
+}
+
+// Our example commands
+var recentUsed = []string{
+	"add section",
+	"remove section",
+	"undo",
+	"redo",
+	"add page",
+	"remove page",
+	"add portable-component",
+	"remove portable-component",
+}
+
+// Next-step items
 var nextSteps = []string{
 	"Show all my commands",
-	"View logs",
-	"Clear recent commands",
 	"LogoutOrLoginPlaceholder",
 }
+
+// A larger command list shown on the “Show all” screen
+var allCommands = []string{
+	"ng add section",
+	"ng remove section",
+	"ng undo",
+	"ng redo",
+	"ng add page",
+	"ng remove page",
+	"ng add portable-component",
+	"ng remove portable-component",
+}
+
+// --- Model ------------------------------------------------------------------
 
 type model struct {
 	currentScreen screen
 
-	// Tracks if we're logged in or offline.
+	// Tracks if we're logged in or offline
 	isLoggedIn bool
 
-	// selectedIndex: which item is highlighted (arrows up/down).
-	selectedIndex int
+	// Indexes for selection
+	selectedIndex int // On the main screen
+	allCmdsIndex  int // On the “Show all commands” screen
 
-	// totalItems = len(recentUsed) + len(nextSteps).
-	totalItems int
+	// Number of total items on main screen
+	totalItems   int
+	allCmdsTotal int
+
+	// Project-related stats
+	projectPath        string
+	recognizedPackages []string // e.g. ["Next.js", "Tailwind CSS", ...]
 }
 
+// --- Init -------------------------------------------------------------------
+
+// We load project info (including recognized packages) at startup.
 func (m model) Init() tea.Cmd {
-	return nil
+	return func() tea.Msg {
+		wd, _ := os.Getwd()
+		recPkgs := detectFrameworks(wd)
+
+		newM := m
+		newM.projectPath = wd
+		newM.recognizedPackages = recPkgs
+		return newM
+	}
 }
+
+// detectFrameworks reads package.json and sees if any known packages exist.
+// Returns a slice of recognized packages in a more user-friendly form.
+func detectFrameworks(projectPath string) []string {
+	packageJSONPath := filepath.Join(projectPath, "package.json")
+	data, err := ioutil.ReadFile(packageJSONPath)
+	if err != nil {
+		// Couldn’t read package.json => no recognized packages
+		return nil
+	}
+
+	var pkg packageJSON
+	if err := json.Unmarshal(data, &pkg); err != nil {
+		return nil
+	}
+
+	foundSet := map[string]bool{}
+
+	checkDep := func(deps map[string]string) {
+		if deps == nil {
+			return
+		}
+		for depName := range deps {
+			if friendly, ok := knownPackages[depName]; ok {
+				foundSet[friendly] = true
+			}
+		}
+	}
+
+	checkDep(pkg.Dependencies)
+	checkDep(pkg.DevDependencies)
+
+	// Convert map keys to a slice
+	var results []string
+	for pkgName := range foundSet {
+		results = append(results, pkgName)
+	}
+	return results
+}
+
+// --- Update -----------------------------------------------------------------
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch typedMsg := msg.(type) {
+	case model:
+		// The updated model from Init()
+		m.projectPath = typedMsg.projectPath
+		m.recognizedPackages = typedMsg.recognizedPackages
+		return m, nil
+
 	case tea.KeyMsg:
 		switch m.currentScreen {
 		case screenSelect:
 			m = m.updateScreenSelect(typedMsg)
 		case screenMain:
 			m = m.updateScreenMain(typedMsg)
+		case screenAll:
+			m = m.updateScreenAll(typedMsg)
 		}
 	}
 	return m, nil
 }
+
+// --- View -------------------------------------------------------------------
 
 func (m model) View() string {
 	switch m.currentScreen {
@@ -99,191 +214,298 @@ func (m model) View() string {
 		return docStyle.Render(m.viewSelectScreen())
 	case screenMain:
 		return docStyle.Render(m.viewMainScreen())
+	case screenAll:
+		return docStyle.Render(m.viewAllScreen())
 	default:
 		return docStyle.Render("Unknown screen\n")
 	}
 }
 
-// updateScreenSelect: toggles between Login and Stay Offline
+// --- Screen Select (welcome/login/offline) ----------------------------------
+
 func (m model) updateScreenSelect(msg tea.KeyMsg) model {
 	switch msg.String() {
 	case "ctrl+c", "q":
 		os.Exit(0)
-
 	case "up", "k", "down", "j":
-		if m.selectedIndex == 0 {
-			m.selectedIndex = 1
-		} else {
-			m.selectedIndex = 0
-		}
-
+		// Toggle online/offline
+		m.isLoggedIn = !m.isLoggedIn
 	case "enter":
-		if m.selectedIndex == 0 {
-			// Chose “Login”
-			m.isLoggedIn = true
-		} else {
-			// Chose “Stay Offline”
-			m.isLoggedIn = false
-		}
 		m.currentScreen = screenMain
 	}
 	return m
 }
 
-func (m model) updateScreenMain(msg tea.KeyMsg) model {
-	// We'll handle horizontal navigation (left/right) as before, but we'll now
-	// modify up/down so they only move in “rows” of 4 if we're still in the recentUsed
-	// commands area. Once we move beyond recentUsed, we treat up/down as cycling
-	// through the additional options (nextSteps). Now, if at the bottom and you press
-	// down, we jump to the first command in recentUsed.
+func (m model) viewSelectScreen() string {
+	title := titleStyle.Render("=== Welcome ===")
+	// First: show project info
+	body := summarizeProjectStats(m) + "\n"
 
+	// Show login/offline toggle
+	var loginOpt, offlineOpt string
+	if m.isLoggedIn {
+		loginOpt = highlightStyle.Render("> Login <")
+		offlineOpt = choiceStyle.Render("Stay Offline")
+	} else {
+		loginOpt = choiceStyle.Render("Login")
+		offlineOpt = highlightStyle.Render("> Stay Offline <")
+	}
+	body += loginOpt + "\n" + offlineOpt + "\n\n"
+
+	// Place the instructions at the bottom
+	body += helpStyle.Render(
+		"Use ↑/↓ (or j/k) to toggle between Login and Stay Offline, then press Enter.\n" +
+			"(Press q to quit)")
+
+	return title + "\n" + body
+}
+
+// --- Screen Main (recent commands + nextSteps) ------------------------------
+
+func (m model) updateScreenMain(msg tea.KeyMsg) model {
 	switch msg.String() {
 	case "ctrl+c", "q":
 		os.Exit(0)
-
 	case "left", "h":
-		// Move one to the left only if we're still in recentUsed
-		if m.selectedIndex < len(recentUsed) {
-			if m.selectedIndex > 0 {
-				m.selectedIndex--
-			}
+		if m.selectedIndex < len(recentUsed) && m.selectedIndex > 0 {
+			m.selectedIndex--
 		}
-
 	case "right", "l":
-		// Move one to the right only if we're still in recentUsed
-		if m.selectedIndex < len(recentUsed) {
-			if m.selectedIndex < len(recentUsed)-1 {
-				m.selectedIndex++
-			}
+		if m.selectedIndex < len(recentUsed)-1 {
+			m.selectedIndex++
 		}
-
 	case "up", "k":
-		if m.selectedIndex < len(recentUsed) {
-			// We are in the recentUsed block, so move up one “row” (4 columns)
-			const columns = 4
-			row := m.selectedIndex / columns
-			if row == 0 {
-				// If we're on the very first row, move up into the additional options
-				// (wrap around to the bottom item).
-				m.selectedIndex = m.totalItems - 1
-			} else {
-				// Move one row up
-				col := m.selectedIndex % columns
-				newIndex := (row-1)*columns + col
-				m.selectedIndex = newIndex
-			}
-		} else {
-			// Already in nextSteps; handle up/down within that range
-			stepIndex := m.selectedIndex - len(recentUsed)
-			stepIndex-- // move up one
-			if stepIndex < 0 {
-				// If we move above the first nextSteps item, jump to last row of recentUsed
-				rowCount := (len(recentUsed)-1)/4 + 1 // total “rows” for recentUsed
-				lastRow := rowCount - 1
-				col := 0
-				newIndex := lastRow*4 + col
-				if newIndex >= len(recentUsed) {
-					// clamp to the last item in recentUsed if fewer than 4 in last row
-					newIndex = len(recentUsed) - 1
-				}
-				m.selectedIndex = newIndex
-			} else {
-				m.selectedIndex = len(recentUsed) + stepIndex
-			}
-		}
-
+		m = m.handleUpInMain()
 	case "down", "j":
-		if m.selectedIndex < len(recentUsed) {
-			// We are in the recentUsed block, so move down one “row” (4 columns)
-			const columns = 4
-			row := m.selectedIndex / columns
-			col := m.selectedIndex % columns
-			nextRowIndex := (row+1)*columns + col
-			if nextRowIndex < len(recentUsed) {
-				m.selectedIndex = nextRowIndex
-			} else {
-				// Otherwise, move to the first nextSteps item
-				m.selectedIndex = len(recentUsed)
-			}
-		} else {
-			// Already in nextSteps; handle up/down in that range
-			stepIndex := m.selectedIndex - len(recentUsed)
-			stepIndex++ // move down one
-			if stepIndex >= len(nextSteps) {
-				// wrap around to the very first command in recentUsed
-				m.selectedIndex = 0
-			} else {
-				m.selectedIndex = len(recentUsed) + stepIndex
-			}
-		}
-
+		m = m.handleDownInMain()
 	case "enter":
 		itemName, isLast := m.getItemName(m.selectedIndex)
-
 		if isLast {
-			// The last item toggles login state
+			// Toggle login/offline
 			m.isLoggedIn = !m.isLoggedIn
 			m.currentScreen = screenSelect
 		} else {
-			// Otherwise, check which item was chosen
-			switch itemName {
-			case "Show all my commands":
-				// You could implement whatever logic you like here,
-				// e.g., spitting out more commands, another screen, etc.
-				log.Println("User selected: Show all my commands")
-				m.recordCommand(itemName)
-
-			case "View logs":
-				// Placeholder example for viewing logs
-				log.Println("User selected: View logs")
-				m.recordCommand(itemName)
-
-			case "Clear recent commands":
-				// Example of clearing the recentUsed list
-				log.Println("User selected: Clear recent commands")
-				recentUsed = []string{}
-				m.selectedIndex = 0
-				m.totalItems = len(recentUsed) + len(nextSteps)
-
-			default:
-				// Otherwise, treat it as a command we'll record
+			// Possibly go to “Show all commands”
+			if itemName == nextSteps[0] {
+				m.currentScreen = screenAll
+				m.allCmdsIndex = 0
+				m.allCmdsTotal = len(allCommands) + 1
+			} else {
+				// Record the chosen command
 				m.recordCommand(itemName)
 			}
 		}
 	}
-
 	return m
 }
 
-// getItemName returns the text of the item at the given index, and whether it's the last item.
+func (m model) handleUpInMain() model {
+	if m.selectedIndex < len(recentUsed) {
+		const columns = 4
+		row := m.selectedIndex / columns
+		if row == 0 {
+			m.selectedIndex = m.totalItems - 1
+		} else {
+			col := m.selectedIndex % columns
+			m.selectedIndex = (row-1)*columns + col
+		}
+	} else {
+		stepIndex := m.selectedIndex - len(recentUsed)
+		stepIndex--
+		if stepIndex < 0 {
+			rowCount := (len(recentUsed)-1)/4 + 1
+			lastRow := rowCount - 1
+			newIndex := lastRow * 4
+			if newIndex >= len(recentUsed) {
+				newIndex = len(recentUsed) - 1
+			}
+			m.selectedIndex = newIndex
+		} else {
+			m.selectedIndex = len(recentUsed) + stepIndex
+		}
+	}
+	return m
+}
+
+func (m model) handleDownInMain() model {
+	if m.selectedIndex < len(recentUsed) {
+		const columns = 4
+		row := m.selectedIndex / columns
+		col := m.selectedIndex % columns
+		nextRowIndex := (row+1)*columns + col
+		if nextRowIndex < len(recentUsed) {
+			m.selectedIndex = nextRowIndex
+		} else {
+			m.selectedIndex = len(recentUsed)
+		}
+	} else {
+		stepIndex := m.selectedIndex - len(recentUsed)
+		stepIndex++
+		if stepIndex >= len(nextSteps) {
+			m.selectedIndex = 0
+		} else {
+			m.selectedIndex = len(recentUsed) + stepIndex
+		}
+	}
+	return m
+}
+
+func (m model) viewMainScreen() string {
+	titleText := "=== Offline Mode ==="
+	if m.isLoggedIn {
+		titleText = "=== Online Mode ==="
+	}
+	title := titleStyle.Render(titleText)
+
+	// Show project stats
+	body := summarizeProjectStats(m) + "\n"
+
+	// Recent commands
+	body += subtitleStyle.Render("Recent used commands:") + "\n\n"
+	body += renderItemsHorizontally(recentUsed, &m, 0, 4)
+
+	// Additional options
+	body += "\n"
+
+	var finalItem string
+	if m.isLoggedIn {
+		finalItem = "Back"
+	} else {
+		finalItem = "Back"
+	}
+	opts := []string{nextSteps[0], finalItem}
+
+	body += renderItemList(opts, &m, len(recentUsed))
+
+	body += "\n" + helpStyle.Render(
+		"(Use arrow keys or j/k/h/l to move; "+
+			"q quits.)")
+
+	return title + "\n" + body
+}
+
+// --- Screen All (larger commands list) --------------------------------------
+
+func (m model) updateScreenAll(msg tea.KeyMsg) model {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		os.Exit(0)
+	case "up", "k":
+		if m.allCmdsIndex > 0 {
+			m.allCmdsIndex--
+		} else {
+			m.allCmdsIndex = m.allCmdsTotal - 1
+		}
+	case "down", "j":
+		if m.allCmdsIndex < m.allCmdsTotal-1 {
+			m.allCmdsIndex++
+		} else {
+			m.allCmdsIndex = 0
+		}
+	case "enter":
+		if m.allCmdsIndex == m.allCmdsTotal-1 {
+			// “Back”
+			m.currentScreen = screenMain
+		} else {
+			cmd := allCommands[m.allCmdsIndex]
+			m.recordCommand(cmd)
+		}
+	}
+	return m
+}
+
+func (m model) viewAllScreen() string {
+	title := titleStyle.Render("=== All Commands ===")
+	body := "\n\n" + subtitleStyle.Render("Select a command (Enter to log usage).") + "\n\n"
+
+	for i, cmd := range allCommands {
+		if i == m.allCmdsIndex {
+			body += highlightStyle.Render("> "+cmd+" <") + "\n"
+		} else {
+			body += choiceStyle.Render(cmd) + "\n"
+		}
+	}
+	// “Back” item
+	if m.allCmdsIndex == m.allCmdsTotal-1 {
+		body += highlightStyle.Render("> Back <") + "\n"
+	} else {
+		body += choiceStyle.Render("Back") + "\n"
+	}
+
+	body += "\n" + helpStyle.Render(
+		"(Use up/down or j/k to move; Enter on 'Back' returns to main screen; q quits.)")
+
+	return title + body
+}
+
+// --- Helpers ----------------------------------------------------------------
+
+// Summarize the project path and recognized packages in a neat block
+func summarizeProjectStats(m model) string {
+	stats := pathStyle.Render(m.projectPath) + "\n\n"
+
+	if len(m.recognizedPackages) == 0 {
+		stats += "    • None recognized packages\n"
+	} else {
+		// Show recognized packages horizontally, up to 6 columns, 2 lines (12 max)
+		// If more than 12 recognized, we truncate for this demo.
+		truncated := m.recognizedPackages
+		if len(truncated) > 12 {
+			truncated = truncated[:12]
+		}
+
+		stats += renderPackagesHorizontally(truncated, 6)
+	}
+	return stats
+}
+
+// renderPackagesHorizontally arranges items in up to 'columns' columns per line.
+// If there are more items than 2 lines * columns, we just won't see them if we truncated above.
+func renderPackagesHorizontally(pkgs []string, columns int) string {
+	if len(pkgs) == 0 {
+		return "    • None recognized packages\n"
+	}
+
+	var lines []string
+	var currentLine []string
+
+	for i, pkg := range pkgs {
+		currentLine = append(currentLine, pkg)
+		// If we hit 'columns' items, we push the line and reset
+		if (i+1)%columns == 0 {
+			lines = append(lines, strings.Join(currentLine, " | "))
+			currentLine = nil
+		}
+	}
+	// Append any leftover
+	if len(currentLine) > 0 {
+		lines = append(lines, strings.Join(currentLine, " | "))
+	}
+
+	var result string
+	for _, line := range lines {
+		result += "" + line + "\n"
+	}
+	return result
+}
+
 func (m model) getItemName(index int) (string, bool) {
-	offset := len(recentUsed) + (len(nextSteps) - 1) // last item index
+	offset := len(recentUsed) + (len(nextSteps) - 1)
 	if index == offset {
-		// This is the toggling item => "Login" or "Logout"
 		if m.isLoggedIn {
 			return "Logout", true
 		}
 		return "Login", true
 	}
-
-	// If index < len(recentUsed), it's from recentUsed
 	if index < len(recentUsed) {
 		return recentUsed[index], false
 	}
-
-	// Else it's nextSteps[0] ("Show all my commands"), since the last item is offset
 	stepIndex := index - len(recentUsed)
 	return nextSteps[stepIndex], false
 }
 
-/*
-recordCommand moves the chosen command to the FRONT of recentUsed, removing duplicates.
-We keep a maximum of e.g. 8 items in recentUsed.
-Since we're storing everything only in memory, if the user restarts the program,
-the state is lost. But within a single run, we "remember" their selections.
-*/
+// Move the chosen command to the front of recentUsed, removing duplicates, limit to 8.
 func (m *model) recordCommand(cmd string) {
-	// Remove any existing instance of this command
 	idx := -1
 	for i, v := range recentUsed {
 		if v == cmd {
@@ -294,100 +516,37 @@ func (m *model) recordCommand(cmd string) {
 	if idx != -1 {
 		recentUsed = append(recentUsed[:idx], recentUsed[idx+1:]...)
 	}
-	// Insert a@ front
 	recentUsed = append([]string{cmd}, recentUsed...)
 
-	// Limit to 8 items max (feel free to adjust)
 	if len(recentUsed) > 8 {
 		recentUsed = recentUsed[:8]
 	}
 
-	// Recount total items
 	m.totalItems = len(recentUsed) + len(nextSteps)
 }
 
-// viewSelectScreen: user picks "Login" or "Stay Offline"
-func (m model) viewSelectScreen() string {
-	title := titleStyle.Render("=== Welcome ===")
-	body := "Use ↑/↓ (or j/k) to choose, then press Enter.\n\n"
-
-	// Index 0 => “Login”; Index 1 => “Stay Offline”
-	var loginOpt, offlineOpt string
-	if m.selectedIndex == 0 {
-		loginOpt = highlightStyle.Render("> Login <")
-		offlineOpt = choiceStyle.Render("Stay Offline")
-	} else {
-		loginOpt = choiceStyle.Render("Login")
-		offlineOpt = highlightStyle.Render("> Stay Offline <")
-	}
-
-	body += loginOpt + "\n" + offlineOpt + "\n\n"
-	body += helpStyle.Render("(Press q to quit)")
-	return title + "\n\n" + body
-}
-
-// viewMainScreen: show recent commands horizontally, then additional options
-func (m model) viewMainScreen() string {
-	titleText := "=== Offline Mode ==="
-	if m.isLoggedIn {
-		titleText = "=== Online Mode ==="
-	}
-	title := titleStyle.Render(titleText)
-
-	body := "\n\n" + subtitleStyle.Render("Recent used commands:") + "\n\n"
-
-	// Show recentUsed in up-to-2 lines horizontally
-	body += renderItemsHorizontally(recentUsed, &m, 0, 4)
-
-	body += "\n" + subtitleStyle.Render("Additional Options:") + "\n\n"
-
-	// We have 2 items in nextSteps:
-	// [0] => "Show all my commands"
-	// [1] => toggles between "Logout" and "Login"
-	var finalItem string
-	if m.isLoggedIn {
-		finalItem = "Logout"
-	} else {
-		finalItem = "Login"
-	}
-	opts := []string{nextSteps[0], finalItem} // 2 items
-
-	body += renderItemList(opts, &m, len(recentUsed))
-
-	body += "\n" + helpStyle.Render(
-		"(Use ↑/↓ or j/k to move, Enter on any command logs usage. "+
-			"Enter on last item toggles login and returns to first screen, q quits.)")
-
-	return title + body
-}
-
-// renderItemsHorizontally arranges items in up to "columns" columns per line.
-// Here we specifically want 2 lines total, 4 columns per line for our 5+ possible items.
+// Render items horizontally in rows of “columns” columns (for the main screen’s recentUsed).
 func renderItemsHorizontally(items []string, m *model, offset int, columns int) string {
 	var outputLines []string
 	var currentLine string
 
 	for i, val := range items {
-		// Start a new line every time we have multiples of columns
 		if i != 0 && i%columns == 0 {
 			outputLines = append(outputLines, currentLine)
 			currentLine = ""
 		}
 
 		fullIndex := offset + i
-		if m.selectedIndex == fullIndex {
+		if m.selectedIndex == fullIndex && m.currentScreen == screenMain {
 			currentLine += highlightStyle.Render("> "+val+" <") + "  "
 		} else {
 			currentLine += choiceStyle.Render(val) + "  "
 		}
 	}
-
-	// Append any leftover line
 	if currentLine != "" {
 		outputLines = append(outputLines, currentLine)
 	}
 
-	// Join lines
 	var finalOutput string
 	for _, line := range outputLines {
 		finalOutput += line + "\n"
@@ -395,26 +554,34 @@ func renderItemsHorizontally(items []string, m *model, offset int, columns int) 
 	return finalOutput
 }
 
-// renderItemList enumerates items in a vertical list
+// Renders a vertical list (for nextSteps on main screen).
 func renderItemList(items []string, m *model, offset int) string {
 	var output string
 	for i, val := range items {
 		fullIndex := offset + i
-		if m.selectedIndex == fullIndex {
-			output += "  " + highlightStyle.Render("> "+val+" <") + "\n"
+		if m.selectedIndex == fullIndex && m.currentScreen == screenMain {
+			output += "" + highlightStyle.Render("> "+val+" <") + "\n"
 		} else {
-			output += "  " + choiceStyle.Render(val) + "\n"
+			output += "" + choiceStyle.Render(val) + "\n"
 		}
 	}
 	return output
 }
+
+// --- Main -------------------------------------------------------------------
 
 func main() {
 	initialModel := model{
 		currentScreen: screenSelect,
 		isLoggedIn:    false,
 		selectedIndex: 0,
-		totalItems:    len(recentUsed) + len(nextSteps),
+		allCmdsIndex:  0,
+
+		totalItems:   len(recentUsed) + len(nextSteps),
+		allCmdsTotal: len(allCommands) + 1, // +1 for "Back"
+
+		projectPath:        "",
+		recognizedPackages: nil,
 	}
 
 	p := tea.NewProgram(initialModel)
