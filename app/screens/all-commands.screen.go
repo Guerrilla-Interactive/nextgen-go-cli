@@ -43,15 +43,21 @@ func UpdateScreenAll(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 
 // ViewAllScreen renders the “all commands” screen in pretty, fixed-width columns.
 func ViewAllScreen(m app.Model) string {
+	// Title
 	title := app.TitleStyle.Render("=== All Commands ===")
-	body := "\n\n" + app.SubtitleStyle.Render("Select a command (Enter to log usage).") + "\n\n"
+	// Gray path row
+	pathLine := app.PathStyle.Render(m.ProjectPath)
+
+	// Start body
+	body := title + "\n" + pathLine + "\n\n"
+	body += app.SubtitleStyle.Render("Select a command (Enter to log usage).") + "\n\n"
 
 	commands := app.AllCommands
 	commandsCount := len(commands)
-	const rows = 10 // each column has up to 10 items
+	const rows = 10
 	columns := (commandsCount + rows - 1) / rows
 
-	// Fixed width columns
+	// Fixed-width columns
 	const colWidth = 30
 	colStyle := lipgloss.NewStyle().
 		Width(colWidth).
@@ -79,17 +85,15 @@ func ViewAllScreen(m app.Model) string {
 	}
 
 	// Provide "Back" option
-	backIndex := commandsCount
-	body += "\n"
-	if m.AllCmdsIndex == backIndex {
-		body += app.HighlightStyle.Render("> Back <") + "\n"
+	if m.AllCmdsIndex == commandsCount {
+		body += "\n" + app.HighlightStyle.Render("> Back <") + "\n"
 	} else {
-		body += app.ChoiceStyle.Render("Back") + "\n"
+		body += "\n" + app.ChoiceStyle.Render("Back") + "\n"
 	}
 
 	body += "\n" + app.HelpStyle.Render("(Use arrows or j/k/up/down to move; Enter on 'Back' returns to main screen; q quits.)")
 
-	return title + body
+	return body
 }
 
 // moveAllCmdsSelectionLeft moves the selection one column to the left (if possible).

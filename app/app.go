@@ -63,7 +63,7 @@ var AllCommands = []string{
 
 // Example styles (you may keep them here, or in a separate file):
 var (
-	TitleStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).Background(lipgloss.Color("#5f00d7")).Padding(0, 1)
+	TitleStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).MarginTop(2)
 	SubtitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#5f00d7"))
 	HighlightStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500"))
 	ChoiceStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))

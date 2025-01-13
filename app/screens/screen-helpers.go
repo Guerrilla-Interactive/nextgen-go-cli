@@ -9,7 +9,7 @@ import (
 
 // summarizeProjectStats returns a string with project stats.
 func summarizeProjectStats(m app.Model) string {
-	result := app.PathStyle.Render(m.ProjectPath) + "\n\n"
+	result := ""
 	if len(m.RecognizedPkgs) == 0 {
 		result += "    • None recognized packages\n"
 	} else {
@@ -19,7 +19,8 @@ func summarizeProjectStats(m app.Model) string {
 	return result
 }
 
-// renderPackagesHorizontally displays items in a grid of fixed-width columns, up to maxCols columns.
+// renderPackagesHorizontally displays items in a grid of up to maxCols columns,
+// without a fixed width. Now we place a bullet (•) between each package in a row.
 func renderPackagesHorizontally(items []string, maxCols int) string {
 	if len(items) == 0 {
 		return ""
@@ -30,19 +31,16 @@ func renderPackagesHorizontally(items []string, maxCols int) string {
 	if len(items) < cols {
 		cols = len(items)
 	}
-	// Compute how many rows we need
-	rows := (len(items) + cols - 1) / cols // integer ceiling
+	// Compute how many rows we need (integer ceiling).
+	rows := (len(items) + cols - 1) / cols
 
-	// Define a lipgloss style for fixed-width columns.
-	// Adjust width to your preference.
+	// No fixed width, just a small margin to the right for spacing.
 	colStyle := lipgloss.NewStyle().
-		Width(18).
 		MarginRight(2).
 		Align(lipgloss.Left)
 
 	var lines []string
 
-	// Render items in rows x cols layout
 	for r := 0; r < rows; r++ {
 		var line string
 		for c := 0; c < cols; c++ {
@@ -50,6 +48,12 @@ func renderPackagesHorizontally(items []string, maxCols int) string {
 			if index >= len(items) {
 				break
 			}
+
+			// Insert "•" before each item except the first in a row.
+			if c > 0 {
+				line += "•  "
+			}
+
 			item := items[index]
 			line += colStyle.Render(item)
 		}
@@ -58,6 +62,7 @@ func renderPackagesHorizontally(items []string, maxCols int) string {
 		}
 	}
 
+	// Join all rows with a newline.
 	return strings.Join(lines, "\n") + "\n"
 }
 

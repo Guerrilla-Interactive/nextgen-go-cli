@@ -27,7 +27,11 @@ func UpdateScreenSelect(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 // ViewSelectScreen is the view for the “select” screen.
 func ViewSelectScreen(m app.Model) string {
 	title := app.TitleStyle.Render("=== Welcome ===")
-	body := summarizeProjectStats(m) + "\n"
+	pathLine := app.PathStyle.Render(m.ProjectPath) // Gray path row
+	body := title + "\n" + pathLine + "\n\n"
+
+	// Optionally also show recognized packages or other info:
+	body += summarizeProjectStats(m) + "\n"
 
 	var loginOpt, offlineOpt string
 	if m.IsLoggedIn {
@@ -44,5 +48,5 @@ func ViewSelectScreen(m app.Model) string {
 		"Use ↑/↓ (or j/k) to toggle between Login and Stay Offline, then press Enter.\n" +
 			"(Press q to quit)")
 
-	return title + "\n" + body
+	return body
 }

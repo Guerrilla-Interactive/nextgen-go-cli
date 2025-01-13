@@ -54,16 +54,24 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 
 // ViewMainScreen is the view for the main screen.
 func ViewMainScreen(m app.Model) string {
+	// Title logic
 	titleText := "=== Offline Mode ==="
 	if m.IsLoggedIn {
 		titleText = "=== Online Mode ==="
 	}
 	title := app.TitleStyle.Render(titleText)
 
-	body := summarizeProjectStats(m) + "\n"
+	// Gray path row
+	pathLine := app.PathStyle.Render(m.ProjectPath)
+
+	// Start building body
+	body := title + "\n" + pathLine + "\n\n"
+
+	// Optionally (if you still want to display recognized packages info):
+	body += summarizeProjectStats(m) + "\n"
 
 	body += app.SubtitleStyle.Render("Recent used commands:") + "\n\n"
-	// Render in a 3×5 grid (column-major order).
+	// 3×5 grid (column-major):
 	body += renderRecentUsedInColumns(app.RecentUsed, &m, 0, 3, 5)
 
 	body += "\n"
@@ -75,7 +83,7 @@ func ViewMainScreen(m app.Model) string {
 
 	body += "\n" + app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)")
 
-	return title + "\n" + body
+	return body
 }
 
 // renderRecentUsedInColumns displays recent commands in *column-major* order, filling each column top-down.
