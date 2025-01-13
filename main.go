@@ -109,11 +109,20 @@ func (m model) updateScreenSelect(msg tea.KeyMsg) model {
 		os.Exit(0)
 
 	case "up", "k", "down", "j":
-		// Flip the boolean each time up/down is pressed
-		m.isLoggedIn = !m.isLoggedIn
+		if m.selectedIndex == 0 {
+			m.selectedIndex = 1
+		} else {
+			m.selectedIndex = 0
+		}
 
 	case "enter":
-		// Move to main screen
+		if m.selectedIndex == 0 {
+			// Chose “Login”
+			m.isLoggedIn = true
+		} else {
+			// Chose “Stay Offline”
+			m.isLoggedIn = false
+		}
 		m.currentScreen = screenMain
 	}
 	return m
@@ -275,16 +284,18 @@ func (m *model) recordCommand(cmd string) {
 // viewSelectScreen: user picks "Login" or "Stay Offline"
 func (m model) viewSelectScreen() string {
 	title := titleStyle.Render("=== Welcome ===")
-	body := "Use ↑/↓ (or j/k) to toggle between Login and Stay Offline, then press Enter.\n\n"
+	body := "Use ↑/↓ (or j/k) to choose, then press Enter.\n\n"
 
+	// Index 0 => “Login”; Index 1 => “Stay Offline”
 	var loginOpt, offlineOpt string
-	if m.isLoggedIn {
+	if m.selectedIndex == 0 {
 		loginOpt = highlightStyle.Render("> Login <")
 		offlineOpt = choiceStyle.Render("Stay Offline")
 	} else {
 		loginOpt = choiceStyle.Render("Login")
 		offlineOpt = highlightStyle.Render("> Stay Offline <")
 	}
+
 	body += loginOpt + "\n" + offlineOpt + "\n\n"
 	body += helpStyle.Render("(Press q to quit)")
 	return title + "\n\n" + body
