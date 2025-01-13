@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-// LoadConfig reads config from ~/.ngc/config.json (or returns a default if missing).
+// LoadConfig reads config from ~/.ngc/config.json (or returns a default if missing)
 func LoadConfig() (Config, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
