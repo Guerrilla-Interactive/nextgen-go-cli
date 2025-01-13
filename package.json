@@ -7,7 +7,7 @@
       "ngc": "bin/cli.js"
     },
     "scripts": {
-      "build-binaries": "copy-binaries.sh",
+      "build-binaries": "bash scripts/copy-binaries.sh",
       "prepare": "npm run build-binaries",
       "postinstall": "node scripts/postinstall.js"
     },
