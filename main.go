@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens"
 	tea "github.com/charmbracelet/bubbletea"
@@ -23,7 +25,6 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// 1) If the message is an app.Model, it’s likely from InitProjectCmd:
 	case app.Model:
-		// Capture that updated model (which has ProjectPath set).
 		pm.M = typedMsg
 		return pm, nil
 
@@ -64,11 +65,35 @@ func (pm ProgramModel) View() string {
 	return ""
 }
 
+// Here’s an example of how to set the initial Model so that if
+// the user was already "logged in" or had chosen "offline" previously,
+// we skip directly to app.ScreenMain.
 func main() {
+	// Read from env or a file that stores whether the user was logged in/offline
+	// in a previous session. This example just reads an environment variable:
+	skipIntro := os.Getenv("SKIP_INTRO")
+
+	// Build your initial model.
+	// If skipIntro is "1" (or if you have stored isLoggedIn == true, etc.),
+	// you’d set up your Model accordingly.
+	initialModel := app.Model{
+		IsLoggedIn: false, // or read from session
+	}
+
+	// Suppose setting SKIP_INTRO=1 means we skip the intro screen no matter what:
+	if skipIntro == "1" {
+		initialModel.IsLoggedIn = true
+		initialModel.CurrentScreen = app.ScreenMain
+	} else {
+		// Otherwise, start on the “select” screen as usual.
+		// (app.ScreenSelect is default, so you might leave it out.)
+		initialModel.CurrentScreen = app.ScreenSelect
+	}
+
 	// Start the Bubble Tea program using ProgramModel as our root model.
 	p := tea.NewProgram(
 		ProgramModel{
-			M: app.Model{}, // initial data
+			M: initialModel,
 		},
 	)
 	if _, err := p.Run(); err != nil {
