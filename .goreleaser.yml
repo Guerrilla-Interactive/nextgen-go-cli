@@ -54,7 +54,7 @@ nfpms:
       - deb
       - rpm
     bindir: "/usr/bin"
-    maintainer: "Guerrilla Interactive <you@example.com>"
+    maintainer: "Guerrilla Interactive <frikk@jarl.no>"
     description: "A CLI tool built in Go."
     license: "MIT"
 

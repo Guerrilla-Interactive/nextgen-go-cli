@@ -1,5 +1,0 @@
-03c8e42b413dd6ac122eb6f8bc0386a7da5d137153f310f40c8f0829e2f4d665  nextgen-go-cli_0.0.61-SNAPSHOT-0ec9025_linux_amd64.deb
-86c072a744caf16fb4c42bfc34f00f2911ab94978e5b4569f3b5b57800fe6b4f  nextgen-go-cli_0.0.61-SNAPSHOT-0ec9025_linux_amd64.rpm
-1745b5cd220e0f6273f5cd5d534b8285f6423cf5a0e13b64fccd25147294e07c  nextgen-go-cli_darwin_amd64_v0.0.61-SNAPSHOT-0ec9025.tar.gz
-3d28f0eafd8f491fcb9d0bc77f4959b778b7a7478c6f99a0eb8579090a88a540  nextgen-go-cli_linux_amd64_v0.0.61-SNAPSHOT-0ec9025.tar.gz
-54665d713ebb8cc653de4e14f1e9837af31d648c63dc40a3bfe13ea2a86670fd  nextgen-go-cli_windows_amd64_v0.0.61-SNAPSHOT-0ec9025.tar.gz
