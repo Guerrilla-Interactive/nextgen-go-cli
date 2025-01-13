@@ -8,10 +8,9 @@ on:
 
 jobs:
   release:
-    name: Goreleaser
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Check out code
         uses: actions/checkout@v3
 
       - name: Set up Go
@@ -29,15 +28,11 @@ jobs:
 
       - name: Copy Binaries
         run: |
-          set -e
           echo "Copying built binaries to bin/..."
-
-          # remove old binaries if they exist
           rm -f bin/cli-linux || true
           rm -f bin/cli-macos || true
           rm -f bin/cli-win.exe || true
 
-          # copy again (show messages if they don't exist)
           cp dist/nextgen-go-cli_linux_amd64_v1/nextgen-go-cli bin/cli-linux || echo "No Linux binary found."
           cp dist/nextgen-go-cli_darwin_amd64_v1/nextgen-go-cli bin/cli-macos || echo "No macOS binary found."
           cp dist/nextgen-go-cli_windows_amd64_v1/nextgen-go-cli.exe bin/cli-win.exe || echo "No Windows binary found."
@@ -48,18 +43,11 @@ jobs:
 
           echo "Done copying binaries."
 
-      - name: Debug Generated Files
-        run: |
-          echo "Checking files in dist/ directory..."
-          ls -l dist
-          find dist -type f || echo "No files found in dist/!"
-
   publish-npm:
-    name: Publish to NPM
     runs-on: ubuntu-latest
     needs: release
     steps:
-      - name: Checkout
+      - name: Check out code
         uses: actions/checkout@v3
 
       - name: Set up Node.js
@@ -71,8 +59,21 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # Optionally install to ensure dependencies are present if needed
       - name: Install Dependencies
         run: npm install
+
+      # Explicitly run the build-binaries script (if not already done in 'release' job)
+      - name: Build Binaries
+        run: npm run build-binaries
+
+      # Check what's in bin and dist
+      - name: Debug
+        run: |
+          echo "Contents of bin/:"
+          ls -l bin
+          echo "Contents of dist/:"
+          ls -l dist
 
       - name: Publish
         run: npm publish
