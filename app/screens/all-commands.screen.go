@@ -41,7 +41,8 @@ func UpdateScreenAll(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 	return m, nil
 }
 
-// ViewAllScreen renders the “all commands” screen in pretty, fixed-width columns.
+// ViewAllScreen renders the “all commands” screen in pretty, fixed-width columns,
+// now including icons for each command and removing the > < markers.
 func ViewAllScreen(m app.Model) string {
 	// Title
 	title := app.TitleStyle.Render("=== All Commands ===")
@@ -64,7 +65,7 @@ func ViewAllScreen(m app.Model) string {
 		MarginRight(2).
 		Align(lipgloss.Left)
 
-	// Render commands in column-major order
+	// Render commands in column-major order, using icons
 	for r := 0; r < rows; r++ {
 		line := ""
 		for c := 0; c < columns; c++ {
@@ -73,10 +74,12 @@ func ViewAllScreen(m app.Model) string {
 				break
 			}
 			cmd := commands[idx]
+			cmdWithIcon := app.CommandWithIcon(cmd)
+
 			if m.AllCmdsIndex == idx {
-				line += colStyle.Render(app.HighlightStyle.Render("> " + cmd + " <"))
+				line += colStyle.Render(app.HighlightStyle.Render(cmdWithIcon))
 			} else {
-				line += colStyle.Render(app.ChoiceStyle.Render(cmd))
+				line += colStyle.Render(app.ChoiceStyle.Render(cmdWithIcon))
 			}
 		}
 		if line != "" {
@@ -84,9 +87,9 @@ func ViewAllScreen(m app.Model) string {
 		}
 	}
 
-	// Provide "Back" option
+	// Provide "Back" option (highlight if selected, no > <).
 	if m.AllCmdsIndex == commandsCount {
-		body += "\n" + app.HighlightStyle.Render("> Back <") + "\n"
+		body += "\n" + app.HighlightStyle.Render("Back") + "\n"
 	} else {
 		body += "\n" + app.ChoiceStyle.Render("Back") + "\n"
 	}

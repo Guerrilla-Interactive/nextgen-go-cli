@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -64,10 +66,52 @@ var AllCommands = []string{
 // Example styles (you may keep them here, or in a separate file):
 var (
 	TitleStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).MarginTop(2)
-	SubtitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#5f00d7"))
+	SubtitleStyle  = lipgloss.NewStyle().Bold(true)
 	HighlightStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500"))
 	ChoiceStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))
 	DocStyle       = lipgloss.NewStyle().Padding(1, 2).Margin(1, 2)
 	HelpStyle      = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("#888888"))
 	PathStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 )
+
+// CommandIconMap defines a mapping from command strings to Unicode icons.
+var CommandIconMap = map[string]string{
+	"add section":            "✚",
+	"remove section":         "✖",
+	"add page":               "✚",
+	"remove page":            "✖",
+	"add portable-component": "✚",
+	"remove portable-component": "✖",
+	"add component":          "✚",
+	"remove component":       "✖",
+	"add schema":             "✚",
+	"remove schema":          "✖",
+	"add query":              "✚",
+	"remove query":           "✖",
+	"add sanity-plugin":      "✚",
+	"remove sanity-plugin":   "✖",
+	"undo":                   "↺",
+	"redo":                   "↻",
+}
+
+// CommandWithIcon returns a string that prefixes the command with its icon.
+// If no custom icon is found, it falls back to a simple bullet.
+func CommandWithIcon(cmd string) string {
+	if icon, ok := CommandIconMap[cmd]; ok {
+		return fmt.Sprintf("%s  %s", icon, cmd)
+	}
+	return fmt.Sprintf("•  %s", cmd)
+}
+
+// ExampleUsage shows how to apply icons to a slice of commands.
+func ExampleUsage() {
+	fmt.Println("Recent Used Commands:")
+	for _, cmd := range RecentUsed {
+		fmt.Println(CommandWithIcon(cmd))
+	}
+
+	fmt.Println("\nAll Commands:")
+	for _, cmd := range AllCommands {
+		fmt.Println(CommandWithIcon(cmd))
+	}
+}

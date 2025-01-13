@@ -87,6 +87,7 @@ func ViewMainScreen(m app.Model) string {
 }
 
 // renderRecentUsedInColumns displays recent commands in *column-major* order, filling each column top-down.
+// Added icons by calling app.CommandWithIcon(cmd).
 func renderRecentUsedInColumns(items []string, m *app.Model, offset, columns, rows int) string {
 	colStyle := lipgloss.NewStyle().
 		Width(30).
@@ -104,10 +105,14 @@ func renderRecentUsedInColumns(items []string, m *app.Model, offset, columns, ro
 			fullIndex := offset + index
 			cmd := items[index]
 
+			// Use the icon for each command
+			iconCmd := app.CommandWithIcon(cmd)
+
+			// Highlight the selected item without using > < markers
 			if m.SelectedIndex == fullIndex && m.CurrentScreen == app.ScreenMain {
-				line += colStyle.Render(app.HighlightStyle.Render("> " + cmd + " <"))
+				line += colStyle.Render(app.HighlightStyle.Render(iconCmd))
 			} else {
-				line += colStyle.Render(app.ChoiceStyle.Render(cmd))
+				line += colStyle.Render(app.ChoiceStyle.Render(iconCmd))
 			}
 		}
 		if line != "" {
