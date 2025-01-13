@@ -58,6 +58,8 @@ var recentUsed = []string{
 // in the slice, but we fill it in at runtime below.
 var nextSteps = []string{
 	"Show all my commands",
+	"View logs",
+	"Clear recent commands",
 	"LogoutOrLoginPlaceholder",
 }
 
@@ -217,13 +219,36 @@ func (m model) updateScreenMain(msg tea.KeyMsg) model {
 
 	case "enter":
 		itemName, isLast := m.getItemName(m.selectedIndex)
+
 		if isLast {
 			// The last item toggles login state
 			m.isLoggedIn = !m.isLoggedIn
 			m.currentScreen = screenSelect
 		} else {
-			// It's a command (either from recentUsed or nextSteps[0])
-			m.recordCommand(itemName)
+			// Otherwise, check which item was chosen
+			switch itemName {
+			case "Show all my commands":
+				// You could implement whatever logic you like here,
+				// e.g., spitting out more commands, another screen, etc.
+				log.Println("User selected: Show all my commands")
+				m.recordCommand(itemName)
+
+			case "View logs":
+				// Placeholder example for viewing logs
+				log.Println("User selected: View logs")
+				m.recordCommand(itemName)
+
+			case "Clear recent commands":
+				// Example of clearing the recentUsed list
+				log.Println("User selected: Clear recent commands")
+				recentUsed = []string{}
+				m.selectedIndex = 0
+				m.totalItems = len(recentUsed) + len(nextSteps)
+
+			default:
+				// Otherwise, treat it as a command we'll record
+				m.recordCommand(itemName)
+			}
 		}
 	}
 
