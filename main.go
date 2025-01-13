@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
-	"github.com/Guerrilla-Interactive/nextgen-go-cli/screens"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
