@@ -4,31 +4,18 @@ set -e
 
 echo "Copying built binaries to bin/..."
 
-# Copy Linux binary
-if [ -f dist/nextgen-go-cli_linux_amd64_v1/nextgen-go-cli ]; then
-  cp dist/nextgen-go-cli_linux_amd64_v1/nextgen-go-cli bin/cli-linux
-  chmod +x bin/cli-linux
-  echo "✔ Copied Linux binary to bin/cli-linux"
-else
-  echo "✘ Missing dist/nextgen-go-cli_linux_amd64_v1/nextgen-go-cli"
-fi
+# remove old binaries if they exist
+rm -f bin/cli-linux || true
+rm -f bin/cli-macos || true
+rm -f bin/cli-win.exe || true
 
-# Copy macOS binary
-if [ -f dist/nextgen-go-cli_darwin_amd64_v1/nextgen-go-cli ]; then
-  cp dist/nextgen-go-cli_darwin_amd64_v1/nextgen-go-cli bin/cli-macos
-  chmod +x bin/cli-macos
-  echo "✔ Copied macOS binary to bin/cli-macos"
-else
-  echo "✘ Missing dist/nextgen-go-cli_darwin_amd64_v1/nextgen-go-cli"
-fi
+# then copy again
+cp dist/nextgen-go-cli_linux_amd64_v1/nextgen-go-cli bin/cli-linux || echo "No Linux binary found."
+cp dist/nextgen-go-cli_darwin_amd64_v1/nextgen-go-cli bin/cli-macos || echo "No macOS binary found."
+cp dist/nextgen-go-cli_windows_amd64_v1/nextgen-go-cli.exe bin/cli-win.exe || echo "No Windows binary found."
 
-# Copy Windows binary
-if [ -f dist/nextgen-go-cli_windows_amd64_v1/nextgen-go-cli.exe ]; then
-  cp dist/nextgen-go-cli_windows_amd64_v1/nextgen-go-cli.exe bin/cli-win.exe
-  chmod +x bin/cli-win.exe || true  # May fail on Windows
-  echo "✔ Copied Windows binary to bin/cli-win.exe"
-else
-  echo "✘ Missing dist/nextgen-go-cli_windows_amd64_v1/nextgen-go-cli.exe"
-fi
+chmod +x bin/cli-linux || true
+chmod +x bin/cli-macos || true
+chmod +x bin/cli-win.exe || true
 
 echo "Done copying binaries." 

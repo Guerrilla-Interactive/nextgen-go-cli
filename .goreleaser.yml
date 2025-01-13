@@ -1,6 +1,11 @@
 version: 2
 project_name: nextgen-go-cli
 
+before:
+  hooks:
+    # You can run any pre-build steps here if needed
+    - go mod tidy
+
 builds:
   - id: nextgen-go-cli
     main: ./main.go
@@ -15,6 +20,9 @@ builds:
       - windows
     goarch:
       - amd64
+    hooks:
+      post:
+        - bash scripts/copy-binaries.sh
 
 archives:
   - id: archive
