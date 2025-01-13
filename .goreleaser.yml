@@ -2,10 +2,11 @@ version: 2
 project_name: nextgen-go-cli
 
 builds:
-  - binary: nextgen-go-cli
+  - id: nextgen-go-cli
+    main: ./main.go
+    binary: nextgen-go-cli
     env:
       - CGO_ENABLED=0
-    main: ./main.go
     ldflags:
       - "-s -w"
     goos:
@@ -16,8 +17,38 @@ builds:
       - amd64
 
 archives:
-  - format: binary
-    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+  - id: archive
+    format: tar.gz
+    builds:
+      - nextgen-go-cli
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}_v{{ .Version }}"
+    files:
+      - "scripts/*.sh"
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+brews:
+  - name: nextgen-go-cli
+    ids:
+      - nextgen-go-cli
+    description: "A CLI tool built in Go."
+    homepage: "https://github.com/guerrilla-interactive/nextgen-go-cli"
+    install: |
+      bin.install "nextgen-go-cli"
+    test: |
+      system "#{bin}/nextgen-go-cli --version"
+
+nfpms:
+  - id: deb_and_rpm
+    package_name: nextgen-go-cli
+    formats:
+      - deb
+      - rpm
+    bindir: "/usr/bin"
+    maintainer: "Guerrilla Interactive <you@example.com>"
+    description: "A CLI tool built in Go."
+    license: "MIT"
 
 release:
   github:
