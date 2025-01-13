@@ -4,7 +4,7 @@
     "description": "A CLI tool built in Go",
     "bin": {
       "nextgen-cli": "bin/cli.js",
-      "ngc": "bin/cli.js"
+      "ng": "bin/cli.js"
     },
     "scripts": {
       "build-binaries": "bash scripts/copy-binaries.sh",

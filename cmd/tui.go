@@ -47,11 +47,11 @@ var (
 // “Recent used commands” and “Additional Options.”  We’ll display
 // them all on a single screen but label them separately.
 var recentUsed = []string{
-	"ngc init",
-	"ngc build",
-	"ngc deploy",
-	"ngc config set",
-	"ngc help",
+	"ng init",
+	"ng build",
+	"ng deploy",
+	"ng config set",
+	"ng help",
 }
 
 var nextSteps = []string{
