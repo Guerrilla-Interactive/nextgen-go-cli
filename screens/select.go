@@ -3,12 +3,12 @@ package screens
 import (
 	"os"
 
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	tea "github.com/charmbracelet/bubbletea"
-	// <-- Import path for your main package if needed
 )
 
-// UpdateScreenSelect updates the “select” (welcome/offline/login) screen.
-func UpdateScreenSelect(m myapp.model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+// UpdateScreenSelect updates the “select” (login/offline) screen.
+func UpdateScreenSelect(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q":
 		os.Exit(0)
@@ -19,28 +19,28 @@ func UpdateScreenSelect(m myapp.model, msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "enter":
 		// Move on to the main screen
-		m.CurrentScreen = myapp.screenMain
+		m.CurrentScreen = app.ScreenMain
 	}
 	return m, nil
 }
 
 // ViewSelectScreen is the view for the “select” screen.
-func ViewSelectScreen(m myapp.model) string {
-	title := myapp.titleStyle.Render("=== Welcome ===")
+func ViewSelectScreen(m app.Model) string {
+	title := app.TitleStyle.Render("=== Welcome ===")
 	body := summarizeProjectStats(m) + "\n"
 
 	var loginOpt, offlineOpt string
 	if m.IsLoggedIn {
-		loginOpt = myapp.highlightStyle.Render("> Login <")
-		offlineOpt = myapp.choiceStyle.Render("Stay Offline")
+		loginOpt = app.HighlightStyle.Render("> Login <")
+		offlineOpt = app.ChoiceStyle.Render("Stay Offline")
 	} else {
-		loginOpt = myapp.choiceStyle.Render("Login")
-		offlineOpt = myapp.highlightStyle.Render("> Stay Offline <")
+		loginOpt = app.ChoiceStyle.Render("Login")
+		offlineOpt = app.HighlightStyle.Render("> Stay Offline <")
 	}
 
 	body += loginOpt + "\n" + offlineOpt + "\n\n"
 
-	body += myapp.helpStyle.Render(
+	body += app.HelpStyle.Render(
 		"Use ↑/↓ (or j/k) to toggle between Login and Stay Offline, then press Enter.\n" +
 			"(Press q to quit)")
 

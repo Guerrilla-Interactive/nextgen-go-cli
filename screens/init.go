@@ -6,11 +6,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // InitProjectCmd returns a Cmd that loads project info (recognized packages, etc.).
-func InitProjectCmd(m myapp.model) tea.Cmd {
+func InitProjectCmd(m app.Model) tea.Cmd {
 	return func() tea.Msg {
 		wd, _ := os.Getwd()
 		recPkgs := detectFrameworks(wd)
@@ -21,7 +22,6 @@ func InitProjectCmd(m myapp.model) tea.Cmd {
 	}
 }
 
-// detectFrameworks is just an example of reading package.json (similar to your prior snippet).
 func detectFrameworks(projectPath string) []string {
 	knownPackages := map[string]string{
 		"next":              "Next.js",
