@@ -43,12 +43,25 @@ jobs:
 
           echo "Done copying binaries."
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: |
+            bin/
+            dist/
+
   publish-npm:
     runs-on: ubuntu-latest
     needs: release
     steps:
       - name: Check out code
         uses: actions/checkout@v3
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
@@ -59,15 +72,11 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Optionally install to ensure dependencies are present if needed
+      # (Optional) If you need your Node.js dependencies
       - name: Install Dependencies
         run: npm install
 
-      # Explicitly run the build-binaries script (if not already done in 'release' job)
-      - name: Build Binaries
-        run: npm run build-binaries
-
-      # Check what's in bin and dist
+      # Debug what's in bin and dist now that artifacts are downloaded
       - name: Debug
         run: |
           echo "Contents of bin/:"
@@ -75,5 +84,6 @@ jobs:
           echo "Contents of dist/:"
           ls -l dist
 
+      # Finally, publish to NPM
       - name: Publish
         run: npm publish
