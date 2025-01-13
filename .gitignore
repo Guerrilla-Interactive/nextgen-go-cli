@@ -3,7 +3,6 @@ node_modules/
 
 # Go binaries
 dist/
-*.exe
 *.out
 *.log
 
