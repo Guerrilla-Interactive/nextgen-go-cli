@@ -46,11 +46,11 @@ var (
 
 // recentUsed starts with some defaults, but is mutable.
 var recentUsed = []string{
-	"ngc init",
-	"ngc build",
-	"ngc deploy",
-	"ngc config set",
-	"ngc help",
+	"ng init",
+	"ng build",
+	"ng deploy",
+	"ng config set",
+	"ng help",
 }
 
 // nextSteps always has 2 items—first is “Show all my commands,” second is a placeholder
