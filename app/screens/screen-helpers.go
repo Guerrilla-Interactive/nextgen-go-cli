@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // summarizeProjectStats returns a string with project stats.
@@ -12,25 +13,49 @@ func summarizeProjectStats(m app.Model) string {
 	if len(m.RecognizedPkgs) == 0 {
 		result += "    • None recognized packages\n"
 	} else {
-		// E.g. 6 columns max
+		// Render recognized packages in up to 6 columns using Lipgloss.
 		result += renderPackagesHorizontally(m.RecognizedPkgs, 6)
 	}
 	return result
 }
 
-func renderPackagesHorizontally(items []string, columns int) string {
-	var lines []string
-	var currentLine []string
-
-	for i, pkg := range items {
-		currentLine = append(currentLine, pkg)
-		if (i+1)%columns == 0 {
-			lines = append(lines, strings.Join(currentLine, " | "))
-			currentLine = nil
-		}
+// renderPackagesHorizontally displays items in a grid of fixed-width columns, up to maxCols columns.
+func renderPackagesHorizontally(items []string, maxCols int) string {
+	if len(items) == 0 {
+		return ""
 	}
-	if len(currentLine) > 0 {
-		lines = append(lines, strings.Join(currentLine, " | "))
+
+	// Number of columns is either maxCols or fewer if we have fewer items.
+	cols := maxCols
+	if len(items) < cols {
+		cols = len(items)
+	}
+	// Compute how many rows we need
+	rows := (len(items) + cols - 1) / cols // integer ceiling
+
+	// Define a lipgloss style for fixed-width columns.
+	// Adjust width to your preference.
+	colStyle := lipgloss.NewStyle().
+		Width(18).
+		MarginRight(2).
+		Align(lipgloss.Left)
+
+	var lines []string
+
+	// Render items in rows x cols layout
+	for r := 0; r < rows; r++ {
+		var line string
+		for c := 0; c < cols; c++ {
+			index := c*rows + r
+			if index >= len(items) {
+				break
+			}
+			item := items[index]
+			line += colStyle.Render(item)
+		}
+		if strings.TrimSpace(line) != "" {
+			lines = append(lines, line)
+		}
 	}
 
 	return strings.Join(lines, "\n") + "\n"
@@ -101,7 +126,7 @@ func renderItemsHorizontally(items []string, m *app.Model, offset, columns int) 
 }
 
 // renderItemList is used for the NextSteps on the main screen.
-func renderItemList(items []string, m *app.Model, offset int) string {
+func renderItemList(items []string, m app.Model, offset int) string {
 	var out string
 	for i, val := range items {
 		fullIndex := offset + i

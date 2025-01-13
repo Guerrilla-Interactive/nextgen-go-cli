@@ -29,12 +29,12 @@ type Model struct {
 var RecentUsed = []string{
 	"add section",
 	"remove section",
-	"undo",
-	"redo",
 	"add page",
 	"remove page",
 	"add portable-component",
 	"remove portable-component",
+	"undo",
+	"redo",
 }
 
 var NextSteps = []string{
@@ -43,14 +43,22 @@ var NextSteps = []string{
 }
 
 var AllCommands = []string{
-	"ng add section",
-	"ng remove section",
-	"ng undo",
-	"ng redo",
-	"ng add page",
-	"ng remove page",
-	"ng add portable-component",
-	"ng remove portable-component",
+	"add section",
+	"remove section",
+	"add page",
+	"remove page",
+	"add portable-component",
+	"remove portable-component",
+	"add component",
+	"remove component",
+	"add schema",
+	"remove schema",
+	"add query",
+	"remove query",
+	"add sanity-plugin",
+	"remove sanity-plugin",
+	"undo",
+	"redo",
 }
 
 // Example styles (you may keep them here, or in a separate file):
