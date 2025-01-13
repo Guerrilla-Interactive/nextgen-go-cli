@@ -2,6 +2,7 @@
 node_modules/
 
 # Go binaries
+dist/
 *.out
 *.log
 
