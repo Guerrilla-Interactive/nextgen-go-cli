@@ -21,7 +21,7 @@ func summarizeProjectStats(m app.Model) string {
 }
 
 // renderPackagesHorizontally displays items in a grid of up to maxCols columns,
-// without a fixed width. Now we place a bullet (•) between each package in a row.
+// without a fixed widt
 func renderPackagesHorizontally(items []string, maxCols int) string {
 	if len(items) == 0 {
 		return ""
