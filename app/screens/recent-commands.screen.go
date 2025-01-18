@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -36,14 +37,13 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 	case "enter":
 		itemName, isLast := getItemName(m, m.SelectedIndex)
 		if isLast {
-			// Toggle login/offline and go back to select screen
 			m.IsLoggedIn = !m.IsLoggedIn
 			m.CurrentScreen = app.ScreenSelect
 		} else {
-			if itemName == app.NextSteps[0] {
+			if itemName == commands.NextSteps[0] {
 				m.CurrentScreen = app.ScreenAll
 				m.AllCmdsIndex = 0
-				m.AllCmdsTotal = len(app.AllCommands) + 1
+				m.AllCmdsTotal = len(commands.AllCommandNames()) + 1
 			} else {
 				recordCommand(&m, itemName)
 			}
@@ -72,14 +72,14 @@ func ViewMainScreen(m app.Model) string {
 
 	body += app.SubtitleStyle.Render("Recent used commands:") + "\n\n"
 	// 3×5 grid (column-major):
-	body += renderRecentUsedInColumns(app.RecentUsed, &m, 0, 3, 5)
+	body += renderRecentUsedInColumns(commands.RecentUsed, &m, 0, 3, 5)
 
 	body += "\n"
 
 	// NextSteps: [ "Show all my commands", "Back" ]
 	// We'll rename the second item to "Back" for the user:
-	opts := []string{app.NextSteps[0], "Back"}
-	body += renderItemList(opts, m, len(app.RecentUsed))
+	opts := []string{commands.NextSteps[0], "Back"}
+	body += renderItemList(opts, m, len(commands.RecentUsed))
 
 	body += "\n" + app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)")
 
@@ -106,7 +106,7 @@ func renderRecentUsedInColumns(items []string, m *app.Model, offset, columns, ro
 			cmd := items[index]
 
 			// Use the icon for each command
-			iconCmd := app.CommandWithIcon(cmd)
+			iconCmd := commands.CommandWithIcon(cmd)
 
 			// Highlight the selected item without using > < markers
 			if m.SelectedIndex == fullIndex && m.CurrentScreen == app.ScreenMain {
@@ -124,7 +124,7 @@ func renderRecentUsedInColumns(items []string, m *app.Model, offset, columns, ro
 
 // moveSelectionLeft moves the selection one column to the left (if possible).
 func moveSelectionLeft(m app.Model) app.Model {
-	totalUsed := len(app.RecentUsed)
+	totalUsed := len(commands.RecentUsed)
 	if m.SelectedIndex >= totalUsed {
 		return m // In NextSteps, left does nothing
 	}
@@ -146,7 +146,7 @@ func moveSelectionLeft(m app.Model) app.Model {
 
 // moveSelectionRight moves the selection one column to the right (if possible).
 func moveSelectionRight(m app.Model) app.Model {
-	totalUsed := len(app.RecentUsed)
+	totalUsed := len(commands.RecentUsed)
 	if m.SelectedIndex >= totalUsed {
 		return m // In NextSteps, right does nothing
 	}
@@ -171,7 +171,7 @@ func moveSelectionRight(m app.Model) app.Model {
 // If in top row of RecentUsed, jump to the last NextSteps item; else, just row--.
 // SPECIAL: If up from the first NextStep, go to the bottom of the first column (index=4 if >=5 commands).
 func moveSelectionUp(m app.Model) app.Model {
-	totalUsed := len(app.RecentUsed)
+	totalUsed := len(commands.RecentUsed)
 	if totalUsed == 0 {
 		return m // no recent items
 	}
@@ -203,7 +203,7 @@ func moveSelectionUp(m app.Model) app.Model {
 	row := m.SelectedIndex % rows
 	if row == 0 {
 		// If in top row, jump to the last next step (if it exists), otherwise the first
-		if len(app.NextSteps) > 1 {
+		if len(commands.NextSteps) > 1 {
 			m.SelectedIndex = totalUsed + 1 // second next step => "Back"
 		} else {
 			m.SelectedIndex = totalUsed // first next step
@@ -220,7 +220,7 @@ func moveSelectionUp(m app.Model) app.Model {
 // moveSelectionDown handles downward movement:
 // If on bottom row of RecentUsed, move to first NextStep; then second NextStep; then wrap to top, etc.
 func moveSelectionDown(m app.Model) app.Model {
-	totalUsed := len(app.RecentUsed)
+	totalUsed := len(commands.RecentUsed)
 	const columns = 3
 	const rows = 5
 
@@ -259,10 +259,10 @@ func moveSelectionDown(m app.Model) app.Model {
 // moveSelectionDownInNextSteps moves the selection down among NextSteps.
 // If we pass the last NextStep, wrap to the top of RecentUsed (index=0).
 func moveSelectionDownInNextSteps(m app.Model) app.Model {
-	totalUsed := len(app.RecentUsed)
+	totalUsed := len(commands.RecentUsed)
 	stepIndex := m.SelectedIndex - totalUsed
 	stepIndex++
-	if stepIndex >= len(app.NextSteps) {
+	if stepIndex >= len(commands.NextSteps) {
 		// Wrap back to the top of RecentUsed
 		m.SelectedIndex = 0
 	} else {

@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -30,12 +31,18 @@ func UpdateScreenAll(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		m = moveAllCmdsSelectionDown(m)
 
 	case "enter":
-		// If on "Back" index, go back to main screen
-		if m.AllCmdsIndex == len(app.AllCommands) {
+		all := commands.AllCommandNames()
+		if m.AllCmdsIndex == len(all) {
 			m.CurrentScreen = app.ScreenMain
 		} else {
-			cmd := app.AllCommands[m.AllCmdsIndex]
-			recordCommand(&m, cmd)
+			cmdName := all[m.AllCmdsIndex]
+			if cmdName == "add page" {
+				m.PendingCommand = "add page"
+				m.CurrentScreen = app.ScreenFilenamePrompt
+			} else {
+				recordCommand(&m, cmdName)
+				commands.RunCommand(cmdName, m.ProjectPath, nil)
+			}
 		}
 	}
 	return m, nil
@@ -53,8 +60,8 @@ func ViewAllScreen(m app.Model) string {
 	body := title + "\n" + pathLine + "\n\n"
 	body += app.SubtitleStyle.Render("Select a command (Enter to log usage).") + "\n\n"
 
-	commands := app.AllCommands
-	commandsCount := len(commands)
+	all := commands.AllCommandNames()
+	commandsCount := len(all)
 	const rows = 10
 	columns := (commandsCount + rows - 1) / rows
 
@@ -73,8 +80,8 @@ func ViewAllScreen(m app.Model) string {
 			if idx >= commandsCount {
 				break
 			}
-			cmd := commands[idx]
-			cmdWithIcon := app.CommandWithIcon(cmd)
+			cmdName := all[idx]
+			cmdWithIcon := commands.CommandWithIcon(cmdName)
 
 			if m.AllCmdsIndex == idx {
 				line += colStyle.Render(app.HighlightStyle.Render(cmdWithIcon))
@@ -102,7 +109,7 @@ func ViewAllScreen(m app.Model) string {
 // moveAllCmdsSelectionLeft moves the selection one column to the left (if possible).
 func moveAllCmdsSelectionLeft(m app.Model) app.Model {
 	idx := m.AllCmdsIndex
-	commandsCount := len(app.AllCommands)
+	commandsCount := len(commands.AllCommandNames())
 	if idx == commandsCount {
 		// On "Back," do nothing
 		return m
@@ -126,7 +133,7 @@ func moveAllCmdsSelectionLeft(m app.Model) app.Model {
 // moveAllCmdsSelectionRight moves the selection one column to the right (if possible).
 func moveAllCmdsSelectionRight(m app.Model) app.Model {
 	idx := m.AllCmdsIndex
-	commandsCount := len(app.AllCommands)
+	commandsCount := len(commands.AllCommandNames())
 	if idx == commandsCount {
 		// On "Back," do nothing
 		return m
@@ -154,7 +161,7 @@ func moveAllCmdsSelectionRight(m app.Model) app.Model {
 // If on "Back," go to bottom of the first column. If already on top row, move to "Back."
 func moveAllCmdsSelectionUp(m app.Model) app.Model {
 	idx := m.AllCmdsIndex
-	commandsCount := len(app.AllCommands)
+	commandsCount := len(commands.AllCommandNames())
 	if idx == commandsCount {
 		// If on Back, go to bottom of first column (index=rows-1), unless we have fewer items
 		const rows = 10
@@ -189,7 +196,7 @@ func moveAllCmdsSelectionUp(m app.Model) app.Model {
 // If on "Back" and press down, wrap to top (index=0).
 func moveAllCmdsSelectionDown(m app.Model) app.Model {
 	idx := m.AllCmdsIndex
-	commandsCount := len(app.AllCommands)
+	commandsCount := len(commands.AllCommandNames())
 	if idx == commandsCount {
 		// If on Back, wrap to top
 		m.AllCmdsIndex = 0

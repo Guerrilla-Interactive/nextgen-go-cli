@@ -45,6 +45,11 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			updatedM, cmd := screens.UpdateScreenAll(pm.M, typedMsg)
 			pm.M = updatedM
 			return pm, cmd
+
+		case app.ScreenFilenamePrompt:
+			updatedM, cmd := screens.UpdateScreenFilenamePrompt(pm.M, typedMsg)
+			pm.M = updatedM
+			return pm, cmd
 		}
 	}
 
@@ -61,6 +66,8 @@ func (pm ProgramModel) View() string {
 		return screens.ViewMainScreen(pm.M)
 	case app.ScreenAll:
 		return screens.ViewAllScreen(pm.M)
+	case app.ScreenFilenamePrompt:
+		return screens.ViewFilenamePrompt(pm.M)
 	}
 	return ""
 }

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -68,25 +69,31 @@ func renderPackagesHorizontally(items []string, maxCols int) string {
 
 // getItemName returns the label (and a bool if it's the last item).
 func getItemName(m app.Model, index int) (string, bool) {
-	// offset = len(RecentUsed) + (len(NextSteps) - 1)
-	offset := len(app.RecentUsed) + (len(app.NextSteps) - 1)
+	// offset = len(commands.RecentUsed) + (len(commands.NextSteps) - 1)
+	offset := len(commands.RecentUsed) + (len(commands.NextSteps) - 1)
+
+	// If index == offset, we're on Logout/Login.
 	if index == offset {
 		if m.IsLoggedIn {
 			return "Logout", true
 		}
 		return "Login", true
 	}
-	if index < len(app.RecentUsed) {
-		return app.RecentUsed[index], false
+
+	// If within recent commands:
+	if index < len(commands.RecentUsed) {
+		return commands.RecentUsed[index], false
 	}
-	stepIndex := index - len(app.RecentUsed)
-	return app.NextSteps[stepIndex], false
+
+	// Otherwise, it's a NextStep.
+	stepIndex := index - len(commands.RecentUsed)
+	return commands.NextSteps[stepIndex], false
 }
 
 // recordCommand moves the chosen command to the front of RecentUsed, removing duplicates, limit to 8.
 func recordCommand(m *app.Model, cmd string) {
 	idx := -1
-	for i, v := range app.RecentUsed {
+	for i, v := range commands.RecentUsed {
 		if v == cmd {
 			idx = i
 			break
@@ -94,19 +101,21 @@ func recordCommand(m *app.Model, cmd string) {
 	}
 	if idx != -1 {
 		// Remove it from old position
-		app.RecentUsed = append(app.RecentUsed[:idx], app.RecentUsed[idx+1:]...)
+		commands.RecentUsed = append(commands.RecentUsed[:idx], commands.RecentUsed[idx+1:]...)
 	}
+
 	// Add to front
-	app.RecentUsed = append([]string{cmd}, app.RecentUsed...)
+	commands.RecentUsed = append([]string{cmd}, commands.RecentUsed...)
 
 	// Cap at 8
-	if len(app.RecentUsed) > 8 {
-		app.RecentUsed = app.RecentUsed[:8]
+	if len(commands.RecentUsed) > 8 {
+		commands.RecentUsed = commands.RecentUsed[:8]
 	}
 
-	m.TotalItems = len(app.RecentUsed) + len(app.NextSteps)
+	m.TotalItems = len(commands.RecentUsed) + len(commands.NextSteps)
 }
 
+// renderItemsHorizontally is an example utility that can display a set of items in a row-based layout.
 func renderItemsHorizontally(items []string, m *app.Model, offset, columns int) string {
 	var outputLines []string
 	var currentLine string

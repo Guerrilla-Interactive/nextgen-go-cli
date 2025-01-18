@@ -78,8 +78,13 @@ func processNodes(nodes []TreeNode, basePath string, placeholders map[string]str
 			if err := processNodes(node.Children, currentPath, placeholders); err != nil {
 				return err
 			}
+
 		} else if node.Code != "" {
-			// Otherwise, if there’s code, we treat it as a file.
+			// Before writing a file, ensure its parent directory exists.
+			if err := os.MkdirAll(filepath.Dir(currentPath), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directory for %s: %w", currentPath, err)
+			}
+
 			code := replacePlaceholders(node.Code, placeholders)
 			if err := os.WriteFile(currentPath, []byte(code), 0644); err != nil {
 				return fmt.Errorf("failed to write file %s: %w", currentPath, err)
@@ -98,35 +103,72 @@ func replacePlaceholders(content string, placeholders map[string]string) string 
 	return content
 }
 
-// BuildNamePlaceholders is an example helper for automatically building
-// typical naming placeholders (PascalCase, camelCase, kebab-case, etc.).
-func BuildNamePlaceholders(rawName string) map[string]string {
-	return map[string]string{
-		"{example}":                    strings.ToLower(rawName),
-		"{{.PascalCaseComponentName}}": toPascalCase(rawName),
-		"{{.CamelCaseComponentName}}":  toCamelCase(rawName),
-		"{{.KebabCaseComponentName}}":  toKebabCase(rawName),
+// ----------------------------------------------------------------------------
+// General helper method to run any JSON template – including page-and-archive!
+// ----------------------------------------------------------------------------
+
+// RunJsonTemplate is a generalized method that calls ExecuteJSONTemplate
+// on whatever JSON file path you supply.
+//
+// Example usage:
+//
+//	err := RunJsonTemplate("commands/page-and-archive.json", projectPath, placeholders)
+//	if err != nil {
+//	  // handle error
+//	}
+//
+// You can pass any .json file here, so you don’t need a dedicated function
+// just for "page-and-archive.json".
+func RunJsonTemplate(jsonFilePath, projectPath string, placeholders map[string]string) error {
+	if err := ExecuteJSONTemplate(jsonFilePath, projectPath, placeholders); err != nil {
+		return fmt.Errorf("failed to run JSON template: %w", err)
 	}
+	return nil
 }
 
-// Example case conversion helpers:
+// ToKebabCase takes a string like "Hello World" and returns "hello-world".
+func ToKebabCase(input string) string {
+	// For simplicity, we just make it lowercase,
+	// then replace spaces with hyphens:
+	input = strings.ToLower(input)
+	input = strings.ReplaceAll(input, " ", "-")
+	return input
+}
 
-func toPascalCase(s string) string {
-	words := strings.Fields(s)
+// ToPascalCase takes a string like "hello-world" or "hello world"
+// and returns "HelloWorld".
+func ToPascalCase(input string) string {
+	words := splitIntoWords(input)
 	for i, w := range words {
 		words[i] = strings.Title(strings.ToLower(w))
 	}
 	return strings.Join(words, "")
 }
 
-func toCamelCase(s string) string {
-	pascal := toPascalCase(s)
+// ToCamelCase takes "HelloWorld" and returns "helloWorld".
+func ToCamelCase(input string) string {
+	pascal := ToPascalCase(input)
 	if len(pascal) == 0 {
-		return ""
+		return pascal
 	}
 	return strings.ToLower(pascal[:1]) + pascal[1:]
 }
 
-func toKebabCase(s string) string {
-	return strings.ToLower(strings.Join(strings.Fields(s), "-"))
+// splitIntoWords is a helper to separate on space or hyphen.
+func splitIntoWords(s string) []string {
+	// Replace hyphens with a space, then split on whitespace:
+	s = strings.ReplaceAll(s, "-", " ")
+	fields := strings.Fields(s)
+	return fields
+}
+
+// BuildNamePlaceholders is an example helper for automatically building
+// typical naming placeholders (PascalCase, camelCase, kebab-case, etc.).
+func BuildNamePlaceholders(rawName string) map[string]string {
+	return map[string]string{
+		"{example}":                    strings.ToLower(rawName),
+		"{{.PascalCaseComponentName}}": ToPascalCase(rawName),
+		"{{.CamelCaseComponentName}}":  ToCamelCase(rawName),
+		"{{.KebabCaseComponentName}}":  ToKebabCase(rawName),
+	}
 }
