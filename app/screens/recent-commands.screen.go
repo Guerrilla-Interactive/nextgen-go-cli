@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// UpdateScreenMain handles input for the main screen with “smart” arrow navigation:
+// UpdateScreenMain handles input for the main screen with "smart" arrow navigation:
 //   - 3 columns × 5 rows in column-major order for RecentUsed.
 //   - Pressing ↓ on the bottom row goes to the first NextSteps item ("Show all my commands");
 //     pressing ↓ again goes to "Back"; pressing ↓ again wraps to the top of RecentUsed.
@@ -40,13 +40,7 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			m.IsLoggedIn = !m.IsLoggedIn
 			m.CurrentScreen = app.ScreenSelect
 		} else {
-			if itemName == commands.NextSteps[0] {
-				m.CurrentScreen = app.ScreenAll
-				m.AllCmdsIndex = 0
-				m.AllCmdsTotal = len(commands.AllCommandNames()) + 1
-			} else {
-				recordCommand(&m, itemName)
-			}
+			m = *HandleCommandSelection(&m, itemName)
 		}
 	}
 	return m, nil

@@ -152,3 +152,29 @@ func renderItemList(items []string, m app.Model, offset int) string {
 	}
 	return out
 }
+
+// HandleCommandSelection centralizes what happens when a command is selected.
+func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
+	// Always record the command so it appears at the top of RecentUsed:
+	recordCommand(m, itemName)
+
+	// Check if user wants to show all commands:
+	if itemName == commands.NextSteps[0] {
+		m.CurrentScreen = app.ScreenAll
+		m.AllCmdsIndex = 0
+		m.AllCmdsTotal = len(commands.AllCommandNames()) + 1
+		return m
+	}
+
+	// Check if user selected "add page":
+	if itemName == "add page" {
+		m.PendingCommand = "add page"
+		m.CurrentScreen = app.ScreenFilenamePrompt
+		return m
+	}
+
+	// Otherwise, run the command, then go back to Main:
+	commands.RunCommand(itemName, m.ProjectPath, nil)
+	m.CurrentScreen = app.ScreenMain
+	return m
+}
