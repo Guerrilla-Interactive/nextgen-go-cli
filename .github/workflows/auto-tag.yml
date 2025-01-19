@@ -12,8 +12,10 @@ jobs:
   create-tag:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code
+      - name: Check out code (full history)
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0   # Ensure we have the full commit history so we can tag properly.
 
       - name: Set up Node
         uses: actions/setup-node@v3
@@ -24,7 +26,7 @@ jobs:
         id: read_version
         run: |
           VERSION=$(jq -r '.version' package.json)
-          echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "PACKAGE_VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Configure Git
         run: |
@@ -34,6 +36,6 @@ jobs:
       - name: Create and push git tag
         run: |
           TAG="v${{ steps.read_version.outputs.PACKAGE_VERSION }}"
-          echo "Creating git tag $TAG"
-          git tag -a "$TAG" -m "Auto-tag $TAG"
+          echo "Creating git tag $TAG for commit $GITHUB_SHA"
+          git tag -a "$TAG" "$GITHUB_SHA" -m "Auto-tag $TAG"
           git push origin "$TAG" 
