@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-    # Only run if package.json changes (so we only tag when a version bump is committed)
+    # Only run if package.json changes, so we only tag on a version bump
     paths:
       - "package.json"
 
@@ -21,15 +21,19 @@ jobs:
           node-version: '18'
 
       - name: Read version from package.json
-        id: pkg
+        id: read_version
         run: |
-          echo "PACKAGE_VERSION=$(jq -r '.version' package.json)" >> $GITHUB_OUTPUT
+          VERSION=$(jq -r '.version' package.json)
+          echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
 
       - name: Create and push git tag
         run: |
-          TAG="v${{ steps.pkg.outputs.PACKAGE_VERSION }}"
-          echo "Tagging version $TAG"
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git tag -a "$TAG" -m "Auto-tag: $TAG"
+          TAG="v${{ steps.read_version.outputs.PACKAGE_VERSION }}"
+          echo "Creating git tag $TAG"
+          git tag -a "$TAG" -m "Auto-tag $TAG"
           git push origin "$TAG" 
