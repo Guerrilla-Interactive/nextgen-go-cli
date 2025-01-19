@@ -1,6 +1,6 @@
 {
   "name": "nextgen-go-cli",
-  "version": "0.0.93",
+  "version": "0.0.94",
   "description": "A CLI tool built in Go",
   "bin": {
     "nextgen-cli": "bin/cli.js",
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build-binaries": "bash scripts/copy-binaries.sh",
-    "prepare": "npm run build-binaries && husky install",
+    "prepare": "npm run build-binaries",
     "postinstall": "node scripts/postinstall.js",
     "tag-release": "node scripts/tag-and-push-version.js"
   },
