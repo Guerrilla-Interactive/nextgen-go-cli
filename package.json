@@ -1,6 +1,6 @@
 {
   "name": "nextgen-go-cli",
-  "version": "0.0.88",
+  "version": "0.0.89",
   "description": "A CLI tool built in Go",
   "bin": {
     "nextgen-cli": "bin/cli.js",
@@ -9,7 +9,8 @@
   "scripts": {
     "build-binaries": "bash scripts/copy-binaries.sh",
     "prepare": "npm run build-binaries",
-    "postinstall": "node scripts/postinstall.js"
+    "postinstall": "node scripts/postinstall.js",
+    "tag-release": "node scripts/tag-and-push-version.js"
   },
   "files": [
     "dist/nextgen-go-cli_darwin_amd64_v1/nextgen-go-cli",
