@@ -15,10 +15,11 @@ jobs:
   create-tag:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code (full history)
+      - name: Check out the exact commit that triggered this push
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0   # Ensure we have the full commit history so we can tag properly.
+          ref: ${{ github.event.ref }} # E.g. "refs/heads/main"
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v3
@@ -31,6 +32,15 @@ jobs:
           VERSION=$(jq -r '.version' package.json)
           echo "PACKAGE_VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Show debug info
+        run: |
+          echo "github.event.ref: ${{ github.event.ref }}"
+          echo "HEAD commit:     $(git rev-parse HEAD)"
+          echo "GITHUB_SHA:      $GITHUB_SHA"
+          echo "github.event.after: ${{ github.event.after }}"
+          echo "Diff logs last 3 commits:"
+          git log -3 --pretty=oneline
+
       - name: Configure Git
         run: |
           git config user.name "github-actions"
@@ -38,18 +48,10 @@ jobs:
 
       - name: Create and push git tag
         run: |
-          # "github.event.after" is the SHA of the final commit in this push.
-          COMMIT_SHA="${{ github.event.after }}"
+          # Current HEAD after checkout is the commit that triggered the push event
+          CURRENT_SHA=$(git rev-parse HEAD)
           TAG="v${{ steps.read_version.outputs.PACKAGE_VERSION }}"
+          echo "Tagging commit $CURRENT_SHA as $TAG"
 
-          echo "Auto-tagging commit $COMMIT_SHA with tag $TAG"
-
-          # Make sure we're on the main branch & up to date
-          git checkout main
-          git pull --ff-only
-
-          # Create the tag pointing to that commit
-          git tag -a "$TAG" "$COMMIT_SHA" -m "Auto-tag $TAG"
-
-          # Push the tag
+          git tag -a "$TAG" "$CURRENT_SHA" -m "Auto-tag $TAG"
           git push origin "$TAG" 
