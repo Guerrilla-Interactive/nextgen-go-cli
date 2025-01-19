@@ -1,6 +1,6 @@
 {
   "name": "nextgen-go-cli",
-  "version": "0.0.90",
+  "version": "0.0.91",
   "description": "A CLI tool built in Go",
   "bin": {
     "nextgen-cli": "bin/cli.js",
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build-binaries": "bash scripts/copy-binaries.sh",
-    "prepare": "npm run build-binaries",
+    "prepare": "npm run build-binaries && husky install",
     "postinstall": "node scripts/postinstall.js",
     "tag-release": "node scripts/tag-and-push-version.js"
   },
@@ -35,7 +35,10 @@
     "url": "https://github.com/guerrilla-interactive/nextgen-go-cli/issues"
   },
   "dependencies": {
-    "sanity": "^3.69.0",
-    "next": "^15.1.4"
+    "next": "^15.1.4",
+    "sanity": "^3.69.0"
+  },
+  "devDependencies": {
+    "husky": "^8.0.0"
   }
 }

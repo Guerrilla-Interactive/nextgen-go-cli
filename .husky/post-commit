@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+. "$(dirname "$0")/_/husky.sh"
+
+# Check if package.json changed in the last commit:
+if ! git diff --quiet HEAD~1 HEAD -- package.json; then
+  # Check if the "version" field changed
+  if git diff HEAD~1 HEAD -- package.json | grep -q '"version":'; then
+    echo "Detected a package.json version change. Running tag-and-push-version script..."
+    npm run tag-release
+  fi
+fi 

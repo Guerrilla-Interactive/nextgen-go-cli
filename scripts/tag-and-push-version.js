@@ -5,7 +5,7 @@
 const { execSync } = require("child_process");
 const fs = require("fs");
 
-// Read the current version from package.json
+// Read version from package.json
 const pkg = JSON.parse(fs.readFileSync("./package.json", "utf8"));
 const version = pkg.version;
 
