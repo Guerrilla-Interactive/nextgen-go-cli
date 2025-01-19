@@ -1,6 +1,6 @@
 {
   "name": "nextgen-go-cli",
-  "version": "0.0.92",
+  "version": "0.0.93",
   "description": "A CLI tool built in Go",
   "bin": {
     "nextgen-cli": "bin/cli.js",
