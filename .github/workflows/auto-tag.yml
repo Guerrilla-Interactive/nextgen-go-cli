@@ -8,6 +8,9 @@ on:
     paths:
       - "package.json"
 
+permissions:
+  contents: write   # <--- Needed to push tags to the repo
+
 jobs:
   create-tag:
     runs-on: ubuntu-latest
@@ -35,7 +38,18 @@ jobs:
 
       - name: Create and push git tag
         run: |
+          # "github.event.after" is the SHA of the final commit in this push.
+          COMMIT_SHA="${{ github.event.after }}"
           TAG="v${{ steps.read_version.outputs.PACKAGE_VERSION }}"
-          echo "Creating git tag $TAG for commit $GITHUB_SHA"
-          git tag -a "$TAG" "$GITHUB_SHA" -m "Auto-tag $TAG"
+
+          echo "Auto-tagging commit $COMMIT_SHA with tag $TAG"
+
+          # Make sure we're on the main branch & up to date
+          git checkout main
+          git pull --ff-only
+
+          # Create the tag pointing to that commit
+          git tag -a "$TAG" "$COMMIT_SHA" -m "Auto-tag $TAG"
+
+          # Push the tag
           git push origin "$TAG" 
