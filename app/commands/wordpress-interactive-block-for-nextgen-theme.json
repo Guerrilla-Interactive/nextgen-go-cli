@@ -17,7 +17,7 @@
                 "_key": "1737299481494-blockjson",
                 "_type": "treeNode",
                 "children": [],
-                "code": "{\n\t\"$schema\": \"https://schemas.wp.org/trunk/block.json\",\n\t\"apiVersion\": 3,\n\t\"name\": \"create-block/{{.KebabCaseComponentName}}\",\n\t\"version\": \"0.1.0\",\n\t\"title\": \"{{.PascalCaseComponentName}}\",\n\t\"category\": \"widgets\",\n\t\"icon\": \"media-interactive\",\n\t\"description\": \"An interactive block with the Interactivity API.\",\n\t\"example\": {},\n\t\"supports\": {\n\t\t\"interactivity\": true\n\t},\n\t\"textdomain\": \"{{.KebabCaseComponentName}}\",\n\t\"editorScript\": \"file:./index.js\",\n\t\"editorStyle\": \"file:./index.css\",\n\t\"style\": \"file:./style-index.css\",\n\t\"render\": \"file:./render.php\",\n\t\"viewScriptModule\": \"file:./view.js\"\n}",
+                "code": "{\n\t\"$schema\": \"https://schemas.wp.org/trunk/block.json\",\n\t\"apiVersion\": 3,\n\t\"name\": \"create-block/{{.KebabCaseComponentName}}\",\n\t\"version\": \"0.1.0\",\n\t\"title\": \"{{.PascalCaseComponentName}}\",\n\t\"category\": \"theme\",\n\t\"icon\": \"media-interactive\",\n\t\"description\": \"An interactive block with the Interactivity API.\",\n\t\"example\": {},\n\t\"supports\": {\n\t\t\"interactivity\": true\n\t},\n\t\"textdomain\": \"{{.KebabCaseComponentName}}\",\n\t\"editorScript\": \"file:./index.js\",\n\t\"editorStyle\": \"file:./index.css\",\n\t\"style\": \"file:./style-index.css\",\n\t\"render\": \"file:./render.php\",\n\t\"viewScriptModule\": \"file:./view.js\"\n}",
                 "id": "file-blockjson",
                 "name": "block.json"
               },
@@ -83,7 +83,7 @@
             "name": "{example}-block"
           }
         ],
-        "path": "src"
+        "path": "src/theme-blocks"
       }
     ],
     "slug": {
