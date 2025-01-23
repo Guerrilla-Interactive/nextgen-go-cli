@@ -1,7 +1,9 @@
 {
-    "_id": "drafts.interactive-block-command",
-    "_type": "command",
     "_createdAt": "2025-01-23T00:00:00Z",
+    "_id": "interactive-block-command",
+    "_rev": "6c7vUi3v6yROi3XT56ilcn",
+    "_type": "command",
+    "_updatedAt": "2025-01-23T14:02:20.038Z",
     "filePaths": [
       {
         "_key": "1737299481494-interactiveblock",
@@ -9,11 +11,11 @@
         "id": "theme-blocks",
         "nodes": [
           {
-            "_key": "1737638701699-rd1b0pjk9",
+            "_key": "1737640876825-wawfopda4",
             "_type": "treeNode",
             "children": [],
             "code": "",
-            "id": "folder-1737638599051",
+            "id": "folder-1737640867938",
             "name": "{example}-block"
           },
           {
@@ -81,14 +83,12 @@
             "name": "view.js"
           }
         ],
-        "path": "src/theme-blocks"
+        "path": "src/"
       }
     ],
     "slug": {
       "_type": "slug",
       "current": "wordpress-interactive-block-for-nextgen-theme"
     },
-    "title": "Wordpress Interactive Block for Nextgen Theme",
-    "_rev": "63c41634-2395-41ca-9323-a40580a3501d",
-    "_updatedAt": "2025-01-23T13:26:52.867Z"
+    "title": "Wordpress Interactive Block for Nextgen Theme"
   }
