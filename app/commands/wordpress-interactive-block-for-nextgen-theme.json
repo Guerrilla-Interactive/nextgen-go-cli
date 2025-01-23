@@ -1,9 +1,7 @@
 {
-    "_createdAt": "2025-01-23T00:00:00Z",
-    "_id": "interactive-block-command",
-    "_rev": "jlMWfT8LIQ8u85ZAstxUWg",
+    "_id": "drafts.interactive-block-command",
     "_type": "command",
-    "_updatedAt": "2025-01-23T11:38:02.832Z",
+    "_createdAt": "2025-01-23T00:00:00Z",
     "filePaths": [
       {
         "_key": "1737299481494-interactiveblock",
@@ -11,13 +9,20 @@
         "id": "theme-blocks",
         "nodes": [
           {
+            "_key": "1737638701699-rd1b0pjk9",
+            "_type": "treeNode",
+            "children": [],
+            "code": "",
+            "id": "folder-1737638599051",
+            "name": "{example}-block"
+          },
+          {
             "_key": "1737299481494-blockjson",
             "_type": "treeNode",
             "children": [],
             "code": "{\n\t\"$schema\": \"https://schemas.wp.org/trunk/block.json\",\n\t\"apiVersion\": 3,\n\t\"name\": \"create-block/{{.KebabCaseComponentName}}\",\n\t\"version\": \"0.1.0\",\n\t\"title\": \"{{.PascalCaseComponentName}}\",\n\t\"category\": \"widgets\",\n\t\"icon\": \"media-interactive\",\n\t\"description\": \"An interactive block with the Interactivity API.\",\n\t\"example\": {},\n\t\"supports\": {\n\t\t\"interactivity\": true\n\t},\n\t\"textdomain\": \"{{.KebabCaseComponentName}}\",\n\t\"editorScript\": \"file:./index.js\",\n\t\"editorStyle\": \"file:./index.css\",\n\t\"style\": \"file:./style-index.css\",\n\t\"render\": \"file:./render.php\",\n\t\"viewScriptModule\": \"file:./view.js\"\n}",
             "id": "file-blockjson",
-            "name": "block.json",
-            "nodeType": "file"
+            "name": "block.json"
           },
           {
             "_key": "1737299481494-editjs",
@@ -25,8 +30,7 @@
             "children": [],
             "code": "/**\n * Retrieves the translation of text.\n */\nimport { __ } from '@wordpress/i18n';\n\n/**\n * React hook for the block wrapper.\n */\nimport { useBlockProps } from '@wordpress/block-editor';\n\n/**\n * Edit function for {{.PascalCaseComponentName}}.\n */\nexport default function Edit() {\n\tconst blockProps = useBlockProps();\n\n\treturn (\n\t\t<p { ...blockProps }>\n\t\t\t{ __('{{.PascalCaseComponentName}} – hello from the editor!', '{{.KebabCaseComponentName}}') }\n\t\t</p>\n\t);\n}",
             "id": "file-editjs",
-            "name": "edit.js",
-            "nodeType": "file"
+            "name": "edit.js"
           },
           {
             "_key": "1737299481494-editorscss",
@@ -34,8 +38,7 @@
             "children": [],
             "code": ".wp-block-create-block-{{.KebabCaseComponentName}} input[type=\"text\"] {\n\tfont-size: 1em;\n\tcolor: inherit;\n\tbackground: inherit;\n\tborder: 0;\n}",
             "id": "file-editorscss",
-            "name": "editor.scss",
-            "nodeType": "file"
+            "name": "editor.scss"
           },
           {
             "_key": "1737299481494-indexjs",
@@ -43,26 +46,7 @@
             "children": [],
             "code": "import { registerBlockType } from '@wordpress/blocks';\nimport './style.scss';\nimport './editor.scss';\nimport Edit from './edit';\nimport metadata from './block.json';\n\nregisterBlockType(metadata.name, {\n\ttitle: '{{.PascalCaseComponentName}}',\n\tedit: Edit,\n});",
             "id": "file-indexjs",
-            "name": "index.js",
-            "nodeType": "file"
-          },
-          {
-            "_key": "1737299481494-renderphp",
-            "_type": "treeNode",
-            "children": [],
-            "code": "<?php\n$unique_id = wp_unique_id('{{.LowerCaseComponentName}}-');\nwp_interactivity_state(\n\t'{{.KebabCaseComponentName}}',\n\tarray(\n\t\t'isDark' => false,\n\t\t'darkText' => esc_html__('Switch to Light', '{{.KebabCaseComponentName}}'),\n\t\t'lightText' => esc_html__('Switch to Dark', '{{.KebabCaseComponentName}}'),\n\t)\n);\n?>\n<div <?php echo get_block_wrapper_attributes(); ?>>\n\t<button><?php esc_html_e('Toggle', '{{.KebabCaseComponentName}}'); ?></button>\n</div>",
-            "id": "file-renderphp",
-            "name": "render.php",
-            "nodeType": "file"
-          },
-          {
-            "_key": "1737299481494-stylecss",
-            "_type": "treeNode",
-            "children": [],
-            "code": ".wp-block-create-block-{{.KebabCaseComponentName}} {\n\tfont-size: 1em;\n\tbackground: #ffff001a;\n\tpadding: 1em;\n}\n\n.wp-block-create-block-{{.KebabCaseComponentName}}.dark-theme {\n\tbackground: #333;\n\tcolor: #fff;\n}",
-            "id": "file-stylecss",
-            "name": "style.scss",
-            "nodeType": "file"
+            "name": "index.js"
           },
           {
             "_key": "1737299481494-readme",
@@ -70,8 +54,23 @@
             "children": [],
             "code": "# {{.PascalCaseComponentName}} Block\n\nThis block was generated using a CLI and demonstrates a structure for an interactive block using the WordPress Interactivity API.",
             "id": "file-readme",
-            "name": "README.md",
-            "nodeType": "file"
+            "name": "README.md"
+          },
+          {
+            "_key": "1737299481494-renderphp",
+            "_type": "treeNode",
+            "children": [],
+            "code": "<?php\n$unique_id = wp_unique_id('{{.LowerCaseComponentName}}-');\nwp_interactivity_state(\n\t'{{.KebabCaseComponentName}}',\n\tarray(\n\t\t'isDark' => false,\n\t\t'darkText' => esc_html__('Switch to Light', '{{.KebabCaseComponentName}}'),\n\t\t'lightText' => esc_html__('Switch to Dark', '{{.KebabCaseComponentName}}'),\n\t)\n);\n?>\n<div <?php echo get_block_wrapper_attributes(); ?>>\n\t<button><?php esc_html_e('Toggle', '{{.KebabCaseComponentName}}'); ?></button>\n</div>",
+            "id": "file-renderphp",
+            "name": "render.php"
+          },
+          {
+            "_key": "1737299481494-stylecss",
+            "_type": "treeNode",
+            "children": [],
+            "code": ".wp-block-create-block-{{.KebabCaseComponentName}} {\n\tfont-size: 1em;\n\tbackground: #ffff001a;\n\tpadding: 1em;\n}\n\n.wp-block-create-block-{{.KebabCaseComponentName}}.dark-theme {\n\tbackground: #333;\n\tcolor: #fff;\n}",
+            "id": "file-stylecss",
+            "name": "style.scss"
           },
           {
             "_key": "1737299481494-viewjs",
@@ -79,8 +78,7 @@
             "children": [],
             "code": "import { store } from '@wordpress/interactivity';\n\nconst { state } = store('{{.CamelCaseComponentName}}', {\n\tstate: {\n\t\tget themeText() {\n\t\t\treturn state.isDark ? state.darkText : state.lightText;\n\t\t},\n\t},\n\tactions: {\n\t\ttoggleTheme() {\n\t\t\tstate.isDark = !state.isDark;\n\t\t},\n\t},\n});",
             "id": "file-viewjs",
-            "name": "view.js",
-            "nodeType": "file"
+            "name": "view.js"
           }
         ],
         "path": "src/theme-blocks"
@@ -90,5 +88,7 @@
       "_type": "slug",
       "current": "wordpress-interactive-block-for-nextgen-theme"
     },
-    "title": "Wordpress Interactive Block for Nextgen Theme"
+    "title": "Wordpress Interactive Block for Nextgen Theme",
+    "_rev": "63c41634-2395-41ca-9323-a40580a3501d",
+    "_updatedAt": "2025-01-23T13:26:52.867Z"
   }
