@@ -166,9 +166,9 @@ func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
 		return m
 	}
 
-	// Check if user selected "add page":
-	if itemName == "add page" {
-		m.PendingCommand = "add page"
+	// If the command starts with "add ", prompt for a filename instead of running immediately.
+	if strings.HasPrefix(itemName, "add ") {
+		m.PendingCommand = itemName
 		m.CurrentScreen = app.ScreenFilenamePrompt
 		return m
 	}

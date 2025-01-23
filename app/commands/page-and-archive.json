@@ -1,250 +1,295 @@
 {
-    "_id": "sample-command",
-    "_type": "command",
-    "filePaths": [
-      {
-        "_key": "1737047380919-f2nmun9r8",
-        "_type": "filePathGroup",
-        "id": "group1",
-        "nodes": [
-          {
-            "_key": "1737047380919-mvhc1apkv",
-            "_type": "treeNode",
-            "children": [
-              {
-                "_key": "1736937670862-lo16skdvq",
-                "_type": "treeNode",
-                "children": [
-                  {
-                    "_key": "1736937670862-5en62c2nd",
-                    "_type": "treeNode",
-                    "children": [
-                      {
-                        "_key": "1736937670862-ow3sh11nn",
-                        "_type": "treeNode",
-                        "children": [
-                          {
-                            "_key": "1736937670862-9bfoa5hmi",
-                            "_type": "treeNode",
-                            "children": [
-                              {
-                                "_key": "1736937670862-6y9rdomwg",
-                                "_type": "treeNode",
-                                "children": [],
-                                "code": "import { draftMode } from 'next/headers'\r\nimport { notFound } from \"next/navigation\"\r\n\r\nimport { runDraftQuery, runQuery } from '@/sanity/groqd-client'\r\n\r\nimport { {{.CamelCaseComponentName}}IndexQuery } from '../({{.KebabCaseComponentName}}-index-server)/{{.KebabCaseComponentName}}.index-query'\r\nimport {{.PascalCaseComponentName}}IndexBody from './{{.KebabCaseComponentName}}.index-component'\r\nimport { {{.PascalCaseComponentName}}Preview} from './{{.KebabCaseComponentName}}.index-preview'\r\nimport { generatePageMeta } from 'src/shame-utils/generate-page-meta-util'\r\n\r\nexport const generateMetadata = async () => {\r\n  const data = await runQuery({{.CamelCaseComponentName}}IndexQuery, {})\r\n  return generatePageMeta(data?.metadata)\r\n}\r\n\r\nconst {{.PascalCaseComponentName}}IndexRoute = async () => {\r\n  const { isEnabled: draftModeEnabled } = draftMode()\r\n  const fetchClient = draftModeEnabled ? runDraftQuery : runQuery\r\n  const data = await fetchClient(\r\n    {{.CamelCaseComponentName}}IndexQuery,\r\n    {},\r\n  )\r\n\r\n  if (!data) {\r\n    return notFound()\r\n  }\r\n\r\n  if (draftModeEnabled) {\r\n    return <{{.PascalCaseComponentName}}Preview initial={data} />\r\n  }\r\n\r\n  return <{{.PascalCaseComponentName}}IndexBody data={data} />\r\n}\r\n\r\nexport default {{.PascalCaseComponentName}}IndexRoute",
-                                "id": "file-1736815035475",
-                                "name": "{example}-index.component.tsx"
-                              },
-                              {
-                                "_key": "1736937670862-okf1jv6xx",
-                                "_type": "treeNode",
-                                "children": [],
-                                "code": "import type { {{.PascalCaseComponentName}}IndexQuery } from \"../({{.KebabCaseComponentName}}-index-server)/{{.KebabCaseComponentName}}.index-query\"\r\n\r\ninterface PageProps {\r\n  data: {{.PascalCaseComponentName}}IndexQuery\r\n}\r\nexport default function {{.PascalCaseComponentName}}IndexBody(props: PageProps) {\r\n  return (\r\n    <div>{{.PascalCaseComponentName}}: {props.data.title}</div>\r\n  )\r\n}",
-                                "id": "file-1736814427408",
-                                "name": "page.tsx"
-                              }
-                            ],
-                            "code": "",
-                            "id": "folder-1736814222787",
-                            "name": "({example}-index-destination)"
-                          },
-                          {
-                            "_key": "1736937670862-jbi8nqvxc",
-                            "_type": "treeNode",
-                            "children": [
-                              {
-                                "_key": "1736937670862-g21om4h63",
-                                "_type": "treeNode",
-                                "children": [],
-                                "code": "import type { InferType } from \"groqd\"\r\nimport { q } from \"groqd\"\r\n\r\nimport { basePageQuery } from \"@/sanity/shame-queries/base-page.query\"\r\n\r\nexport const {{.CamelCaseComponentName}}IndexQuery = q(\"*\")\r\n    .filterByType(\"{{.CamelCaseComponentName}}-index\")\r\n    .grab({\r\n        title: q.string().optional(),\r\n        ...basePageQuery,\r\n    })\r\n    .slice(0)\r\n    .nullable()\r\n\r\nexport type {{.PascalCaseComponentName}}IndexQuery = NonNullable<InferType<typeof {{.CamelCaseComponentName}}IndexQuery>>",
-                                "id": "node8",
-                                "name": "{example}.index-query.tsx"
-                              },
-                              {
-                                "_key": "1736937670862-pjl99439e",
-                                "_type": "treeNode",
-                                "children": [],
-                                "code": "import { defineType, defineField } from \"sanity\";\r\n\r\nimport type { CustomDocumentDefinition } from '@/sanity/api.desk-structure.ts'\r\nimport { SanityFieldGroups, defaultGroups } from '@/sanity/schema-utils/default-groups.util'\r\nimport { metaFields } from '@/sanity/schema-utils/generator-field/meta-fields.field'\r\n\r\nexport const {{.CamelCaseComponentName}}IndexSchema = defineType({\r\n  type: \"document\",\r\n  name: \"{{.CamelCaseComponentName}}-index\",\r\n  title: \"{{.PascalCaseComponentName}}Index\",\r\n  groups: defaultGroups,\r\n  options: {\r\n    previewable: true,\r\n    linkable: true,\r\n    isSingleton: true,\r\n  },\r\n  fields: [\r\n    defineField({\r\n      name: 'title',\r\n      title: '{{.PascalCaseComponentName}} title',\r\n      type: 'string',\r\n      validation: (Rule) => Rule.required(),\r\n      group: SanityFieldGroups.basic,\r\n    }),\r\n    ...metaFields({}),\r\n  ],\r\n  preview: {\r\n    select: {\r\n      title: \"title\",   \r\n    },\r\n    prepare({ title }) {\r\n      return {\r\n        title: title,\r\n      };\r\n    },\r\n  },\r\n}) as CustomDocumentDefinition",
-                                "id": "node9",
-                                "name": "{example}.index-schema.tsx"
-                              },
-                              {
-                                "_key": "1736937670862-fw34dlvxj",
-                                "_type": "treeNode",
-                                "children": [],
-                                "code": "",
-                                "id": "node10",
-                                "name": "{example}.index-structure.tsx"
-                              }
-                            ],
-                            "code": "",
-                            "id": "node7",
-                            "name": "({example}-index-server)"
-                          }
-                        ],
-                        "code": "",
-                        "id": "folder-1736814198072",
-                        "name": "({example}-index-core)"
-                      }
-                    ],
-                    "code": "",
-                    "id": "folder-1736814279138",
-                    "name": "(index)"
-                  },
-                  {
-                    "_key": "1736937670862-v58156fs2",
-                    "_type": "treeNode",
-                    "children": [
-                      {
-                        "_key": "1736937670862-aq2f3mchs",
-                        "_type": "treeNode",
-                        "children": [
-                          {
-                            "_key": "1736937670862-psaq5dpxx",
-                            "_type": "treeNode",
-                            "children": [],
-                            "code": "import { Container } from \"@/components/layout/container.component\";\r\nimport { H1 } from \"@/components/layout/heading.component\";\r\nimport { PortableText } from \"@/components/utils/portable-text.component\";\r\nimport type { {{.PascalCaseComponentName}}SlugQuery } from \"../({{.KebabCaseComponentName}}-slug-server)/{{.KebabCaseComponentName}}.slug-query\";\r\n\r\nexport const {{.PascalCaseComponentName}}SlugBody = (props: NonNullable<{{.PascalCaseComponentName}}SlugQuery>) => {\r\n  const { title, content } = props;\r\n\r\n  return (\r\n    <Container>\r\n      <H1>{title} - {{.PascalCaseComponentName}}</H1>\r\n      {content && <PortableText content={content} />}\r\n    </Container>\r\n  );\r\n};",
-                            "id": "file-1736816874663",
-                            "name": "{example}.slug-component.tsx"
-                          },
-                          {
-                            "_key": "1736937670862-lffm3r6cw",
-                            "_type": "treeNode",
-                            "children": [],
-                            "code": "import { Container } from \"@/components/layout/container.component\";\r\nimport { H1 } from \"@/components/layout/heading.component\";\r\nimport { PortableText } from \"@/components/utils/portable-text.component\";\r\nimport type { {{.PascalCaseComponentName}}SlugQuery } from \"../({{.KebabCaseComponentName}}-slug-server)/{{.KebabCaseComponentName}}.slug-query\";\r\n\r\nexport const {{.PascalCaseComponentName}}SlugBody = (props: NonNullable<{{.PascalCaseComponentName}}SlugQuery>) => {\r\n  const { title, content } = props;\r\n\r\n  return (\r\n    <Container>\r\n      <H1>{title} - {{.PascalCaseComponentName}}</H1>\r\n      {content && <PortableText content={content} />}\r\n    </Container>\r\n  );\r\n};",
-                            "id": "file-1736816906513",
-                            "name": "page.tsx"
-                          }
-                        ],
-                        "code": "",
-                        "id": "folder-1736814432859",
-                        "name": "({example}-slug-destination)"
-                      },
-                      {
-                        "_key": "1736937670862-on6pbpk06",
-                        "_type": "treeNode",
-                        "children": [
-                          {
-                            "_key": "1736937670862-dup40zktz",
-                            "_type": "treeNode",
-                            "children": [],
-                            "code": "import { fullPortableTextQuery } from \"@/server/queries/portable-text/portable-text.query\"\r\nimport { metadataQuery } from \"@/server/queries/utils/metadata.query\"\r\nimport { groq } from \"next-sanity\"\r\n\r\nexport const {{.CamelCaseComponentName}}Query = groq`\r\n  *[_type == \"{{.CamelCaseComponentName}}\" && !(_id in path('drafts.**')) && slug.current == $slug][0] {\r\n    _id,\r\n    title,\r\n    \"slug\": slug.current\r\n  }`",
-                            "id": "file-1736817013622",
-                            "name": "{example}.slug-query.tsx"
-                          },
-                          {
-                            "_key": "1736937670862-shasik0rm",
-                            "_type": "treeNode",
-                            "children": [],
-                            "code": "import { Newspaper } from \"lucide-react\";\r\nimport { defineType } from \"sanity\";\r\n\r\nimport { datetimeField } from \"@/sanity/schemas/generator-fields/datetime.field\";\r\nimport { figureField } from \"@/sanity/schemas/generator-fields/figure.field\";\r\nimport { metadataField } from \"@/sanity/schemas/generator-fields/metadata.field\";\r\nimport { portableTextWithBlocksField } from \"@/sanity/schemas/generator-fields/portable-text/portable-text-with-blocks.field\";\r\nimport { slugField } from \"@/sanity/schemas/generator-fields/slug.field\";\r\nimport { stringField } from \"@/sanity/schemas/generator-fields/string.field\";\r\nimport { defaultGroups } from \"@/sanity/schemas/utils/default-groups.util\";\r\n\r\nexport const {{.CamelCaseComponentName}}Schema = defineType({\r\n  name: \"{{.CamelCaseComponentName}}\",\r\n  title: \"{{.PascalCaseComponentName}}\",\r\n  type: \"document\",\r\n  icon: Newspaper,\r\n  groups: defaultGroups,\r\n  options: {\r\n    linkable: true,\r\n  },\r\n  fields: [\r\n    stringField({\r\n      name: \"title\",\r\n      title: \"Tittel\",\r\n      required: true,\r\n      group: \"key\",\r\n    }),\r\n    slugField(),\r\n    datetimeField({\r\n      name: \"publishDate\",\r\n      title: \"Publiseringsdato\",\r\n      group: \"key\",\r\n      required: true,\r\n      initialValue: () => new Date().toISOString(),\r\n    }),\r\n    figureField({\r\n      name: \"coverImage\",\r\n      title: \"Cover-bilde\",\r\n      group: \"content\",\r\n    }),\r\n    portableTextWithBlocksField({\r\n      group: \"content\",\r\n      includeLists: true,\r\n      includeHeadings: true,\r\n    }),\r\n    metadataField(),\r\n  ],\r\n});",
-                            "id": "file-1736817123720",
-                            "name": "{example}.slug-schema.tsx"
-                          },
-                          {
-                            "_key": "1736937670862-q87ke5q60",
-                            "_type": "treeNode",
-                            "children": [],
-                            "code": "import { {{.CamelCaseComponentName}}ArchiveSchema, {{.CamelCaseComponentName}}Schema } from \"@/sanity/schemas/documents\";\r\nimport { singletonListItem } from \"@/sanity/structure/utils/singleton-list-item.desk\";\r\nimport type { StructureBuilder } from \"sanity/structure\";\r\n\r\nconst title = \"{{.CamelCaseComponentName}}\";\r\n\r\nexport const {{.CamelCaseComponentName}}Structure = (S: StructureBuilder) =>\r\n  S.listItem()\r\n    .title(title)\r\n    .icon({{.CamelCaseComponentName}}Schema.icon)\r\n    .child(\r\n      S.list()\r\n        .title(title)\r\n        .items([\r\n          S.documentTypeListItem(\"{{.CamelCaseComponentName}}\").title(title),\r\n          S.divider(),\r\n          singletonListItem(S, {{.CamelCaseComponentName}}ArchiveSchema),\r\n        ]),\r\n    );",
-                            "id": "file-1736817211292",
-                            "name": "{example}.slug-structure.tsx"
-                          }
-                        ],
-                        "code": "",
-                        "id": "folder-1736816979141",
-                        "name": "({example}-slug-server)"
-                      }
-                    ],
-                    "code": "",
-                    "id": "folder-1736814362155",
-                    "name": "[slug]"
-                  }
-                ],
-                "code": "",
-                "id": "node2",
-                "name": "{example}"
-              }
-            ],
-            "code": "",
-            "id": "node1",
-            "name": "(site)"
-          }
-        ],
-        "path": "src/app"
-      },
-      {
-        "_key": "1737047380919-aaytr5j7e",
-        "_type": "filePathGroup",
-        "id": "group2",
-        "nodes": [
-          {
-            "_key": "1737047380919-i0l9jpx6t",
-            "_type": "treeNode",
-            "children": [],
-            "code": "test",
-            "id": "node12",
-            "name": "ROUTES.tsx"
-          }
-        ],
-        "path": "routing"
-      },
-      {
-        "_key": "1737047380919-6lwqjfn3t",
-        "_type": "filePathGroup",
-        "id": "group3",
-        "nodes": [
-          {
-            "_key": "1737047380919-0qpwsh9vb",
-            "_type": "treeNode",
-            "children": [
-              {
-                "_key": "1736937670862-9o568128o",
-                "_type": "treeNode",
-                "children": [
-                  {
-                    "_key": "1736937670862-s5ifdglsm",
-                    "_type": "treeNode",
-                    "children": [],
-                    "code": "ttttt",
-                    "id": "node15",
-                    "name": "index.tsx"
-                  }
-                ],
-                "code": "",
-                "id": "node14",
-                "name": "documents"
-              }
-            ],
-            "code": "",
-            "id": "node13",
-            "name": "schemas"
-          },
-          {
-            "_key": "1737047380919-hfy5cwzip",
-            "_type": "treeNode",
-            "children": [
-              {
-                "_key": "1736937670862-otpndx31v",
-                "_type": "treeNode",
-                "children": [],
-                "code": "",
-                "id": "node17",
-                "name": "index.tsx"
-              }
-            ],
-            "code": "",
-            "id": "node16",
-            "name": "structure"
-          }
-        ],
-        "path": "sanity"
-      }
-    ],
-    "slug": {
-      "_type": "slug",
-      "current": "sample-command"
+  "_createdAt": "2025-01-14T00:03:41Z",
+  "_id": "sample-command",
+  "_rev": "YjFIo1g1LQZHJZg27Qr5gp",
+  "_type": "command",
+  "filePaths": [
+    {
+      "_key": "1737299481494-rnbgurbgq",
+      "_type": "filePathGroup",
+      "id": "group1",
+      "nodes": [
+        {
+          "_key": "1737299481494-i6et19qj4",
+          "_type": "treeNode",
+          "children": [
+            {
+              "_key": "1736937670862-lo16skdvq",
+              "_type": "treeNode",
+              "children": [
+                {
+                  "_key": "1736937670862-5en62c2nd",
+                  "_type": "treeNode",
+                  "children": [
+                    {
+                      "_key": "1736937670862-ow3sh11nn",
+                      "_type": "treeNode",
+                      "children": [
+                        {
+                          "_key": "1736937670862-9bfoa5hmi",
+                          "_type": "treeNode",
+                          "children": [
+                            {
+                              "_key": "1736937670862-6y9rdomwg",
+                              "_type": "treeNode",
+                              "children": [],
+                              "code": "import { draftMode } from 'next/headers'\r\nimport { notFound } from \"next/navigation\"\r\n\r\nimport { runDraftQuery, runQuery } from '@/sanity/groqd-client'\r\n\r\nimport { {{.CamelCaseComponentName}}IndexQuery } from '../({{.KebabCaseComponentName}}-index-server)/{{.KebabCaseComponentName}}.index-query'\r\nimport {{.PascalCaseComponentName}}IndexBody from './{{.KebabCaseComponentName}}.index-component'\r\nimport { {{.PascalCaseComponentName}}Preview} from './{{.KebabCaseComponentName}}.index-preview'\r\nimport { generatePageMeta } from 'src/shame-utils/generate-page-meta-util'\r\n\r\nexport const generateMetadata = async () => {\r\n  const data = await runQuery({{.CamelCaseComponentName}}IndexQuery, {})\r\n  return generatePageMeta(data?.metadata)\r\n}\r\n\r\nconst {{.PascalCaseComponentName}}IndexRoute = async () => {\r\n  const { isEnabled: draftModeEnabled } = draftMode()\r\n  const fetchClient = draftModeEnabled ? runDraftQuery : runQuery\r\n  const data = await fetchClient(\r\n    {{.CamelCaseComponentName}}IndexQuery,\r\n    {},\r\n  )\r\n\r\n  if (!data) {\r\n    return notFound()\r\n  }\r\n\r\n  if (draftModeEnabled) {\r\n    return <{{.PascalCaseComponentName}}Preview initial={data} />\r\n  }\r\n\r\n  return <{{.PascalCaseComponentName}}IndexBody data={data} />\r\n}\r\n\r\nexport default {{.PascalCaseComponentName}}IndexRoute",
+                              "id": "file-1736815035475",
+                              "name": "{example}-index.component.tsx",
+                              "nodeType": "file"
+                            },
+                            {
+                              "_key": "1736937670862-okf1jv6xx",
+                              "_type": "treeNode",
+                              "children": [],
+                              "code": "import type { {{.PascalCaseComponentName}}IndexQuery } from \"../({{.KebabCaseComponentName}}-index-server)/{{.KebabCaseComponentName}}.index-query\"\r\n\r\ninterface PageProps {\r\n  data: {{.PascalCaseComponentName}}IndexQuery\r\n}\r\nexport default function {{.PascalCaseComponentName}}IndexBody(props: PageProps) {\r\n  return (\r\n    <div>{{.PascalCaseComponentName}}: {props.data.title}</div>\r\n  )\r\n}",
+                              "id": "file-1736814427408",
+                              "name": "page.tsx",
+                              "nodeType": "file"
+                            }
+                          ],
+                          "code": "",
+                          "id": "folder-1736814222787",
+                          "name": "({example}-index-destination)",
+                          "nodeType": "folder"
+                        },
+                        {
+                          "_key": "1736937670862-jbi8nqvxc",
+                          "_type": "treeNode",
+                          "children": [
+                            {
+                              "_key": "1736937670862-g21om4h63",
+                              "_type": "treeNode",
+                              "children": [],
+                              "code": "import type { InferType } from \"groqd\"\r\nimport { q } from \"groqd\"\r\n\r\nimport { basePageQuery } from \"@/sanity/shame-queries/base-page.query\"\r\n\r\nexport const {{.CamelCaseComponentName}}IndexQuery = q(\"*\")\r\n    .filterByType(\"{{.CamelCaseComponentName}}-index\")\r\n    .grab({\r\n        title: q.string().optional(),\r\n        ...basePageQuery,\r\n    })\r\n    .slice(0)\r\n    .nullable()\r\n\r\nexport type {{.PascalCaseComponentName}}IndexQuery = NonNullable<InferType<typeof {{.CamelCaseComponentName}}IndexQuery>>",
+                              "id": "node8",
+                              "name": "{example}.index-query.tsx",
+                              "nodeType": "file"
+                            },
+                            {
+                              "_key": "1736937670862-pjl99439e",
+                              "_type": "treeNode",
+                              "children": [],
+                              "code": "import { defineType, defineField } from \"sanity\";\r\n\r\nimport type { CustomDocumentDefinition } from '@/sanity/api.desk-structure.ts'\r\nimport { SanityFieldGroups, defaultGroups } from '@/sanity/schema-utils/default-groups.util'\r\nimport { metaFields } from '@/sanity/schema-utils/generator-field/meta-fields.field'\r\n\r\nexport const {{.CamelCaseComponentName}}IndexSchema = defineType({\r\n  type: \"document\",\r\n  name: \"{{.CamelCaseComponentName}}-index\",\r\n  title: \"{{.PascalCaseComponentName}}Index\",\r\n  groups: defaultGroups,\r\n  options: {\r\n    previewable: true,\r\n    linkable: true,\r\n    isSingleton: true,\r\n  },\r\n  fields: [\r\n    defineField({\r\n      name: 'title',\r\n      title: '{{.PascalCaseComponentName}} title',\r\n      type: 'string',\r\n      validation: (Rule) => Rule.required(),\r\n      group: SanityFieldGroups.basic,\r\n    }),\r\n    ...metaFields({}),\r\n  ],\r\n  preview: {\r\n    select: {\r\n      title: \"title\",   \r\n    },\r\n    prepare({ title }) {\r\n      return {\r\n        title: title,\r\n      };\r\n    },\r\n  },\r\n}) as CustomDocumentDefinition",
+                              "id": "node9",
+                              "name": "{example}.index-schema.tsx",
+                              "nodeType": "file"
+                            },
+                            {
+                              "_key": "1736937670862-fw34dlvxj",
+                              "_type": "treeNode",
+                              "children": [],
+                              "code": "",
+                              "id": "node10",
+                              "name": "{example}.index-structure.tsx",
+                              "nodeType": "folder"
+                            }
+                          ],
+                          "code": "",
+                          "id": "node7",
+                          "name": "({example}-index-server)",
+                          "nodeType": "folder"
+                        }
+                      ],
+                      "code": "",
+                      "id": "folder-1736814198072",
+                      "name": "({example}-index-core)",
+                      "nodeType": "folder"
+                    }
+                  ],
+                  "code": "",
+                  "id": "folder-1736814279138",
+                  "name": "(index)",
+                  "nodeType": "folder"
+                },
+                {
+                  "_key": "1736937670862-v58156fs2",
+                  "_type": "treeNode",
+                  "children": [
+                    {
+                      "_key": "1736937670862-aq2f3mchs",
+                      "_type": "treeNode",
+                      "children": [
+                        {
+                          "_key": "1736937670862-psaq5dpxx",
+                          "_type": "treeNode",
+                          "children": [],
+                          "code": "import { Container } from \"@/components/layout/container.component\";\r\nimport { H1 } from \"@/components/layout/heading.component\";\r\nimport { PortableText } from \"@/components/utils/portable-text.component\";\r\nimport type { {{.PascalCaseComponentName}}SlugQuery } from \"../({{.KebabCaseComponentName}}-slug-server)/{{.KebabCaseComponentName}}.slug-query\";\r\n\r\nexport const {{.PascalCaseComponentName}}SlugBody = (props: NonNullable<{{.PascalCaseComponentName}}SlugQuery>) => {\r\n  const { title, content } = props;\r\n\r\n  return (\r\n    <Container>\r\n      <H1>{title} - {{.PascalCaseComponentName}}</H1>\r\n      {content && <PortableText content={content} />}\r\n    </Container>\r\n  );\r\n};",
+                          "id": "file-1736816874663",
+                          "name": "{example}.slug-component.tsx",
+                          "nodeType": "file"
+                        },
+                        {
+                          "_key": "1736937670862-lffm3r6cw",
+                          "_type": "treeNode",
+                          "children": [],
+                          "code": "import { Container } from \"@/components/layout/container.component\";\r\nimport { H1 } from \"@/components/layout/heading.component\";\r\nimport { PortableText } from \"@/components/utils/portable-text.component\";\r\nimport type { {{.PascalCaseComponentName}}SlugQuery } from \"../({{.KebabCaseComponentName}}-slug-server)/{{.KebabCaseComponentName}}.slug-query\";\r\n\r\nexport const {{.PascalCaseComponentName}}SlugBody = (props: NonNullable<{{.PascalCaseComponentName}}SlugQuery>) => {\r\n  const { title, content } = props;\r\n\r\n  return (\r\n    <Container>\r\n      <H1>{title} - {{.PascalCaseComponentName}}</H1>\r\n      {content && <PortableText content={content} />}\r\n    </Container>\r\n  );\r\n};",
+                          "id": "file-1736816906513",
+                          "name": "page.tsx",
+                          "nodeType": "file"
+                        }
+                      ],
+                      "code": "",
+                      "id": "folder-1736814432859",
+                      "name": "({example}-slug-destination)",
+                      "nodeType": "folder"
+                    },
+                    {
+                      "_key": "1736937670862-on6pbpk06",
+                      "_type": "treeNode",
+                      "children": [
+                        {
+                          "_key": "1736937670862-dup40zktz",
+                          "_type": "treeNode",
+                          "children": [],
+                          "code": "import { fullPortableTextQuery } from \"@/server/queries/portable-text/portable-text.query\"\r\nimport { metadataQuery } from \"@/server/queries/utils/metadata.query\"\r\nimport { groq } from \"next-sanity\"\r\n\r\nexport const {{.CamelCaseComponentName}}Query = groq`\r\n  *[_type == \"{{.CamelCaseComponentName}}\" && !(_id in path('drafts.**')) && slug.current == $slug][0] {\r\n    _id,\r\n    title,\r\n    \"slug\": slug.current\r\n  }`",
+                          "id": "file-1736817013622",
+                          "name": "{example}.slug-query.tsx",
+                          "nodeType": "file"
+                        },
+                        {
+                          "_key": "1736937670862-shasik0rm",
+                          "_type": "treeNode",
+                          "children": [],
+                          "code": "import { Newspaper } from \"lucide-react\";\r\nimport { defineType } from \"sanity\";\r\n\r\nimport { datetimeField } from \"@/sanity/schemas/generator-fields/datetime.field\";\r\nimport { figureField } from \"@/sanity/schemas/generator-fields/figure.field\";\r\nimport { metadataField } from \"@/sanity/schemas/generator-fields/metadata.field\";\r\nimport { portableTextWithBlocksField } from \"@/sanity/schemas/generator-fields/portable-text/portable-text-with-blocks.field\";\r\nimport { slugField } from \"@/sanity/schemas/generator-fields/slug.field\";\r\nimport { stringField } from \"@/sanity/schemas/generator-fields/string.field\";\r\nimport { defaultGroups } from \"@/sanity/schemas/utils/default-groups.util\";\r\n\r\nexport const {{.CamelCaseComponentName}}Schema = defineType({\r\n  name: \"{{.CamelCaseComponentName}}\",\r\n  title: \"{{.PascalCaseComponentName}}\",\r\n  type: \"document\",\r\n  icon: Newspaper,\r\n  groups: defaultGroups,\r\n  options: {\r\n    linkable: true,\r\n  },\r\n  fields: [\r\n    stringField({\r\n      name: \"title\",\r\n      title: \"Tittel\",\r\n      required: true,\r\n      group: \"key\",\r\n    }),\r\n    slugField(),\r\n    datetimeField({\r\n      name: \"publishDate\",\r\n      title: \"Publiseringsdato\",\r\n      group: \"key\",\r\n      required: true,\r\n      initialValue: () => new Date().toISOString(),\r\n    }),\r\n    figureField({\r\n      name: \"coverImage\",\r\n      title: \"Cover-bilde\",\r\n      group: \"content\",\r\n    }),\r\n    portableTextWithBlocksField({\r\n      group: \"content\",\r\n      includeLists: true,\r\n      includeHeadings: true,\r\n    }),\r\n    metadataField(),\r\n  ],\r\n});",
+                          "id": "file-1736817123720",
+                          "name": "{example}.slug-schema.tsx",
+                          "nodeType": "file"
+                        },
+                        {
+                          "_key": "1736937670862-q87ke5q60",
+                          "_type": "treeNode",
+                          "actions": [
+                            {
+                              "_key": "9ab802ee73cf",
+                              "_type": "action",
+                              "actionType": "pasteAboveMarker",
+                              "code": "{{.LowerCaseComponentName}}Structure(S),",
+                              "destinationType": "external",
+                              "marker": "// STRUCTURE MARKER - DO NOT REMOVE - FILES WILL BE ADDED ABOVE",
+                              "route": "sanity/structure/index.tsx"
+                            },
+                            {
+                              "_key": "dfddb00506e8",
+                              "_type": "action",
+                              "actionType": "pasteAboveMarker",
+                              "code": "import { {{.LowerCaseComponentName}}Structure } from \"@/sanity/structure/{{.LowerCaseComponentName}}.structure\";",
+                              "destinationType": "external",
+                              "marker": "// IMPORT STRUCTURE MARKER - DO NOT REMOVE - FILES WILL BE ADDED ABOVE",
+                              "route": "sanity/structure/index.tsx"
+                            }
+                          ],
+                          "children": [],
+                          "code": "import { {{.CamelCaseComponentName}}ArchiveSchema, {{.CamelCaseComponentName}}Schema } from \"@/sanity/schemas/documents\";\r\nimport { singletonListItem } from \"@/sanity/structure/utils/singleton-list-item.desk\";\r\nimport type { StructureBuilder } from \"sanity/structure\";\r\n\r\nconst title = \"{{.CamelCaseComponentName}}\";\r\n\r\nexport const {{.CamelCaseComponentName}}Structure = (S: StructureBuilder) =>\r\n  S.listItem()\r\n    .title(title)\r\n    .icon({{.CamelCaseComponentName}}Schema.icon)\r\n    .child(\r\n      S.list()\r\n        .title(title)\r\n        .items([\r\n          S.documentTypeListItem(\"{{.CamelCaseComponentName}}\").title(title),\r\n          S.divider(),\r\n          singletonListItem(S, {{.CamelCaseComponentName}}ArchiveSchema),\r\n        ]),\r\n    );",
+                          "id": "file-1736817211292",
+                          "name": "{example}.slug-structure.tsx",
+                          "nodeType": "file"
+                        }
+                      ],
+                      "code": "",
+                      "id": "folder-1736816979141",
+                      "name": "({example}-slug-server)",
+                      "nodeType": "folder"
+                    }
+                  ],
+                  "code": "",
+                  "id": "folder-1736814362155",
+                  "name": "[slug]",
+                  "nodeType": "folder"
+                }
+              ],
+              "code": "",
+              "id": "node2",
+              "name": "{example}",
+              "nodeType": "folder"
+            }
+          ],
+          "code": "",
+          "id": "node1",
+          "name": "(site)",
+          "nodeType": "folder"
+        }
+      ],
+      "path": "src/app"
     },
-    "title": "Sample Command",
-    "_createdAt": "2025-01-16T17:09:40.439365378Z",
-    "_updatedAt": "2025-01-16T17:09:41.250Z",
-    "_rev": "BQj9k9W1Mf2GlcuUfzAQjp"
-  }
+    {
+      "_key": "1737299481494-ltjs8fmvx",
+      "_type": "filePathGroup",
+      "id": "group2",
+      "nodes": [
+        {
+          "_key": "1737299481494-p956gcnea",
+          "_type": "treeNode",
+          "children": [],
+          "code": "test",
+          "id": "node12",
+          "name": "ROUTES.tsx",
+          "nodeType": "file"
+        }
+      ],
+      "path": "src/routing"
+    },
+    {
+      "_key": "1737299481494-qn6pzjrp2",
+      "_type": "filePathGroup",
+      "id": "group3",
+      "nodes": [
+        {
+          "_key": "1737299481494-5xnycl16f",
+          "_type": "treeNode",
+          "children": [
+            {
+              "_key": "1736937670862-9o568128o",
+              "_type": "treeNode",
+              "children": [
+                {
+                  "_key": "1736937670862-s5ifdglsm",
+                  "_type": "treeNode",
+                  "children": [],
+                  "code": "ttttt",
+                  "id": "node15",
+                  "name": "index.tsx",
+                  "nodeType": "file"
+                }
+              ],
+              "code": "",
+              "id": "node14",
+              "name": "documents",
+              "nodeType": "folder"
+            }
+          ],
+          "code": "",
+          "id": "node13",
+          "name": "schemas",
+          "nodeType": "folder"
+        },
+        {
+          "_key": "1737299481494-i1coe78vt",
+          "_type": "treeNode",
+          "children": [
+            {
+              "_key": "1736937670862-otpndx31v",
+              "_type": "treeNode",
+              "children": [],
+              "code": "import { chapterStructure } from \"@/app/(site)/chapter/[slug]/(chapter-slug-core)/(chapter-slug-server)/chapter.slug-structure\";\nimport { commandStructure } from \"@/app/(site)/command/[slug]/(command-slug-core)/(command-slug-server)/command.slug-structure\";\nimport { articlesStructure } from \"@/sanity/structure/articles.structure\";\nimport { settingsStructure } from \"@/sanity/structure/settings.structure\";\n// IMPORT STRUCTURE MARKER - DO NOT REMOVE - FILES WILL BE ADDED ABOVE\nimport type { StructureResolver } from \"sanity/structure\";\n\nexport const structure: StructureResolver = (S) =>\n  S.list()\n    .title(\"Innhold\")\n    .items([\n      settingsStructure(S),\n      S.divider(),\n      S.documentTypeListItem(\"frontPage\").title(\"Forside\"),\n      S.documentTypeListItem(\"page\").title(\"Sider\"),\n\n      S.divider(),\n      articlesStructure(S),\n      chapterStructure(S),\n      commandStructure(S),\n      // STRUCTURE MARKER - DO NOT REMOVE - FILES WILL BE ADDED ABOVE\n    ]);\n",
+              "id": "node17",
+              "name": "index.tsx",
+              "nodeType": "file"
+            }
+          ],
+          "code": "",
+          "id": "node16",
+          "name": "structure",
+          "nodeType": "folder"
+        }
+      ],
+      "path": "sanity"
+    }
+  ],
+  "slug": {
+    "_type": "slug",
+    "current": "sample-command"
+  },
+  "title": "Sample Command",
+  "_updatedAt": "2025-01-19T17:06:07.346Z"
+}
