@@ -89,7 +89,6 @@ var Commands = []CommandSpec{
 	{Name: "add component"},
 	{Name: "remove component"},
 	{Name: "add schema"},
-
 	{Name: "remove schema"},
 	{Name: "add query"},
 	{Name: "remove query"},
@@ -112,7 +111,6 @@ var RecentUsed = []string{
 	"add portable-component",
 	"remove portable-component",
 	"undo",
-
 	"redo",
 }
 
@@ -191,6 +189,6 @@ func RunCommand(cmdName, projectPath string, placeholders map[string]string) err
 		return fmt.Errorf("template %q not found in embedded registry: %w", tPath, err)
 	}
 
-	// This next function is defined in command-helpers.go — it parses JSON in-memory:
+	// Run the JSON template. (File actions have been removed.)
 	return RunJsonTemplateBytes(data, projectPath, placeholders)
 }

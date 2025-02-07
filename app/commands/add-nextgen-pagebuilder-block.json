@@ -18,6 +18,7 @@
             "id": "folder-1738867916026",
             "name": "blocks",
             "code": "",
+            "isIndexer": false,
             "children": [
               {
                 "_type": "treeNode",
@@ -25,6 +26,7 @@
                 "id": "folder-1738907615562",
                 "name": "{{.LowerCaseComponentName}}-block",
                 "code": "",
+                "isIndexer": false,
                 "children": [
                   {
                     "_type": "treeNode",
@@ -32,6 +34,7 @@
                     "id": "file-1738907938593-ix2v1cyrn",
                     "name": "{{.LowerCaseComponentName}}.block-component.tsx",
                     "code": "import Link from \"next/link\";\nimport { stegaClean } from \"next-sanity\";\nimport { fetchSanityPosts } from \"@/app/(main)/blog/actions\";\nimport PostCard from \"@/features/ui/post-card\";\nimport SectionContainer from \"@/features/ui/section-container\";\n\ninterface {{.PascalCaseComponentName}}Props {\n  padding: {\n    top: boolean;\n    bottom: boolean;\n  };\n  colorVariant:\n    | \"primary\"\n    | \"secondary\"\n    | \"card\"\n    | \"accent\"\n    | \"destructive\"\n    | \"background\"\n    | \"transparent\";\n}\n\nexport default async function {{.PascalCaseComponentName}}BlockComponent({\n  padding,\n  colorVariant,\n}: Partial<{{.PascalCaseComponentName}}Props>) {\n  const color = stegaClean(colorVariant);\n\n  return (\n    <SectionContainer color={color} padding={padding}>\n\n    </SectionContainer>\n  );\n}\n",
+                    "isIndexer": false,
                     "children": []
                   },
                   {
@@ -40,6 +43,7 @@
                     "id": "file-1738907938593-u2xq3vq5d",
                     "name": "{{.LowerCaseComponentName}}.block-query.ts",
                     "code": "import { groq } from \"next-sanity\";\n\nconst {{.CamelCaseComponentName}}BlockQuery = groq`\n  _type == \"{{.LowerCaseComponentName}}-block\" => {\n    _type,\n    padding,\n    colorVariant,\n  },\n`;\n\nexport default {{.CamelCaseComponentName}}BlockQuery;\n",
+                    "isIndexer": false,
                     "children": []
                   },
                   {
@@ -48,6 +52,7 @@
                     "id": "file-1738907938593-cxvqda7pq",
                     "name": "{{.LowerCaseComponentName}}.block-schema.tsx",
                     "code": "import { defineField, defineType } from \"sanity\";\nimport { Newspaper } from \"lucide-react\";\n\nexport default defineType({\n  name: \"{{.LowerCaseComponentName}}-block\",\n  type: \"object\",\n  title: \"{{.PascalCaseComponentName}}\",\n  description: \"A list of {{.LowerCaseComponentName}}\",\n  icon: Newspaper,\n  fields: [\n    defineField({\n      name: \"padding\",\n      type: \"section-padding\",\n    }),\n    defineField({\n      name: \"colorVariant\",\n      type: \"color-variant\",\n      title: \"Color Variant\",\n      description: \"Select a background color variant\",\n    }),\n  ],\n  preview: {\n    prepare() {\n      return {\n        title: \"{{.PascalCaseComponentName}}\",\n      };\n    },\n  },\n});\n",
+                    "isIndexer": false,
                     "children": []
                   },
                   {
@@ -56,11 +61,21 @@
                     "id": "file-1738907938593-7ca5p1243",
                     "name": "index.ts",
                     "code": "import {{.LowerCaseComponentName}}BlockSchema from \"./{{.KebabCaseComponentName}}.block-schema\";\r\nimport {{.LowerCaseComponentName}}BlockQuery from \"./{{.KebabCaseComponentName}}.block-query\";\r\nimport {{.LowerCaseComponentName}}BlockComponent from \"./{{.KebabCaseComponentName}}.block-component\";\r\n\r\nexport {\r\n  {{.CamelCaseComponentName}}BlockSchema,\r\n  {{.CamelCaseComponentName}}BlockQuery,\r\n  {{.PascalCaseComponentName}}BlockComponent\r\n};\r\n",
+                    "isIndexer": false,
                     "children": []
                   }
                 ]
               }
             ]
+          },
+          {
+            "_type": "treeNode",
+            "_key": "1738915780930-sfvdk48k2",
+            "id": "file-1738915358780",
+            "name": "block-indexer.tsx",
+            "code": "import { groq } from \"next-sanity\";\n\n// START OF VALUE 1\nimport { {{.PascalCaseComponentName}}BlockComponent, {{.CamelCaseComponentName}}BlockQuery, {{.CamelCaseComponentName}}BlockSchema } from \"./blocks/{{.LowerCaseComponentName}}-block\";\n// END OF VALUE 1\n// ADD VALUE 1 BELOW\n\nexport const BlockDataMap: {\n  [key: string]: {\n    component?: React.ComponentType<any>;\n    schema?: any;\n    query?: string;\n  };\n} = {\n  // START OF VALUE 2\n  \"{{.LowerCaseComponentName}}-block\": { component: {{.PascalCaseComponentName}}BlockComponent, schema: {{.CamelCaseComponentName}}BlockSchema, query: {{.CamelCaseComponentName}}BlockQuery },\n  // END OF VALUE 2\n  // ADD VALUE 2 BELOW\n};\n\n\nexport const allBlockSchemas = Object.values(BlockDataMap)\n  .filter((block) => block.schema !== undefined)\n  .map((block) => block.schema);\n\nexport const allBlockQueries: string = Object.values(BlockDataMap)\n  .filter((block) => block.query !== undefined)\n  .map((block) => block.query as string)\n  .join(\"\\n\");\n\n  \nexport const pageBuilderQuery = groq`\nblocks[]{\n  ${allBlockQueries}\n},\n`;\n\n\nexport default function Blocks({ blocks }: { blocks?: Sanity.Block[] }) {\n  if (!blocks) return null;\n  return (\n    <>\n      {blocks.map((block, index) => {\n        const key = block._key || index;\n        const Component = BlockDataMap[block._type]?.component;\n        if (!Component) return <div data-type={block._type} key={key} />;\n        return <Component {...block} key={key} />;\n      })}\n    </>\n  );\n}",
+            "isIndexer": true,
+            "children": []
           }
         ]
       }
