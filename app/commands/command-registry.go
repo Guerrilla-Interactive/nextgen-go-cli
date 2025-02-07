@@ -64,6 +64,7 @@ var Commands = []CommandSpec{
 	{Name: "remove section"},
 	{Name: "add page", TemplatePath: "page-and-archive.json"},
 	{Name: "add wordpress block", TemplatePath: "wordpress-interactive-block-for-nextgen-theme.json"},
+	{Name: "add nextgen pagebuilder block", TemplatePath: "add-nextgen-pagebuilder-block.json"},
 	{Name: "remove page"},
 	{Name: "add portable-component"},
 	{Name: "remove portable-component"},

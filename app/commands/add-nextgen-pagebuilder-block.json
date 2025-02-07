@@ -1,0 +1,68 @@
+{
+    "_type": "command",
+    "title": "Add Nextgen Pagebuilder Block",
+    "slug": {
+      "_type": "slug",
+      "current": "add-nextgen-pagebuilder-block"
+    },
+    "filePaths": [
+      {
+        "_type": "filePathGroup",
+        "_key": "1738868072581-yljmao56m",
+        "id": "path-1738867914866",
+        "path": "/features/page-builder-blocks",
+        "nodes": [
+          {
+            "_type": "treeNode",
+            "_key": "1738868072581-10rdjzs2n",
+            "id": "folder-1738867916026",
+            "name": "blocks",
+            "code": "",
+            "children": [
+              {
+                "_type": "treeNode",
+                "_key": "1738908150397-xkzrrdrgg",
+                "id": "folder-1738907615562",
+                "name": "{{.LowerCaseComponentName}}-block",
+                "code": "",
+                "children": [
+                  {
+                    "_type": "treeNode",
+                    "_key": "1738908150397-v72fzmkdv",
+                    "id": "file-1738907938593-ix2v1cyrn",
+                    "name": "{{.LowerCaseComponentName}}.block-component.tsx",
+                    "code": "import Link from \"next/link\";\nimport { stegaClean } from \"next-sanity\";\nimport { fetchSanityPosts } from \"@/app/(main)/blog/actions\";\nimport PostCard from \"@/features/ui/post-card\";\nimport SectionContainer from \"@/features/ui/section-container\";\n\ninterface {{.PascalCaseComponentName}}Props {\n  padding: {\n    top: boolean;\n    bottom: boolean;\n  };\n  colorVariant:\n    | \"primary\"\n    | \"secondary\"\n    | \"card\"\n    | \"accent\"\n    | \"destructive\"\n    | \"background\"\n    | \"transparent\";\n}\n\nexport default async function {{.PascalCaseComponentName}}BlockComponent({\n  padding,\n  colorVariant,\n}: Partial<{{.PascalCaseComponentName}}Props>) {\n  const color = stegaClean(colorVariant);\n\n  return (\n    <SectionContainer color={color} padding={padding}>\n\n    </SectionContainer>\n  );\n}\n",
+                    "children": []
+                  },
+                  {
+                    "_type": "treeNode",
+                    "_key": "1738908150397-4iudg4xye",
+                    "id": "file-1738907938593-u2xq3vq5d",
+                    "name": "{{.LowerCaseComponentName}}.block-query.ts",
+                    "code": "import { groq } from \"next-sanity\";\n\nconst {{.CamelCaseComponentName}}BlockQuery = groq`\n  _type == \"{{.LowerCaseComponentName}}-block\" => {\n    _type,\n    padding,\n    colorVariant,\n  },\n`;\n\nexport default {{.CamelCaseComponentName}}BlockQuery;\n",
+                    "children": []
+                  },
+                  {
+                    "_type": "treeNode",
+                    "_key": "1738908150397-t05gwnest",
+                    "id": "file-1738907938593-cxvqda7pq",
+                    "name": "{{.LowerCaseComponentName}}.block-schema.tsx",
+                    "code": "import { defineField, defineType } from \"sanity\";\nimport { Newspaper } from \"lucide-react\";\n\nexport default defineType({\n  name: \"{{.LowerCaseComponentName}}-block\",\n  type: \"object\",\n  title: \"{{.PascalCaseComponentName}}\",\n  description: \"A list of {{.LowerCaseComponentName}}\",\n  icon: Newspaper,\n  fields: [\n    defineField({\n      name: \"padding\",\n      type: \"section-padding\",\n    }),\n    defineField({\n      name: \"colorVariant\",\n      type: \"color-variant\",\n      title: \"Color Variant\",\n      description: \"Select a background color variant\",\n    }),\n  ],\n  preview: {\n    prepare() {\n      return {\n        title: \"{{.PascalCaseComponentName}}\",\n      };\n    },\n  },\n});\n",
+                    "children": []
+                  },
+                  {
+                    "_type": "treeNode",
+                    "_key": "1738908150397-pw8or1cfj",
+                    "id": "file-1738907938593-7ca5p1243",
+                    "name": "index.ts",
+                    "code": "import {{.LowerCaseComponentName}}BlockSchema from \"./{{.KebabCaseComponentName}}.block-schema\";\r\nimport {{.LowerCaseComponentName}}BlockQuery from \"./{{.KebabCaseComponentName}}.block-query\";\r\nimport {{.LowerCaseComponentName}}BlockComponent from \"./{{.KebabCaseComponentName}}.block-component\";\r\n\r\nexport {\r\n  {{.CamelCaseComponentName}}BlockSchema,\r\n  {{.CamelCaseComponentName}}BlockQuery,\r\n  {{.PascalCaseComponentName}}BlockComponent\r\n};\r\n",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
