@@ -150,12 +150,13 @@ type FilePathGroup struct {
 // TreeNode describes either a directory (with children)
 // or a file (with code). The FileAction concept has been removed.
 type TreeNode struct {
-	Key      string     `json:"_key"`
-	Type     string     `json:"_type"`
-	Children []TreeNode `json:"children"`
-	Code     string     `json:"code"`
-	ID       string     `json:"id"`
-	Name     string     `json:"name"`
+	Key       string     `json:"_key"`
+	Type      string     `json:"_type"`
+	Children  []TreeNode `json:"children"`
+	Code      string     `json:"code"`
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	IsIndexer bool       `json:"isIndexer"` // even if false, we'll override if we see the marker in the code
 }
 
 // ExecuteJSONTemplate reads your JSON command file, creates the specified
@@ -207,6 +208,14 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 				return fmt.Errorf("failed to create parent directory for %s: %w", currentPath, err)
 			}
 			code := replacePlaceholders(node.Code, placeholders)
+
+			// Check for indexer marker in the code and register file as an indexer file.
+			isIndexer := node.IsIndexer
+			if !isIndexer && strings.Contains(code, "// THIS IS AN INDEXER FILE") {
+				isIndexer = true
+				fmt.Printf("Detected indexer marker in file %s, registering as an indexer file.\n", currentPath)
+			}
+
 			// If file already exists then we introduce smart merge behavior.
 			if _, err := os.Stat(currentPath); err == nil {
 				existingContentBytes, readErr := os.ReadFile(currentPath)
