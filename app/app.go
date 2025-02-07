@@ -24,11 +24,14 @@ type Model struct {
 	AllCmdsTotal   int
 	ProjectPath    string
 	RecognizedPkgs []string
+	TempFilename   string // Used for single-variable input.
+	PendingCommand string // Stores the command that triggered the prompt.
 
-	// This will store the filename the user wants:
-	TempFilename string
-	// If you want to store which command triggered the prompt, do so here:
-	PendingCommand string
+	// Fields for multi-variable mode:
+	MultipleVariables    bool              // True when the command requires multiple variables.
+	VariableKeys         []string          // List of keys (e.g. ["Component", "Page", "Feature"]).
+	CurrentVariableIndex int               // Index for tracking which variable is being collected.
+	Variables            map[string]string // Map to store the user's input for each variable.
 
 	// List of files we plan to generate (for the FileGenModel):
 	PlannedFiles []string

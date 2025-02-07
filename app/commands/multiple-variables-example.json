@@ -1,0 +1,60 @@
+{
+  "_id": "multiple-variables-example",
+  "_type": "command",
+  "title": "Multiple Variables Example Command",
+  "slug": {
+    "_type": "slug",
+    "current": "multiple-variables-example"
+  },
+  "filePaths": [
+    {
+      "_key": "grp-1",
+      "_type": "filePathGroup",
+      "path": "src/components",
+      "id": "group-001",
+      "nodes": [
+        {
+          "_key": "node-1",
+          "_type": "treeNode",
+          "name": "{{.PascalCaseMain}}Component",
+          "id": "comp-folder-1",
+          "children": [
+            {
+              "_key": "child-1",
+              "_type": "treeNode",
+              "id": "comp-file-1",
+              "name": "index.tsx",
+              "code": "import React from 'react';\n\n// Component: {{.PascalCaseMain}}Component\n// Page: {{.CamelCasePage}}\n// Feature: {{.KebabCaseFeature}}\n\nexport default function {{.PascalCaseMain}}Component() {\n  return (\n    <div className=\"{{.LowerCaseMain}}-container\">\n      <h1>{{.PascalCaseMain}} Component Loaded</h1>\n      <p>View: {{.PascalCasePage}}</p>\n      <p>Feature: {{.PascalCaseFeature}}</p>\n    </div>\n  );\n}\n",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "_key": "grp-2",
+      "_type": "filePathGroup",
+      "path": "src/pages",
+      "id": "group-002",
+      "nodes": [
+        {
+          "_key": "node-2",
+          "_type": "treeNode",
+          "name": "{{.CamelCasePage}}",
+          "id": "page-folder-1",
+          "children": [
+            {
+              "_key": "child-2",
+              "_type": "treeNode",
+              "id": "page-file-1",
+              "name": "view.tsx",
+              "code": "import React from 'react';\n\nexport default function {{.PascalCasePage}}() {\n  return (\n    <div>\n      <h1>Welcome to the {{.PascalCasePage}} Page</h1>\n      <p>Featuring: {{.PascalCaseFeature}}</p>\n    </div>\n  );\n}\n",
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "description": "This command creates a component and a page using multiple variables: Main, Page, and Feature."
+} 

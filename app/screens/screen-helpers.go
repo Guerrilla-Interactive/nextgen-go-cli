@@ -158,7 +158,7 @@ func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
 	// Always record the command so it appears at the top of RecentUsed:
 	recordCommand(m, itemName)
 
-	// Check if user wants to show all commands:
+	// Check if the user wants to show all commands:
 	if itemName == commands.NextSteps[0] {
 		m.CurrentScreen = app.ScreenAll
 		m.AllCmdsIndex = 0
@@ -166,14 +166,28 @@ func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
 		return m
 	}
 
-	// If the command starts with "add ", prompt for a filename instead of running immediately.
+	// If the command requires multiple variables, enable multi-variable mode.
+	// In this example we check against "add multiple variables example".
+	if itemName == "add multiple variables example" {
+		m.PendingCommand = itemName
+		m.MultipleVariables = true
+		// Set the keys that you expect to collect.
+		// For example, the first variable will be promoted as "Main".
+		m.VariableKeys = []string{"ComponentName", "Page", "Feature"}
+		m.CurrentVariableIndex = 0
+		m.Variables = make(map[string]string)
+		m.CurrentScreen = app.ScreenFilenamePrompt
+		return m
+	}
+
+	// For all other "add " commands, use the single-variable prompt.
 	if strings.HasPrefix(itemName, "add ") {
 		m.PendingCommand = itemName
 		m.CurrentScreen = app.ScreenFilenamePrompt
 		return m
 	}
 
-	// Otherwise, run the command, then go back to Main:
+	// Otherwise, run the command immediately.
 	commands.RunCommand(itemName, m.ProjectPath, nil)
 	m.CurrentScreen = app.ScreenMain
 	return m

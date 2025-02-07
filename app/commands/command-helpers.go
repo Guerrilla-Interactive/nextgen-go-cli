@@ -301,3 +301,67 @@ func ExecuteJSONTemplateFromMemory(jsonBytes []byte, projectPath string, placeho
 
 	return nil
 }
+
+// BuildPlaceholders creates a map of placeholder variables from a map of
+// variable names to their raw values. Each variable will have multiple forms:
+// - Raw:           {{.VariableName}}
+// - PascalCase:    {{.PascalCaseVariableName}}
+// - CamelCase:     {{.CamelCaseVariableName}}
+// - KebabCase:     {{.KebabCaseVariableName}}
+// - LowerCase:     {{.LowerCaseVariableName}}
+//
+// This way you can pass multiple variables (for example, ComponentName, PageName, etc.)
+// so that your templates can refer to any of these variants.
+func BuildPlaceholders(vars map[string]string) map[string]string {
+	placeholders := make(map[string]string)
+	for key, value := range vars {
+		// Raw value – can be used for the original string.
+		placeholders["{{."+key+"}}"] = value
+
+		// PascalCase – e.g. "my-page" becomes "MyPage".
+		placeholders["{{.PascalCase"+key+"}}"] = ToPascalCase(value)
+
+		// CamelCase – e.g. "MyPage" becomes "myPage".
+		placeholders["{{.CamelCase"+key+"}}"] = ToCamelCase(value)
+
+		// KebabCase – e.g. "MyPage" becomes "my-page".
+		placeholders["{{.KebabCase"+key+"}}"] = ToKebabCase(value)
+
+		// LowerCase – entire string in lowercase.
+		placeholders["{{.LowerCase"+key+"}}"] = strings.ToLower(value)
+	}
+	return placeholders
+}
+
+// BuildMultiPlaceholders builds a placeholder map that always includes a main variable
+// called "Main" along with additional variables. Each variable is automatically transformed
+// into its Raw, PascalCase, CamelCase, KebabCase, and LowerCase representations.
+func BuildMultiPlaceholders(mainValue string, extraVars map[string]string) map[string]string {
+	// Start by building the placeholders for the main variable.
+	placeholders := BuildPlaceholders(map[string]string{"Main": mainValue})
+
+	// Add placeholders for each additional variable.
+	for key, value := range extraVars {
+		// If any extra variable is also named "Main", extraVars will override the main value.
+		extraPlaceholders := BuildPlaceholders(map[string]string{key: value})
+		for k, v := range extraPlaceholders {
+			placeholders[k] = v
+		}
+	}
+	return placeholders
+}
+
+// BuildAutoPlaceholders creates a placeholder map from the given map of variables.
+// If only one variable is provided, it automatically treats that variable as "Main",
+// so that its placeholders will be available as {{.Main}}, {{.PascalCaseMain}}, etc.
+// Otherwise, if multiple variables are provided, they are used as supplied.
+func BuildAutoPlaceholders(vars map[string]string) map[string]string {
+	if len(vars) == 1 {
+		// If only one variable is provided, ignore its key and promote it to "Main".
+		for _, value := range vars {
+			return BuildPlaceholders(map[string]string{"Main": value})
+		}
+	}
+	// If more than one variable is provided, use the keys as supplied.
+	return BuildPlaceholders(vars)
+}
