@@ -153,12 +153,23 @@ func renderItemList(items []string, m app.Model, offset int) string {
 	return out
 }
 
+// requiresMultipleVars checks whether the command requires multiple variable inputs.
+func requiresMultipleVars(cmdName string) bool {
+	spec := commands.GetCommandSpec(cmdName)
+	return len(spec.VariableKeys) > 0
+}
+
+// extractVariableKeys returns the list of variable keys defined in the command spec.
+func extractVariableKeys(cmdName string) []string {
+	spec := commands.GetCommandSpec(cmdName)
+	return spec.VariableKeys
+}
+
 // HandleCommandSelection centralizes what happens when a command is selected.
 func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
 	// Always record the command so it appears at the top of RecentUsed:
 	recordCommand(m, itemName)
 
-	// Check if the user wants to show all commands:
 	if itemName == commands.NextSteps[0] {
 		m.CurrentScreen = app.ScreenAll
 		m.AllCmdsIndex = 0
@@ -166,21 +177,19 @@ func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
 		return m
 	}
 
-	// If the command requires multiple variables, enable multi-variable mode.
-	// In this example we check against "add multiple variables example".
-	if itemName == "add multiple variables example" {
+	// Check if the command requires multiple variable inputs.
+	if requiresMultipleVars(itemName) {
 		m.PendingCommand = itemName
 		m.MultipleVariables = true
-		// Set the keys that you expect to collect.
-		// For example, the first variable will be promoted as "Main".
-		m.VariableKeys = []string{"ComponentName", "Page", "Feature"}
+		// Set the keys based on the command spec.
+		m.VariableKeys = extractVariableKeys(itemName)
 		m.CurrentVariableIndex = 0
 		m.Variables = make(map[string]string)
 		m.CurrentScreen = app.ScreenFilenamePrompt
 		return m
 	}
 
-	// For all other "add " commands, use the single-variable prompt.
+	// For "add " commands without multiple variables, use the single-variable prompt.
 	if strings.HasPrefix(itemName, "add ") {
 		m.PendingCommand = itemName
 		m.CurrentScreen = app.ScreenFilenamePrompt

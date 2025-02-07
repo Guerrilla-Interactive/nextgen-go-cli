@@ -52,11 +52,23 @@ func LoadCommandTemplate(path string) ([]byte, error) {
 	return data, nil
 }
 
-// CommandSpec defines a single command's name and (optionally) a JSON template path.
-// If TemplatePath is empty, the command is recognized but not yet implemented.
+// GetCommandSpec returns the CommandSpec for a given command name.
+func GetCommandSpec(cmdName string) CommandSpec {
+	for _, spec := range Commands {
+		if spec.Name == cmdName {
+			return spec
+		}
+	}
+	return CommandSpec{}
+}
+
+// CommandSpec defines a single command's name, an optional JSON template path,
+// and (optionally) a list of variable keys. If VariableKeys is non-empty then
+// multiple independent variables will be collected.
 type CommandSpec struct {
 	Name         string
 	TemplatePath string
+	VariableKeys []string // Optional; if set, these keys will be used for multi-variable input.
 }
 
 // Commands is our single authoritative list of all possible commands.
@@ -66,7 +78,11 @@ var Commands = []CommandSpec{
 	{Name: "add page", TemplatePath: "page-and-archive.json"},
 	{Name: "add wordpress block", TemplatePath: "wordpress-interactive-block-for-nextgen-theme.json"},
 	{Name: "add nextgen pagebuilder block", TemplatePath: "add-nextgen-pagebuilder-block.json"},
-	{Name: "add multiple variables example", TemplatePath: "multiple-variables-example.json"},
+	{
+		Name:         "add multiple variables example",
+		TemplatePath: "multiple-variables-example.json",
+		VariableKeys: []string{"ComponentName", "Page", "Feature"}, // This can be replaced with any keys you need.
+	},
 	{Name: "remove page"},
 	{Name: "add portable-component"},
 	{Name: "remove portable-component"},
