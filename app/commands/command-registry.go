@@ -6,11 +6,12 @@ import (
 	"io/fs"
 	"log"
 	"path/filepath"
+	"strings"
 )
 
 // Use *.json to embed JSON files in the same directory (non-recursively).
 //
-// If you want to embed subfolders, you can saygo:embed **/*.json
+// If you want to embed subfolders, you can say go:embed **/*.json
 //
 //go:embed *.json
 var commandFiles embed.FS
@@ -86,6 +87,7 @@ var RecentUsed = []string{
 	"add section",
 	"remove section",
 	"add wordpress block",
+	"add nextgen pagebuilder block",
 	"add page",
 	"remove page",
 	"add portable-component",
@@ -99,30 +101,25 @@ var NextSteps = []string{
 	"LogoutOrLoginPlaceholder",
 }
 
-// CommandIconMap associates a command with an icon or fallback bullet.
+// CommandIconMap associates non-add/remove commands with an icon.
+// The "add" and "remove" commands are now handled automatically.
 var CommandIconMap = map[string]string{
-	"add section":               "✚",
-	"remove section":            "✖",
-	"add page":                  "✚",
-	"remove page":               "✖",
-	"add portable-component":    "✚",
-	"remove portable-component": "✖",
-	"add component":             "✚",
-	"remove component":          "✖",
-	"add schema":                "✚",
-	"add wordpress block":       "✚",
-	"remove schema":             "✖",
-	"add query":                 "✚",
-	"remove query":              "✖",
-	"add sanity-plugin":         "✚",
-	"remove sanity-plugin":      "✖",
-	"undo":                      "↺",
-	"redo":                      "↻",
-	"add hello":                 "✚",
+	"undo": "↺",
+	"redo": "↻",
+	// Other commands that do not start with "add " or "remove " can be added here.
 }
 
 // CommandWithIcon returns a user-friendly label with an icon prefix.
+// It automatically assigns a plus sign (✚) for commands starting with "add "
+// and an X (✖) for commands starting with "remove ".
 func CommandWithIcon(cmd string) string {
+	lowerCmd := strings.ToLower(cmd)
+	if strings.HasPrefix(lowerCmd, "add ") {
+		return fmt.Sprintf("✚  %s", cmd)
+	}
+	if strings.HasPrefix(lowerCmd, "remove ") {
+		return fmt.Sprintf("✖  %s", cmd)
+	}
 	if icon, ok := CommandIconMap[cmd]; ok {
 		return fmt.Sprintf("%s  %s", icon, cmd)
 	}
