@@ -154,15 +154,32 @@ func renderItemList(items []string, m app.Model, offset int) string {
 }
 
 // requiresMultipleVars checks whether the command requires multiple variable inputs.
+// It loads the command's JSON template and infers variable keys automatically.
 func requiresMultipleVars(cmdName string) bool {
 	spec := commands.GetCommandSpec(cmdName)
-	return len(spec.VariableKeys) > 0
+	if spec.TemplatePath == "" {
+		return false
+	}
+	keys, err := commands.GetTemplateVariableKeys(spec)
+	if err != nil {
+		// On error we assume no extra variables are required.
+		return false
+	}
+	// If more than one unique key is found, consider it a multi-variable command.
+	return len(keys) > 1
 }
 
-// extractVariableKeys returns the list of variable keys defined in the command spec.
+// extractVariableKeys returns the list of variable keys inferred from the command's JSON template.
 func extractVariableKeys(cmdName string) []string {
 	spec := commands.GetCommandSpec(cmdName)
-	return spec.VariableKeys
+	if spec.TemplatePath == "" {
+		return nil
+	}
+	keys, err := commands.GetTemplateVariableKeys(spec)
+	if err != nil {
+		return nil
+	}
+	return keys
 }
 
 // HandleCommandSelection centralizes what happens when a command is selected.
@@ -177,11 +194,11 @@ func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
 		return m
 	}
 
-	// Check if the command requires multiple variable inputs.
+	// Check if the command requires multiple variable inputs by inferring keys from its JSON.
 	if requiresMultipleVars(itemName) {
 		m.PendingCommand = itemName
 		m.MultipleVariables = true
-		// Set the keys based on the command spec.
+		// Infer keys from the template.
 		m.VariableKeys = extractVariableKeys(itemName)
 		m.CurrentVariableIndex = 0
 		m.Variables = make(map[string]string)

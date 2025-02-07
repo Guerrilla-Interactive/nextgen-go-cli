@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -221,4 +222,44 @@ func BuildAutoPlaceholders(vars map[string]string) map[string]string {
 		}
 	}
 	return BuildPlaceholders(vars)
+}
+
+// ----------------------------------------------------------------------------
+// New helper functions to infer variable keys automatically from the JSON
+// template. They scan for placeholders of the form:
+//   {{.PascalCaseVariable}}, {{.CamelCaseVariable}}, etc.
+// ----------------------------------------------------------------------------
+
+// InferVariableKeys scans the input content and returns a slice of unique
+// variable names (ignoring transformation prefixes).
+func InferVariableKeys(content string) []string {
+	// This regex matches patterns like {{.PascalCaseComponentName}},
+	// {{.CamelCaseComponentName}}, etc. It captures the base variable name.
+	regex := regexp.MustCompile(`{{\.(?:PascalCase|CamelCase|KebabCase|LowerCase)?([A-Za-z0-9_]+)}}`)
+	matches := regex.FindAllStringSubmatch(content, -1)
+	keysSet := make(map[string]struct{})
+	for _, match := range matches {
+		if len(match) > 1 {
+			keysSet[match[1]] = struct{}{}
+		}
+	}
+	var keys []string
+	for key := range keysSet {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+// GetTemplateVariableKeys loads the JSON template for the given command spec
+// and returns the inferred variable keys.
+func GetTemplateVariableKeys(spec CommandSpec) ([]string, error) {
+	if spec.TemplatePath == "" {
+		return nil, nil
+	}
+	data, err := LoadCommandTemplate(spec.TemplatePath)
+	if err != nil {
+		return nil, err
+	}
+	keys := InferVariableKeys(string(data))
+	return keys, nil
 }
