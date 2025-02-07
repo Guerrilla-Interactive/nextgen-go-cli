@@ -67,7 +67,7 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 		return m, nil
 	}
 
-	// Single variable mode (existing logic).
+	// Single variable mode.
 	switch keyMsg.String() {
 	case "ctrl+c", "esc":
 		os.Exit(0)
@@ -77,8 +77,18 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 			return m, nil
 		}
 
-		// Build placeholders using the single variable helper.
-		placeholderMap := commands.BuildNamePlaceholders(filename)
+		// Instead of always using "Main", check if the pending command's template
+		// implies a different variable key.
+		spec := commands.GetCommandSpec(m.PendingCommand)
+		keys, err := commands.GetTemplateVariableKeys(spec)
+		var placeholderMap map[string]string
+		// If exactly one key is found (e.g. "ComponentName"), then use that
+		if err == nil && len(keys) == 1 {
+			placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: filename})
+		} else {
+			// Otherwise fallback on the older behavior using "Main"
+			placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": filename})
+		}
 
 		// Run the command with that placeholder map.
 		if err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholderMap); err != nil {

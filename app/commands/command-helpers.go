@@ -176,17 +176,6 @@ func splitIntoWords(s string) []string {
 	return strings.Fields(s)
 }
 
-// BuildNamePlaceholders builds a placeholder map based on a raw name.
-func BuildNamePlaceholders(rawName string) map[string]string {
-	return map[string]string{
-		"{example}":                    strings.ToLower(rawName),
-		"{{.PascalCaseComponentName}}": ToPascalCase(rawName),
-		"{{.CamelCaseComponentName}}":  ToCamelCase(rawName),
-		"{{.KebabCaseComponentName}}":  ToKebabCase(rawName),
-		"{{.LowerCaseComponentName}}":  strings.ToLower(rawName),
-	}
-}
-
 // BuildPlaceholders creates a map of placeholder variables from a map of
 // variable names to their raw values.
 func BuildPlaceholders(vars map[string]string) map[string]string {

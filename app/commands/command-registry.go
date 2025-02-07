@@ -81,7 +81,6 @@ var Commands = []CommandSpec{
 	{
 		Name:         "add multiple variables example",
 		TemplatePath: "multiple-variables-example.json",
-		VariableKeys: []string{"ComponentName", "Page", "Feature"}, // This can be replaced with any keys you need.
 	},
 	{Name: "remove page"},
 	{Name: "add portable-component"},
