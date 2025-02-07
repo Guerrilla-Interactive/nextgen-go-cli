@@ -68,7 +68,6 @@ func GetCommandSpec(cmdName string) CommandSpec {
 type CommandSpec struct {
 	Name         string
 	TemplatePath string
-	VariableKeys []string // Optional; if set, these keys will be used for multi-variable input.
 }
 
 // Commands is our single authoritative list of all possible commands.
@@ -78,10 +77,7 @@ var Commands = []CommandSpec{
 	{Name: "add page", TemplatePath: "page-and-archive.json"},
 	{Name: "add wordpress block", TemplatePath: "wordpress-interactive-block-for-nextgen-theme.json"},
 	{Name: "add nextgen pagebuilder block", TemplatePath: "add-nextgen-pagebuilder-block.json"},
-	{
-		Name:         "add multiple variables example",
-		TemplatePath: "multiple-variables-example.json",
-	},
+	{Name: "add multiple variables example", TemplatePath: "multiple-variables-example.json"},
 	{Name: "remove page"},
 	{Name: "add portable-component"},
 	{Name: "remove portable-component"},

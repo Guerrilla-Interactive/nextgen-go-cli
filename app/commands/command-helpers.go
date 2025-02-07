@@ -9,6 +9,129 @@ import (
 	"strings"
 )
 
+// -----------------------------------------------------------------------------
+// [NEW] Smart snippet merge helpers
+// -----------------------------------------------------------------------------
+
+// Global regex patterns for snippet markers.
+var (
+	startMarkerRegex = regexp.MustCompile(`^\s*//\s*START\s+OF\s+(.+)$`)
+	endMarkerRegex   = regexp.MustCompile(`^\s*//\s*END\s+OF\s+(.+)$`)
+	addMarkerRegex   = regexp.MustCompile(`^\s*//\s*ADD\s+(.+?)\s+(BELOW|ABOVE)\s*$`)
+)
+
+// removeSnippetMarkers removes the marker lines (START/END) from the
+// provided content while keeping the snippet's code intact. This is used
+// when creating a new file.
+func removeSnippetMarkers(content string) string {
+	var output []string
+	lines := strings.Split(content, "\n")
+	collecting := false
+	for _, line := range lines {
+		if startMarkerRegex.MatchString(line) {
+			// Do not output the start marker; begin collecting snippet code.
+			collecting = true
+			continue
+		}
+		if collecting && endMarkerRegex.MatchString(line) {
+			// End marker encountered; stop collecting.
+			collecting = false
+			continue
+		}
+		// Always output the line (whether in snippet or normal code)
+		output = append(output, line)
+	}
+	return strings.Join(output, "\n")
+}
+
+// extractSnippets scans the content for snippet groups delimited by
+// "// START OF ..." and "// END OF ..." markers. It returns a map where
+// each key (e.g. "VALUE 1") maps to the snippet code found in between.
+func extractSnippets(content string) (map[string]string, error) {
+	snippets := make(map[string][]string)
+	lines := strings.Split(content, "\n")
+	var currentKey string
+	collecting := false
+	for _, line := range lines {
+		if m := startMarkerRegex.FindStringSubmatch(line); m != nil {
+			currentKey = strings.TrimSpace(m[1])
+			collecting = true
+			snippets[currentKey] = []string{}
+			continue
+		}
+		if collecting {
+			if m := endMarkerRegex.FindStringSubmatch(line); m != nil {
+				collecting = false
+				currentKey = ""
+				continue
+			}
+			snippets[currentKey] = append(snippets[currentKey], line)
+		}
+	}
+	result := make(map[string]string)
+	for key, lines := range snippets {
+		// Join the snippet's lines and trim any extra whitespace.
+		result[key] = strings.TrimSpace(strings.Join(lines, "\n"))
+	}
+	return result, nil
+}
+
+// smartMerge takes an existing file's content and the new template content,
+// extracts snippet(s) from the new content, and then looks for any insertion
+// markers (like "// ADD VALUE 1 BELOW") in the existing file. When found, the
+// snippet code is inserted (either above or below the marker).
+func smartMerge(existingContent, templateContent string) (string, error) {
+	// First, extract any snippet groups defined in the new template.
+	snippetMap, err := extractSnippets(templateContent)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract snippets: %w", err)
+	}
+
+	lines := strings.Split(existingContent, "\n")
+	var mergedLines []string
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+		// Check if this line is an insertion marker.
+		if matches := addMarkerRegex.FindStringSubmatch(line); matches != nil {
+			key := strings.TrimSpace(matches[1])    // e.g. "VALUE 1"
+			position := strings.ToUpper(matches[2]) // either "BELOW" or "ABOVE"
+			// If the new snippet was defined in the template then add it.
+			if snippet, ok := snippetMap[key]; ok && snippet != "" {
+				snippetLines := strings.Split(snippet, "\n")
+				if position == "BELOW" {
+					mergedLines = append(mergedLines, line)
+					// (A simple check is performed here to try and avoid duplicate insertions.)
+					if i+1 < len(lines) && strings.TrimSpace(lines[i+1]) == strings.TrimSpace(snippetLines[0]) {
+						// Assume the snippet has already been inserted.
+					} else {
+						for _, s := range snippetLines {
+							mergedLines = append(mergedLines, s)
+						}
+					}
+					continue // skip adding the marker again
+				} else if position == "ABOVE" {
+					// For ABOVE, insert the snippet lines just before the marker.
+					if len(mergedLines) > 0 && strings.TrimSpace(mergedLines[len(mergedLines)-1]) == strings.TrimSpace(snippetLines[len(snippetLines)-1]) {
+						mergedLines = append(mergedLines, line)
+					} else {
+						for _, s := range snippetLines {
+							mergedLines = append(mergedLines, s)
+						}
+						mergedLines = append(mergedLines, line)
+					}
+					continue
+				}
+			}
+		}
+		mergedLines = append(mergedLines, line)
+	}
+	return strings.Join(mergedLines, "\n"), nil
+}
+
+// -----------------------------------------------------------------------------
+// (Existing functions below unchanged...)
+// -----------------------------------------------------------------------------
+
 // JSONCommandTemplate is the root structure of your template JSON file.
 type JSONCommandTemplate struct {
 	FilePaths []FilePathGroup `json:"filePaths"`
@@ -61,8 +184,10 @@ func ExecuteJSONTemplate(jsonFilePath, projectPath string, placeholders map[stri
 	return nil
 }
 
-// gatherNodes creates directories or files based on the TreeNode objects
-// (substituting placeholders in both names and code).
+// Updated gatherNodes creates directories or files based on the TreeNode objects.
+// If a file already exists then it smartly "merges" new snippet content into it,
+// by searching for insertion markers like "// ADD VALUE 1 BELOW". If the file does
+// not exist it simply writes the new file (after removing the snippet start/end markers).
 func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders map[string]string) error {
 	for _, node := range nodes {
 		nodeName := replacePlaceholders(node.Name, placeholders)
@@ -77,19 +202,32 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 				return err
 			}
 		} else if node.Code != "" {
-			// Before writing, check if the file already exists:
+			// Ensure that the parent directory exists:
+			if err := os.MkdirAll(filepath.Dir(currentPath), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directory for %s: %w", currentPath, err)
+			}
+			code := replacePlaceholders(node.Code, placeholders)
+			// If file already exists then we introduce smart merge behavior.
 			if _, err := os.Stat(currentPath); err == nil {
-				// Log a notice if it already exists:
-				fmt.Printf("Skipping creation of %s because it already exists.\n", currentPath)
-			} else {
-				// If node is a file, write its code (with placeholders replaced).
-				if err := os.MkdirAll(filepath.Dir(currentPath), 0755); err != nil {
-					return fmt.Errorf("failed to create parent directory for %s: %w", currentPath, err)
+				existingContentBytes, readErr := os.ReadFile(currentPath)
+				if readErr != nil {
+					return fmt.Errorf("failed to read existing file %s: %w", currentPath, readErr)
 				}
-				code := replacePlaceholders(node.Code, placeholders)
-				if err := os.WriteFile(currentPath, []byte(code), 0644); err != nil {
+				mergedContent, mergeErr := smartMerge(string(existingContentBytes), code)
+				if mergeErr != nil {
+					return fmt.Errorf("failed to merge file %s: %w", currentPath, mergeErr)
+				}
+				if err := os.WriteFile(currentPath, []byte(mergedContent), 0644); err != nil {
+					return fmt.Errorf("failed to write merged file %s: %w", currentPath, err)
+				}
+				fmt.Printf("Merged updates into existing file %s.\n", currentPath)
+			} else {
+				// New file: remove the snippet start/end markers (but keep the "ADD VALUE" markers).
+				newContent := removeSnippetMarkers(code)
+				if err := os.WriteFile(currentPath, []byte(newContent), 0644); err != nil {
 					return fmt.Errorf("failed to write file %s: %w", currentPath, err)
 				}
+				fmt.Printf("Created new file %s.\n", currentPath)
 			}
 		}
 	}
