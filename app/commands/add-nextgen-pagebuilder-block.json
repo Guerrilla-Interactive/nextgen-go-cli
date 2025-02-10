@@ -60,7 +60,7 @@
                     "_key": "1738908150397-pw8or1cfj",
                     "id": "file-1738907938593-7ca5p1243",
                     "name": "index.ts",
-                    "code": "import {{.LowerCaseComponentName}}BlockSchema from \"./{{.KebabCaseComponentName}}.block-schema\";\r\nimport {{.LowerCaseComponentName}}BlockQuery from \"./{{.KebabCaseComponentName}}.block-query\";\r\nimport {{.LowerCaseComponentName}}BlockComponent from \"./{{.KebabCaseComponentName}}.block-component\";\r\n\r\nexport {\r\n  {{.CamelCaseComponentName}}BlockSchema,\r\n  {{.CamelCaseComponentName}}BlockQuery,\r\n  {{.PascalCaseComponentName}}BlockComponent\r\n};\r\n",
+                    "code": "import {{.CamelCaseComponentName}}BlockSchema from \"./{{.KebabCaseComponentName}}.block-schema\";\nimport {{.CamelCaseComponentName}}BlockQuery from \"./{{.KebabCaseComponentName}}.block-query\";\nimport {{.PascalCaseComponentName}}BlockComponent from \"./{{.KebabCaseComponentName}}.block-component\";\n\nexport {\n  {{.CamelCaseComponentName}}BlockSchema,\n  {{.CamelCaseComponentName}}BlockQuery,\n  {{.PascalCaseComponentName}}BlockComponent\n};\n\n",
                     "isIndexer": false,
                     "children": []
                   }
@@ -74,7 +74,7 @@
             "id": "file-1738915358780",
             "name": "block-indexer.tsx",
             "code": "// THIS IS AN INDEXER FILE\n\nimport { groq } from \"next-sanity\";\n\n// START OF VALUE 1\nimport { {{.PascalCaseComponentName}}BlockComponent, {{.CamelCaseComponentName}}BlockQuery, {{.CamelCaseComponentName}}BlockSchema } from \"./blocks/{{.LowerCaseComponentName}}-block\";\n// END OF VALUE 1\n// ADD VALUE 1 ABOVE\n\nexport const BlockDataMap: {\n  [key: string]: {\n    component?: React.ComponentType<any>;\n    schema?: any;\n    query?: string;\n  };\n} = {\n  // START OF VALUE 2\n  \"{{.LowerCaseComponentName}}-block\": { component: {{.PascalCaseComponentName}}BlockComponent, schema: {{.CamelCaseComponentName}}BlockSchema, query: {{.CamelCaseComponentName}}BlockQuery },\n  // END OF VALUE 2\n  // ADD VALUE 2 ABOVE\n};\n\n\nexport const allBlockSchemas = Object.values(BlockDataMap)\n  .filter((block) => block.schema !== undefined)\n  .map((block) => block.schema);\n\nexport const allBlockQueries: string = Object.values(BlockDataMap)\n  .filter((block) => block.query !== undefined)\n  .map((block) => block.query as string)\n  .join(\"\\n\");\n\n  \nexport const pageBuilderQuery = groq`\nblocks[]{\n  ${allBlockQueries}\n},\n`;\n\n\nexport default function Blocks({ blocks }: { blocks?: Sanity.Block[] }) {\n  if (!blocks) return null;\n  return (\n    <>\n      {blocks.map((block, index) => {\n        const key = block._key || index;\n        const Component = BlockDataMap[block._type]?.component;\n        if (!Component) return <div data-type={block._type} key={key} />;\n        return <Component {...block} key={key} />;\n      })}\n    </>\n  );\n}",
-            "isIndexer": false,
+            "isIndexer": true,
             "children": []
           }
         ]
