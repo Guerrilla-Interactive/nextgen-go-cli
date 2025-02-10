@@ -77,7 +77,8 @@ func ViewMainScreen(m app.Model) string {
 
 	body += "\n" + app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)")
 
-	return body
+	// Wrap output in our base container
+	return baseContainer(body)
 }
 
 // renderRecentUsedInColumns displays recent commands in *column-major* order, filling each column top-down.

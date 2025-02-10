@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// UpdateScreenAll handles keypresses on the “all commands” screen with “smart” arrow navigation.
+// UpdateScreenAll handles keypresses on the "all commands" screen with "smart" arrow navigation.
 // We treat each column as having up to 10 commands, and there may be multiple columns.
 // Pressing ↓ from the bottom row goes to "Back"; pressing ↓ again while on "Back" wraps to the top (index=0).
 // Pressing ↑ from the top row goes to "Back"; pressing ↑ again while on "Back" ⇒ go to bottom of the first column.
@@ -41,14 +41,17 @@ func UpdateScreenAll(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 				m.CurrentScreen = app.ScreenFilenamePrompt
 			} else {
 				recordCommand(&m, cmdName)
-				commands.RunCommand(cmdName, m.ProjectPath, nil)
+				return m, func() tea.Msg {
+					err := commands.RunCommand(cmdName, m.ProjectPath, nil)
+					return CommandFinishedMsg{Err: err}
+				}
 			}
 		}
 	}
 	return m, nil
 }
 
-// ViewAllScreen renders the “all commands” screen in pretty, fixed-width columns,
+// ViewAllScreen renders the "all commands" screen in pretty, fixed-width columns,
 // now including icons for each command and removing the > < markers.
 func ViewAllScreen(m app.Model) string {
 	// Title
@@ -103,7 +106,7 @@ func ViewAllScreen(m app.Model) string {
 
 	body += "\n" + app.HelpStyle.Render("(Use arrows or j/k/up/down to move; Enter on 'Back' returns to main screen; q quits.)")
 
-	return body
+	return baseContainer(body)
 }
 
 // moveAllCmdsSelectionLeft moves the selection one column to the left (if possible).
@@ -150,7 +153,7 @@ func moveAllCmdsSelectionRight(m app.Model) app.Model {
 	}
 	newIdx := col*rows + row
 	if newIdx >= commandsCount {
-		// If that column doesn't have a row at “row,” do nothing
+		// If that column doesn't have a row at "row," do nothing
 		return m
 	}
 	m.AllCmdsIndex = newIdx

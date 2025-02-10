@@ -48,5 +48,6 @@ func ViewSelectScreen(m app.Model) string {
 		"Use ↑/↓ (or j/k) to toggle between Login and Stay Offline, then press Enter.\n" +
 			"(Press q to quit)")
 
-	return body
+	// Wrap the select screen content with a base container.
+	return baseContainer(body)
 }

@@ -41,17 +41,10 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 				placeholders := commands.BuildMultiPlaceholders(mainValue, extraVars)
 
 				// Run the command with the built placeholders.
-				if err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholders); err != nil {
-					fmt.Println("Command error:", err)
-					return m, nil
+				return m, func() tea.Msg {
+					err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholders)
+					return CommandFinishedMsg{Err: err}
 				}
-
-				// Reset multi-variable state and return to main screen.
-				m.CurrentScreen = app.ScreenMain
-				m.MultipleVariables = false
-				m.CurrentVariableIndex = 0
-				m.Variables = make(map[string]string)
-				return m, nil
 			}
 			return m, nil
 		case "backspace":
@@ -91,13 +84,10 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 		}
 
 		// Run the command with that placeholder map.
-		if err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholderMap); err != nil {
-			fmt.Println("Command error:", err)
-			return m, nil
+		return m, func() tea.Msg {
+			err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholderMap)
+			return CommandFinishedMsg{Err: err}
 		}
-
-		m.CurrentScreen = app.ScreenMain
-		return m, nil
 	}
 
 	if len(keyMsg.String()) == 1 {
@@ -111,12 +101,16 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 
 // ViewFilenamePrompt displays the proper prompt based on the current mode.
 func ViewFilenamePrompt(m app.Model) string {
+	var prompt string
 	if m.MultipleVariables {
 		// Prompt for the current variable whose value is being collected.
 		currentKey := m.VariableKeys[m.CurrentVariableIndex]
-		return fmt.Sprintf("\nEnter value for %s:\n\n> %s\n\n(Press Enter to confirm | ESC/ctrl+c to quit)", currentKey, m.TempFilename)
+		prompt = fmt.Sprintf("\nEnter value for %s:\n\n> %s\n\n(Press Enter to confirm | ESC/ctrl+c to quit)", currentKey, m.TempFilename)
+	} else {
+		prompt = "\nEnter the new file/component name:\n\n" +
+			"> " + m.TempFilename + "\n\n" +
+			"(Press Enter to confirm | ESC/ctrl+c to quit)"
 	}
-	return "\nEnter the new file/component name:\n\n" +
-		"> " + m.TempFilename + "\n\n" +
-		"(Press Enter to confirm | ESC/ctrl+c to quit)"
+	// Wrap output in a styled container.
+	return baseContainer(prompt)
 }

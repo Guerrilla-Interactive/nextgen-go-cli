@@ -1,12 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"time"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// Add a new message type that will trigger quit after a delay.
+type QuitAfterDelayMsg struct{}
 
 // ProgramModel wraps app.Model so we can hold Update logic in one place.
 type ProgramModel struct {
@@ -23,13 +28,34 @@ func (pm ProgramModel) Init() tea.Cmd {
 func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch typedMsg := msg.(type) {
 
-	// 1) If the message is an app.Model, it’s likely from InitProjectCmd:
+	// 1) If the message is an app.Model, it's likely from InitProjectCmd:
 	case app.Model:
 		pm.M = typedMsg
 		return pm, nil
 
-	// 2) If the message is a tea.KeyMsg, dispatch to the appropriate screen’s Update method:
+	// 2) Handle the asynchronous command finished message.
+	case screens.CommandFinishedMsg:
+		if typedMsg.Err != nil {
+			// Optionally log or display the error.
+			fmt.Println("Command finished with error:", typedMsg.Err)
+		}
+		// Update to installation details screen.
+		pm.M.CurrentScreen = app.ScreenInstallDetails
+		// Instead of immediately quitting, wait for a small delay before quitting:
+		return pm, tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+			return QuitAfterDelayMsg{}
+		})
+
+	// 3) When receiving our QuitAfterDelayMsg, quit the app.
+	case QuitAfterDelayMsg:
+		return pm, tea.Quit
+
+	// 4) If the message is a tea.KeyMsg, dispatch to the appropriate screen's Update method.
 	case tea.KeyMsg:
+		// If we're on the installation details screen, any key press quits.
+		if pm.M.CurrentScreen == app.ScreenInstallDetails {
+			return pm, tea.Quit
+		}
 		switch pm.M.CurrentScreen {
 		case app.ScreenSelect:
 			updatedM, cmd := screens.UpdateScreenSelect(pm.M, typedMsg)
@@ -53,11 +79,11 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// For non-key messages or screens we didn’t switch on, just return unchanged.
+	// For non-key messages or screens we didn't switch on, just return unchanged.
 	return pm, nil
 }
 
-// View selects which screen’s View function to call based on pm.M.CurrentScreen.
+// View selects which screen's View function to call based on pm.M.CurrentScreen.
 func (pm ProgramModel) View() string {
 	switch pm.M.CurrentScreen {
 	case app.ScreenSelect:
@@ -68,11 +94,13 @@ func (pm ProgramModel) View() string {
 		return screens.ViewAllScreen(pm.M)
 	case app.ScreenFilenamePrompt:
 		return screens.ViewFilenamePrompt(pm.M)
+	case app.ScreenInstallDetails:
+		return screens.ViewInstallDetailsScreen(pm.M)
 	}
 	return ""
 }
 
-// Here’s an example of how to set the initial Model so that if
+// Here's an example of how to set the initial Model so that if
 // the user was already "logged in" or had chosen "offline" previously,
 // we skip directly to app.ScreenMain.
 func main() {
@@ -82,7 +110,7 @@ func main() {
 
 	// Build your initial model.
 	// If skipIntro is "1" (or if you have stored isLoggedIn == true, etc.),
-	// you’d set up your Model accordingly.
+	// you'd set up your Model accordingly.
 	initialModel := app.Model{
 		IsLoggedIn: false, // or read from session
 	}
@@ -92,7 +120,7 @@ func main() {
 		initialModel.IsLoggedIn = true
 		initialModel.CurrentScreen = app.ScreenMain
 	} else {
-		// Otherwise, start on the “select” screen as usual.
+		// Otherwise, start on the "select" screen as usual.
 		// (app.ScreenSelect is default, so you might leave it out.)
 		initialModel.CurrentScreen = app.ScreenSelect
 	}
@@ -102,8 +130,50 @@ func main() {
 		ProgramModel{
 			M: initialModel,
 		},
+		tea.WithAltScreen(),
 	)
-	if _, err := p.Run(); err != nil {
-		panic(err)
+	if err := p.Start(); err != nil {
+		fmt.Println("Error running program:", err)
+		os.Exit(1)
 	}
+}
+
+// Main update function. Your program should call this.
+func update(msg tea.Msg, m app.Model) (app.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	// When a command finishes we either show the installation details with an error,
+	// or simply show installation details and quit.
+	case screens.CommandFinishedMsg:
+		if msg.Err != nil {
+			// Optionally log or update a field that holds error info.
+			fmt.Println("Command finished with error:", msg.Err)
+		}
+		// Set the current screen to the installation details screen.
+		m.CurrentScreen = app.ScreenInstallDetails
+		// Option 1 - Immediately quit:
+		// return m, tea.Quit
+
+		// Option 2 - Wait for a key press on the install details screen to quit:
+		return m, nil
+
+	case tea.KeyMsg:
+		// If we're on the installation details screen, any key press quits.
+		if m.CurrentScreen == app.ScreenInstallDetails {
+			return m, tea.Quit
+		}
+		// Delegate to screen-specific updates.
+		switch m.CurrentScreen {
+		case app.ScreenAll:
+			return screens.UpdateScreenAll(m, msg)
+		case app.ScreenFilenamePrompt:
+			return screens.UpdateScreenFilenamePrompt(m, msg)
+		case app.ScreenSelect:
+			return screens.UpdateScreenSelect(m, msg)
+		// ... add additional cases for other screens as needed.
+		default:
+			return m, nil
+		}
+	}
+
+	return m, nil
 }

@@ -159,6 +159,14 @@ type TreeNode struct {
 	IsIndexer bool       `json:"isIndexer"` // even if false, we'll override if we see the marker in the code
 }
 
+// Global variable to record created file paths.
+var CreatedFiles []string
+
+// RecordCreatedFile appends a created file path to the global CreatedFiles list.
+func RecordCreatedFile(path string) {
+	CreatedFiles = append(CreatedFiles, path)
+}
+
 // ExecuteJSONTemplate reads your JSON command file, creates the specified
 // files/folders (applying placeholder replacements).
 func ExecuteJSONTemplate(jsonFilePath, projectPath string, placeholders map[string]string) error {
@@ -213,7 +221,7 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 			isIndexer := node.IsIndexer
 			if !isIndexer && strings.Contains(code, "// THIS IS AN INDEXER FILE") {
 				isIndexer = true
-				fmt.Printf("Detected indexer marker in file %s, registering as an indexer file.\n", currentPath)
+				fmt.Printf("ℹ️  Detected indexer marker in file %s, registering as an indexer file.\n", currentPath)
 			}
 
 			// If file already exists then we introduce smart merge behavior.
@@ -229,14 +237,16 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 				if err := os.WriteFile(currentPath, []byte(mergedContent), 0644); err != nil {
 					return fmt.Errorf("failed to write merged file %s: %w", currentPath, err)
 				}
-				fmt.Printf("Merged updates into existing file %s.\n", currentPath)
+				fmt.Printf("✓ Merged updates into existing file %s.\n", currentPath)
 			} else {
 				// New file: remove the snippet start/end markers (but keep the "ADD VALUE" markers).
 				newContent := removeSnippetMarkers(code)
 				if err := os.WriteFile(currentPath, []byte(newContent), 0644); err != nil {
 					return fmt.Errorf("failed to write file %s: %w", currentPath, err)
 				}
-				fmt.Printf("Created new file %s.\n", currentPath)
+				fmt.Printf("✓ Created new file %s.\n", currentPath)
+				// Record the created file.
+				RecordCreatedFile(currentPath)
 			}
 		}
 	}

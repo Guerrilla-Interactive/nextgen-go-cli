@@ -7,6 +7,8 @@ import (
 	"log"
 	"path/filepath"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Use *.json to embed JSON files in the same directory (non-recursively).
@@ -32,7 +34,7 @@ func init() {
 			}
 			// Store file contents in the registry, keyed by filename (like "page-and-archive.json")
 			templateRegistry[path] = data
-			log.Printf("Embedded file: %s", path)
+			// log.Printf("Embedded file: %s", path)
 		}
 		return nil
 	})
@@ -78,6 +80,7 @@ var Commands = []CommandSpec{
 	{Name: "add wordpress block", TemplatePath: "wordpress-interactive-block-for-nextgen-theme.json"},
 	{Name: "add nextgen pagebuilder block", TemplatePath: "add-nextgen-pagebuilder-block.json"},
 	{Name: "add multiple variables example", TemplatePath: "multiple-variables-example.json"},
+	{Name: "add test pagebuilder block", TemplatePath: "test-pagebuilder.json"},
 	{Name: "remove page"},
 	{Name: "add portable-component"},
 	{Name: "remove portable-component"},
@@ -96,15 +99,11 @@ var Commands = []CommandSpec{
 
 // RecentUsed & NextSteps remain separate slices, for usage in the UI.
 var RecentUsed = []string{
-	"add section",
-	"remove section",
 	"add wordpress block",
 	"add nextgen pagebuilder block",
 	"add multiple variables example",
+	"add test pagebuilder block",
 	"add page",
-	"remove page",
-	"add portable-component",
-	"remove portable-component",
 	"undo",
 	"redo",
 }
@@ -173,10 +172,12 @@ func RunCommand(cmdName, projectPath string, placeholders map[string]string) err
 		return nil
 	}
 
-	fmt.Printf("Running command: %s\n", cmdName)
-	fmt.Printf("Template path (key in embed.FS): %s\n", tPath)
-	fmt.Printf("Project path: %s\n", projectPath)
-	fmt.Printf("Placeholders: %+v\n", placeholders)
+	// Use a success style for output.
+	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
+	fmt.Println(successStyle.Render(fmt.Sprintf("➤ Running command: %s", cmdName)))
+	fmt.Println(successStyle.Render(fmt.Sprintf("Template: %s", tPath)))
+	fmt.Println(successStyle.Render(fmt.Sprintf("Project: %s", projectPath)))
+	fmt.Println(successStyle.Render(fmt.Sprintf("Placeholders: %+v", placeholders)))
 
 	// Load template bytes from memory via the registry:
 	data, err := LoadCommandTemplate(tPath)

@@ -1,10 +1,12 @@
 package screens
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -198,8 +200,10 @@ func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
 	if requiresMultipleVars(itemName) {
 		m.PendingCommand = itemName
 		m.MultipleVariables = true
-		// Infer keys from the template.
+		// Infer keys from the template (will now include any property variables, e.g. "Property: String")
 		m.VariableKeys = extractVariableKeys(itemName)
+		// Log the detected template variable keys.
+		fmt.Printf("Detected template variable keys: %v\n", m.VariableKeys)
 		m.CurrentVariableIndex = 0
 		m.Variables = make(map[string]string)
 		m.CurrentScreen = app.ScreenFilenamePrompt
@@ -215,6 +219,60 @@ func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
 
 	// Otherwise, run the command immediately.
 	commands.RunCommand(itemName, m.ProjectPath, nil)
-	m.CurrentScreen = app.ScreenMain
+	// After running the command, show the installation details screen.
+	m.CurrentScreen = app.ScreenInstallDetails
 	return m
+}
+
+// -----------------------------------------------------------------------------
+// New helper functions to create a unified container and to provide installation details
+// -----------------------------------------------------------------------------
+
+// baseContainer wraps the provided content in a nice Lipgloss border and padding.
+func baseContainer(content string) string {
+	containerStyle := lipgloss.NewStyle().
+		Border(lipgloss.DoubleBorder()).
+		Padding(1, 2).
+		Margin(1)
+	return containerStyle.Render(content)
+}
+
+// ViewInstallDetailsScreen shows a nicely formatted installation details screen.
+func ViewInstallDetailsScreen(m app.Model) string {
+	installMsg := "Installation Complete!"
+	details := fmt.Sprintf("Command executed: %s\nProject Path: %s\n", m.PendingCommand, m.ProjectPath)
+
+	// Use m.CreatedFiles if available; otherwise fall back on commands.CreatedFiles.
+	createdFiles := m.CreatedFiles
+	if len(createdFiles) == 0 {
+		createdFiles = commands.CreatedFiles
+	}
+	var fileLinks string
+	if len(createdFiles) > 0 {
+		fileLinks = "\nCreated Files:\n"
+		for _, f := range createdFiles {
+			// Format the file path as a stylized link.
+			link := fmt.Sprintf("• %s", f)
+			fileLinks += app.LinkStyle.Render(link) + "\n"
+		}
+	} else {
+		fileLinks = app.HelpStyle.Render("No files were created.")
+	}
+
+	help := app.HelpStyle.Render("Press any key to exit.")
+	content := app.TitleStyle.Render(installMsg) + "\n" +
+		app.PathStyle.Render(m.ProjectPath) + "\n\n" +
+		details + "\n" + fileLinks + "\n\n" + help
+	return baseContainer(content)
+}
+
+// UpdateScreenInstallDetails handles input on the installation details screen.
+// On any key press it quits the application.
+func UpdateScreenInstallDetails(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
+	return m, tea.Quit
+}
+
+// CommandFinishedMsg is sent when an asynchronous command execution has completed.
+type CommandFinishedMsg struct {
+	Err error
 }
