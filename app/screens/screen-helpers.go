@@ -231,9 +231,15 @@ func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
 // baseContainer wraps the provided content in a nice Lipgloss border and padding.
 func baseContainer(content string) string {
 	containerStyle := lipgloss.NewStyle().
-		Border(lipgloss.DoubleBorder()).
 		Padding(1, 2).
 		Margin(1)
+	return containerStyle.Render(content)
+}
+
+func sideContainer(content string) string {
+	containerStyle := lipgloss.NewStyle().
+		Padding(1, 2)
+
 	return containerStyle.Render(content)
 }
 

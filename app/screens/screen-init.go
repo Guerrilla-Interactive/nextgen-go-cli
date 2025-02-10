@@ -5,9 +5,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // InitProjectCmd returns a Cmd that loads project info (recognized packages, etc.).
@@ -70,4 +72,47 @@ func detectFrameworks(projectPath string) []string {
 		results = append(results, k)
 	}
 	return results
+}
+
+// ViewInitScreen builds the initialization screen and anchors the content to the bottom of the terminal.
+func ViewInitScreen(m app.Model) string {
+	// Create a title for the init screen.
+	titleText := "=== Init Screen ==="
+	title := app.TitleStyle.Render(titleText)
+
+	// Render the project path.
+	pathLine := app.PathStyle.Render("Project path: " + m.ProjectPath)
+
+	// Render the recognized packages if any.
+	var pkgInfo string
+	if len(m.RecognizedPkgs) > 0 {
+		pkgInfo = "Recognized Packages: " + strings.Join(m.RecognizedPkgs, ", ")
+	}
+
+	// Build the body content.
+	content := title + "\n" + pathLine
+	if pkgInfo != "" {
+		content += "\n" + pkgInfo
+	}
+
+	// Wrap the content in a base container.
+	panel := baseContainer(content)
+
+	// Use a fallback if TerminalHeight is zero.
+	// (Ensure your model receives an up-to-date WindowSizeMsg.)
+	termHeight := m.TerminalHeight
+	if termHeight == 0 {
+		termHeight = 24
+	}
+
+	// Anchor the panel to the bottom
+	anchoredPanel := lipgloss.Place(
+		lipgloss.Width(panel), // set width to the panel's width
+		termHeight,            // set height to the terminal height (or fallback)
+		lipgloss.Left,         // horizontal alignment
+		lipgloss.Bottom,       // vertical anchoring to the bottom
+		panel,                 // the content to anchor
+	)
+
+	return anchoredPanel
 }

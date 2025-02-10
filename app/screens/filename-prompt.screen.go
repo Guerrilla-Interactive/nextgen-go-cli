@@ -279,12 +279,29 @@ func ViewFilenamePrompt(m app.Model) string {
 		}
 	}
 
-	// Build the right panel (the file tree preview) using the live preview from the model.
-	rightPanel := baseContainer(preview)
+	// Use a fallback height if TerminalHeight is zero.
+	termHeight := m.TerminalHeight
+	if termHeight == 0 {
+		termHeight = 24
+	}
 
-	// Join panels horizontally and append the help notice.
+	// Always anchor the left panel to the bottom.
+	anchoredLeftPanel := lipgloss.Place(
+		lipgloss.Width(leftPanel), // preserve left panel width
+		termHeight,                // target height (with fallback)
+		lipgloss.Left,             // horizontal alignment
+		lipgloss.Bottom,           // vertical alignment (anchor at bottom)
+		leftPanel,                 // content to anchor
+		lipgloss.WithWhitespaceChars(" "),
+	)
+
+	// Build the right panel (the file tree preview) using the live preview from the model.
+	rightPanel := sideContainer(preview)
+
+	// Join the anchored left panel and the right panel horizontally with bottom alignment,
+	// then append the help notice.
 	return lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel),
+		lipgloss.JoinHorizontal(lipgloss.Bottom, anchoredLeftPanel, rightPanel),
 		app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)"),
 	)
 }

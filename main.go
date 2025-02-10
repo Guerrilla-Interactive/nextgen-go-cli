@@ -40,6 +40,14 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Update to installation details screen.
 		pm.M.CurrentScreen = app.ScreenInstallDetails
+
+	// 3) Handle window size message
+	case tea.WindowSizeMsg:
+		// Record terminal dimensions for layout purposes.
+		pm.M.TerminalWidth = typedMsg.Width
+		pm.M.TerminalHeight = typedMsg.Height
+		return pm, nil
+
 	case tea.KeyMsg:
 		switch pm.M.CurrentScreen {
 		case app.ScreenSelect:
@@ -111,6 +119,14 @@ func main() {
 		// Otherwise, start on the "select" screen as usual.
 		// (app.ScreenSelect is default, so you might leave it out.)
 		initialModel.CurrentScreen = app.ScreenSelect
+	}
+
+	// Set default terminal dimensions so panels are anchored on first render.
+	if initialModel.TerminalHeight == 0 {
+		initialModel.TerminalHeight = 24
+	}
+	if initialModel.TerminalWidth == 0 {
+		initialModel.TerminalWidth = 80
 	}
 
 	// Start the Bubble Tea program using ProgramModel as our root model.

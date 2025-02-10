@@ -47,11 +47,15 @@ type Model struct {
 
 	// NEW: Used in the filename prompt screen to determine if the "[Back]" button is focused.
 	PromptOptionFocused bool
+
+	// NEW: Terminal dimensions (updated via tea.WindowSizeMsg)
+	TerminalWidth  int
+	TerminalHeight int
 }
 
 // Example styles (keep or remove as you prefer).
 var (
-	TitleStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).MarginTop(2)
+	TitleStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF"))
 	SubtitleStyle  = lipgloss.NewStyle().Bold(true)
 	HighlightStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500"))
 	ChoiceStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))

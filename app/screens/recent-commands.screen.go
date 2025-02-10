@@ -3,6 +3,7 @@ package screens
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
@@ -66,8 +67,8 @@ func ViewMainScreen(m app.Model) string {
 	body += summarizeProjectStats(m) + "\n"
 
 	body += app.SubtitleStyle.Render("Recent used commands:") + "\n\n"
-	// 3×5 grid (column-major):
-	body += renderRecentUsedInColumns(commands.RecentUsed, &m, 0, 3, 5)
+	// 1×5 grid (single column, 5 rows):
+	body += renderRecentUsedInColumns(commands.RecentUsed, &m, 0, 1, 5)
 
 	body += "\n"
 
@@ -81,7 +82,7 @@ func ViewMainScreen(m app.Model) string {
 	// Build the left panel (the main Recent Commands view).
 	leftPanel := baseContainer(body)
 
-	// Build a live preview for the currently selected command.
+	// Build the live preview for the currently selected command.
 	var preview string
 	if len(commands.RecentUsed) > 0 && m.SelectedIndex < len(commands.RecentUsed) {
 		// Get the currently selected command name.
@@ -106,11 +107,47 @@ func ViewMainScreen(m app.Model) string {
 	} else {
 		preview = "No command selected for preview."
 	}
-	// Build the right panel (the preview view).
-	rightPanel := baseContainer(preview)
+	// Truncate the preview so it is shorter than the left panel.
+	lpHeight := lipgloss.Height(leftPanel)
+	maxPreviewHeight := lpHeight // Adjust this expression if needed, e.g. (lpHeight + 100) / 2
+	if maxPreviewHeight < 1 {
+		maxPreviewHeight = 1
+	}
+	lines := strings.Split(preview, "\n")
+	if len(lines) > maxPreviewHeight {
+		preview = strings.Join(lines[:maxPreviewHeight], "\n")
+	}
 
-	// Join the left and right panels horizontally.
-	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
+	// Declare the rightPanel variable.
+	rightPanel := sideContainer(preview)
+
+	// Use a fallback if TerminalHeight is zero.
+	termHeight := m.TerminalHeight
+	if termHeight == 0 {
+		termHeight = 24
+	}
+
+	// Anchor the left panel to the bottom of the terminal.
+	anchoredLeftPanel := lipgloss.Place(
+		lipgloss.Width(leftPanel), // preserve left panel width
+		termHeight,                // terminal height (or fallback)
+		lipgloss.Left,             // horizontal alignment (left)
+		lipgloss.Bottom,           // vertical alignment (bottom)
+		leftPanel,                 // content to anchor
+		lipgloss.WithWhitespaceChars(" "),
+	)
+
+	// Anchor the right panel (the preview/tree) to the bottom as well.
+	anchoredRightPanel := lipgloss.Place(
+		lipgloss.Width(rightPanel), // preserve right panel width
+		termHeight,                 // terminal height (or fallback)
+		lipgloss.Left,              // horizontal alignment
+		lipgloss.Bottom,            // vertical alignment (bottom)
+		rightPanel,                 // content to anchor
+	)
+
+	// Join the anchored panels horizontally.
+	return lipgloss.JoinHorizontal(lipgloss.Bottom, anchoredLeftPanel, anchoredRightPanel)
 }
 
 // renderRecentUsedInColumns displays recent commands in *column-major* order, filling each column top-down.
