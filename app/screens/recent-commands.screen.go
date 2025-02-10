@@ -1,6 +1,7 @@
 package screens
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
@@ -77,8 +78,39 @@ func ViewMainScreen(m app.Model) string {
 
 	body += "\n" + app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)")
 
-	// Wrap output in our base container
-	return baseContainer(body)
+	// Build the left panel (the main Recent Commands view).
+	leftPanel := baseContainer(body)
+
+	// Build a live preview for the currently selected command.
+	var preview string
+	if len(commands.RecentUsed) > 0 && m.SelectedIndex < len(commands.RecentUsed) {
+		// Get the currently selected command name.
+		cmdName := commands.RecentUsed[m.SelectedIndex]
+		// Retrieve the command spec and its template variable keys.
+		spec := commands.GetCommandSpec(cmdName)
+		keys, err := commands.GetTemplateVariableKeys(spec)
+		var placeholderMap map[string]string
+		// Use the first key (if any) to build the placeholder map.
+		if err == nil && len(keys) > 0 {
+			placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: "Filename"})
+		} else {
+			placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": "Filename"})
+		}
+		// Generate the preview file tree.
+		pv, err2 := commands.GeneratePreviewFileTree(cmdName, placeholderMap, m.ProjectPath)
+		if err2 == nil {
+			preview = pv
+		} else {
+			preview = fmt.Sprintf("Preview unavailable: %v", err2)
+		}
+	} else {
+		preview = "No command selected for preview."
+	}
+	// Build the right panel (the preview view).
+	rightPanel := baseContainer(preview)
+
+	// Join the left and right panels horizontally.
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 }
 
 // renderRecentUsedInColumns displays recent commands in *column-major* order, filling each column top-down.

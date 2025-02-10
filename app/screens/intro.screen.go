@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// UpdateScreenSelect updates the “select” (login/offline) screen.
+// UpdateScreenSelect updates the "select" (login/offline) screen.
 func UpdateScreenSelect(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q":
@@ -24,7 +24,7 @@ func UpdateScreenSelect(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 	return m, nil
 }
 
-// ViewSelectScreen is the view for the “select” screen.
+// ViewSelectScreen is the view for the "select" screen.
 func ViewSelectScreen(m app.Model) string {
 	title := app.TitleStyle.Render("=== Welcome ===")
 	pathLine := app.PathStyle.Render(m.ProjectPath) // Gray path row
@@ -44,9 +44,7 @@ func ViewSelectScreen(m app.Model) string {
 
 	body += loginOpt + "\n" + offlineOpt + "\n\n"
 
-	body += app.HelpStyle.Render(
-		"Use ↑/↓ (or j/k) to toggle between Login and Stay Offline, then press Enter.\n" +
-			"(Press q to quit)")
+	body += app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)")
 
 	// Wrap the select screen content with a base container.
 	return baseContainer(body)

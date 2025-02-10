@@ -39,7 +39,14 @@ type Model struct {
 	// List of files we plan to generate (for the FileGenModel):
 	PlannedFiles []string
 
-	// Add a field to hold the FileGenModel
+	// NEW: Field to hold the live file tree preview.
+	LivePreview string
+
+	// NEW: Field to track selected option on Install Details screen.
+	InstallDetailsSelectedOption int
+
+	// NEW: Used in the filename prompt screen to determine if the "[Back]" button is focused.
+	PromptOptionFocused bool
 }
 
 // Example styles (keep or remove as you prefer).

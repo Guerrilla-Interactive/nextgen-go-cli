@@ -210,8 +210,8 @@ func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
 		return m
 	}
 
-	// For "add " commands without multiple variables, use the single-variable prompt.
-	if strings.HasPrefix(itemName, "add ") {
+	// For all "add" commands (case-insensitive), use the filename prompt.
+	if strings.HasPrefix(strings.ToLower(itemName), "add ") {
 		m.PendingCommand = itemName
 		m.CurrentScreen = app.ScreenFilenamePrompt
 		return m
@@ -235,35 +235,6 @@ func baseContainer(content string) string {
 		Padding(1, 2).
 		Margin(1)
 	return containerStyle.Render(content)
-}
-
-// ViewInstallDetailsScreen shows a nicely formatted installation details screen.
-func ViewInstallDetailsScreen(m app.Model) string {
-	installMsg := "Installation Complete!"
-	details := fmt.Sprintf("Command executed: %s\nProject Path: %s\n", m.PendingCommand, m.ProjectPath)
-
-	// Use m.CreatedFiles if available; otherwise fall back on commands.CreatedFiles.
-	createdFiles := m.CreatedFiles
-	if len(createdFiles) == 0 {
-		createdFiles = commands.CreatedFiles
-	}
-	var fileLinks string
-	if len(createdFiles) > 0 {
-		fileLinks = "\nCreated Files:\n"
-		for _, f := range createdFiles {
-			// Format the file path as a stylized link.
-			link := fmt.Sprintf("• %s", f)
-			fileLinks += app.LinkStyle.Render(link) + "\n"
-		}
-	} else {
-		fileLinks = app.HelpStyle.Render("No files were created.")
-	}
-
-	help := app.HelpStyle.Render("Press any key to exit.")
-	content := app.TitleStyle.Render(installMsg) + "\n" +
-		app.PathStyle.Render(m.ProjectPath) + "\n\n" +
-		details + "\n" + fileLinks + "\n\n" + help
-	return baseContainer(content)
 }
 
 // UpdateScreenInstallDetails handles input on the installation details screen.

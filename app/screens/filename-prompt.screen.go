@@ -8,21 +8,53 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // UpdateScreenFilenamePrompt handles input for both single and multiple variables.
 func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.Cmd) {
+	// Check for arrow keys (actual arrow keys) to change focus.
+	switch keyMsg.String() {
+	case "up":
+		// Pressing the up arrow focuses the "[Back]" button.
+		m.PromptOptionFocused = true
+		return m, nil
+	case "down":
+		// Pressing the down arrow returns focus to the input field.
+		m.PromptOptionFocused = false
+		return m, nil
+	}
+
+	// If the "[Back]" button is focused, process only the Enter key.
+	if m.PromptOptionFocused {
+		if keyMsg.String() == "enter" {
+			m.CurrentScreen = app.ScreenMain
+			m.TempFilename = ""
+			m.LivePreview = ""
+			m.PromptOptionFocused = false
+		}
+		return m, nil
+	}
+
 	// Check if we are in multi-variable mode.
 	if m.MultipleVariables {
 		switch keyMsg.String() {
-		case "ctrl+c", "esc":
+		case "ctrl+c":
 			os.Exit(0)
+		case "esc", "b", "B":
+			// Go back to recent commands.
+			m.CurrentScreen = app.ScreenMain
+			m.TempFilename = ""
+			m.LivePreview = ""
+			// Also ensure we are not in prompt option focus.
+			m.PromptOptionFocused = false
+			return m, nil
 		case "enter":
 			value := strings.TrimSpace(m.TempFilename)
 			if value == "" {
 				return m, nil
 			}
-			// Get the current variable key and store the value.
+			// Store the given input for the current variable.
 			currentKey := m.VariableKeys[m.CurrentVariableIndex]
 			m.Variables[currentKey] = value
 
@@ -40,10 +72,43 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 				}
 				placeholders := commands.BuildMultiPlaceholders(mainValue, extraVars)
 
+				// Update the live preview.
+				if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholders, m.ProjectPath); err == nil {
+					m.LivePreview = preview
+				} else {
+					m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
+				}
+
+				// Update the current screen to avoid later index-out-of-range in the view.
+				m.CurrentScreen = app.ScreenInstallDetails
+
 				// Run the command with the built placeholders.
 				return m, func() tea.Msg {
 					err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholders)
 					return CommandFinishedMsg{Err: err}
+				}
+			}
+			// Update live preview for multi-variable mode.
+			{
+				// Create a temporary copy of the collected variables.
+				tempVars := make(map[string]string)
+				for k, v := range m.Variables {
+					tempVars[k] = v
+				}
+				// For the current variable not yet stored, use m.TempFilename or default.
+				if m.CurrentVariableIndex < len(m.VariableKeys) {
+					currentKey := m.VariableKeys[m.CurrentVariableIndex]
+					if strings.TrimSpace(m.TempFilename) == "" {
+						tempVars[currentKey] = "Filename"
+					} else {
+						tempVars[currentKey] = m.TempFilename
+					}
+				}
+				placeholders := commands.BuildPlaceholders(tempVars)
+				if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholders, m.ProjectPath); err == nil {
+					m.LivePreview = preview
+				} else {
+					m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
 				}
 			}
 			return m, nil
@@ -57,45 +122,97 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 				m.TempFilename += keyMsg.String()
 			}
 		}
+		// For multi-variable mode, update live preview:
+		{
+			tempVars := make(map[string]string)
+			for k, v := range m.Variables {
+				tempVars[k] = v
+			}
+			if m.CurrentVariableIndex < len(m.VariableKeys) {
+				currentKey := m.VariableKeys[m.CurrentVariableIndex]
+				if strings.TrimSpace(m.TempFilename) == "" {
+					tempVars[currentKey] = "Filename"
+				} else {
+					tempVars[currentKey] = m.TempFilename
+				}
+			}
+			placeholders := commands.BuildPlaceholders(tempVars)
+			if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholders, m.ProjectPath); err == nil {
+				m.LivePreview = preview
+			} else {
+				m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
+			}
+		}
 		return m, nil
 	}
-
 	// Single variable mode.
 	switch keyMsg.String() {
-	case "ctrl+c", "esc":
+	case "ctrl+c":
 		os.Exit(0)
+	case "esc", "b", "B":
+		// Go back to recent commands.
+		m.CurrentScreen = app.ScreenMain
+		m.TempFilename = ""
+		m.LivePreview = ""
+		return m, nil
 	case "enter":
 		filename := strings.TrimSpace(m.TempFilename)
 		if filename == "" {
 			return m, nil
 		}
 
-		// Instead of always using "Main", check if the pending command's template
-		// implies a different variable key.
+		// Instead of always using "Main", check if the command's template implies a different variable key.
 		spec := commands.GetCommandSpec(m.PendingCommand)
 		keys, err := commands.GetTemplateVariableKeys(spec)
 		var placeholderMap map[string]string
-		// If exactly one key is found (e.g. "ComponentName"), then use that
-		if err == nil && len(keys) == 1 {
+		// If at least one key is found (e.g. "ComponentName"), then use the first key.
+		if err == nil && len(keys) > 0 {
 			placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: filename})
 		} else {
-			// Otherwise fallback on the older behavior using "Main"
+			// Otherwise fallback on the older behavior using "Main".
 			placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": filename})
 		}
-
+		// Update live preview.
+		if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholderMap, m.ProjectPath); err == nil {
+			m.LivePreview = preview
+		} else {
+			m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
+		}
 		// Run the command with that placeholder map.
 		return m, func() tea.Msg {
 			err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholderMap)
 			return CommandFinishedMsg{Err: err}
 		}
 	}
-
+	// If the key is a single character (and not one of our reserved navigation keys),
+	// then append it to the input. This lets you use letters (or digits, etc.) for the input.
 	if len(keyMsg.String()) == 1 {
 		m.TempFilename += keyMsg.String()
 	} else if keyMsg.String() == "backspace" && len(m.TempFilename) > 0 {
 		m.TempFilename = m.TempFilename[:len(m.TempFilename)-1]
 	}
 
+	// In single variable mode, update live preview.
+	{
+		input := m.TempFilename
+		if strings.TrimSpace(input) == "" {
+			input = "Filename"
+		}
+		// Use the template variable key if available.
+		spec := commands.GetCommandSpec(m.PendingCommand)
+		keys, err := commands.GetTemplateVariableKeys(spec)
+		var placeholderMap map[string]string
+		if err == nil && len(keys) > 0 {
+			placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: input})
+		} else {
+			placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": input})
+		}
+		if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholderMap, m.ProjectPath); err == nil {
+			m.LivePreview = preview
+		} else {
+			m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
+		}
+	}
 	return m, nil
 }
 
@@ -103,14 +220,71 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 func ViewFilenamePrompt(m app.Model) string {
 	var prompt string
 	if m.MultipleVariables {
-		// Prompt for the current variable whose value is being collected.
-		currentKey := m.VariableKeys[m.CurrentVariableIndex]
-		prompt = fmt.Sprintf("\nEnter value for %s:\n\n> %s\n\n(Press Enter to confirm | ESC/ctrl+c to quit)", currentKey, m.TempFilename)
+		if m.CurrentVariableIndex >= len(m.VariableKeys) {
+			prompt = "\nProcessing command... please wait.\n"
+		} else {
+			currentKey := m.VariableKeys[m.CurrentVariableIndex]
+			prompt = fmt.Sprintf("Enter value for %s:\n> %s", currentKey, m.TempFilename)
+		}
 	} else {
-		prompt = "\nEnter the new file/component name:\n\n" +
-			"> " + m.TempFilename + "\n\n" +
-			"(Press Enter to confirm | ESC/ctrl+c to quit)"
+		prompt = fmt.Sprintf("Enter the new file/component name:\n> %s", m.TempFilename)
 	}
-	// Wrap output in a styled container.
-	return baseContainer(prompt)
+
+	// Build the input panel with a border that changes based on focus.
+	var inputBorderStyle lipgloss.Style
+	if m.PromptOptionFocused {
+		// [Back] is focused so render the input field "blurred" with a gray border.
+		inputBorderStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("240")).
+			Padding(1, 2)
+	} else {
+		// When the input field is focused, use a white border with extra padding.
+		inputBorderStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("15")).
+			Padding(1, 2)
+	}
+	inputPanel := inputBorderStyle.Render(prompt)
+
+	// Build the "[Back]" button row. It is highlighted when focused.
+	var backButton string
+	if m.PromptOptionFocused {
+		backButton = app.HighlightStyle.Render("[Back]")
+	} else {
+		backButton = app.HelpStyle.Render("[Back]")
+	}
+
+	// Place the "[Back]" button above the input panel.
+	leftPanel := lipgloss.JoinVertical(lipgloss.Left, backButton, inputPanel)
+
+	// If LivePreview is empty, compute a default preview using default placeholder values.
+	preview := m.LivePreview
+	if strings.TrimSpace(preview) == "" {
+		// Default input (used when no input is provided)
+		input := "Filename"
+		// Retrieve the command spec and variable keys.
+		spec := commands.GetCommandSpec(m.PendingCommand)
+		keys, err := commands.GetTemplateVariableKeys(spec)
+		var placeholderMap map[string]string
+		if err == nil && len(keys) > 0 {
+			placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: input})
+		} else {
+			placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": input})
+		}
+		if pv, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholderMap, m.ProjectPath); err == nil {
+			preview = pv
+		} else {
+			preview = fmt.Sprintf("Preview unavailable: %v", err)
+		}
+	}
+
+	// Build the right panel (the file tree preview) using the live preview from the model.
+	rightPanel := baseContainer(preview)
+
+	// Join panels horizontally and append the help notice.
+	return lipgloss.JoinVertical(lipgloss.Left,
+		lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel),
+		app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)"),
+	)
 }

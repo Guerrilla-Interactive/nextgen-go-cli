@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens"
@@ -41,41 +40,30 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Update to installation details screen.
 		pm.M.CurrentScreen = app.ScreenInstallDetails
-		// Instead of immediately quitting, wait for a small delay before quitting:
-		return pm, tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
-			return QuitAfterDelayMsg{}
-		})
-
-	// 3) When receiving our QuitAfterDelayMsg, quit the app.
-	case QuitAfterDelayMsg:
-		return pm, tea.Quit
-
-	// 4) If the message is a tea.KeyMsg, dispatch to the appropriate screen's Update method.
 	case tea.KeyMsg:
-		// If we're on the installation details screen, any key press quits.
-		if pm.M.CurrentScreen == app.ScreenInstallDetails {
-			return pm, tea.Quit
-		}
 		switch pm.M.CurrentScreen {
 		case app.ScreenSelect:
 			updatedM, cmd := screens.UpdateScreenSelect(pm.M, typedMsg)
 			pm.M = updatedM
 			return pm, cmd
-
 		case app.ScreenMain:
 			updatedM, cmd := screens.UpdateScreenMain(pm.M, typedMsg)
 			pm.M = updatedM
 			return pm, cmd
-
 		case app.ScreenAll:
 			updatedM, cmd := screens.UpdateScreenAll(pm.M, typedMsg)
 			pm.M = updatedM
 			return pm, cmd
-
 		case app.ScreenFilenamePrompt:
 			updatedM, cmd := screens.UpdateScreenFilenamePrompt(pm.M, typedMsg)
 			pm.M = updatedM
 			return pm, cmd
+		case app.ScreenInstallDetails:
+			updatedM, cmd := screens.UpdateInstallDetailsScreen(pm.M, typedMsg)
+			pm.M = updatedM
+			return pm, cmd
+		default:
+			return pm, nil
 		}
 	}
 

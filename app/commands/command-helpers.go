@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/utils"
 )
 
 // -----------------------------------------------------------------------------
@@ -162,8 +164,22 @@ type TreeNode struct {
 // Global variable to record created file paths.
 var CreatedFiles []string
 
+// EditedIndexers holds file paths that are indexers and have been edited.
+var EditedIndexers = make(map[string]bool)
+
+// MarkEditedIndexer marks the given file path as an edited indexer.
+func MarkEditedIndexer(path string) {
+	EditedIndexers[path] = true
+}
+
 // RecordCreatedFile appends a created file path to the global CreatedFiles list.
 func RecordCreatedFile(path string) {
+	// Only add if not already present.
+	for _, p := range CreatedFiles {
+		if p == path {
+			return
+		}
+	}
 	CreatedFiles = append(CreatedFiles, path)
 }
 
@@ -238,15 +254,32 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 					return fmt.Errorf("failed to write merged file %s: %w", currentPath, err)
 				}
 				fmt.Printf("✓ Merged updates into existing file %s.\n", currentPath)
+				// If this is an indexer, mark it as edited using a relative path if possible.
+				if isIndexer {
+					if rel, err := filepath.Rel(projectPath, currentPath); err == nil {
+						MarkEditedIndexer(rel)
+					} else {
+						MarkEditedIndexer(currentPath)
+					}
+				}
+				// Record the file (including indexer files) using a relative path if possible.
+				if rel, err := filepath.Rel(projectPath, currentPath); err == nil {
+					RecordCreatedFile(rel)
+				} else {
+					RecordCreatedFile(currentPath)
+				}
 			} else {
 				// New file: remove the snippet start/end markers (but keep the "ADD VALUE" markers).
 				newContent := removeSnippetMarkers(code)
 				if err := os.WriteFile(currentPath, []byte(newContent), 0644); err != nil {
 					return fmt.Errorf("failed to write file %s: %w", currentPath, err)
 				}
-				fmt.Printf("✓ Created new file %s.\n", currentPath)
-				// Record the created file.
-				RecordCreatedFile(currentPath)
+				// Record the created file using a relative path if possible.
+				if rel, err := filepath.Rel(projectPath, currentPath); err == nil {
+					RecordCreatedFile(rel)
+				} else {
+					RecordCreatedFile(currentPath)
+				}
 			}
 		}
 	}
@@ -338,11 +371,19 @@ func splitIntoWords(s string) []string {
 func BuildPlaceholders(vars map[string]string) map[string]string {
 	placeholders := make(map[string]string)
 	for key, value := range vars {
-		placeholders["{{."+key+"}}"] = value
-		placeholders["{{.PascalCase"+key+"}}"] = ToPascalCase(value)
-		placeholders["{{.CamelCase"+key+"}}"] = ToCamelCase(value)
-		placeholders["{{.KebabCase"+key+"}}"] = ToKebabCase(value)
-		placeholders["{{.LowerCase"+key+"}}"] = strings.ToLower(value)
+		// Without spaces.
+		placeholders[fmt.Sprintf("{{.%s}}", key)] = value
+		placeholders[fmt.Sprintf("{{.PascalCase%s}}", key)] = ToPascalCase(value)
+		placeholders[fmt.Sprintf("{{.CamelCase%s}}", key)] = ToCamelCase(value)
+		placeholders[fmt.Sprintf("{{.KebabCase%s}}", key)] = ToKebabCase(value)
+		placeholders[fmt.Sprintf("{{.LowerCase%s}}", key)] = strings.ToLower(value)
+
+		// With extra spaces (in case tokens include spaces).
+		placeholders[fmt.Sprintf("{{ .%s }}", key)] = value
+		placeholders[fmt.Sprintf("{{ .PascalCase%s }}", key)] = ToPascalCase(value)
+		placeholders[fmt.Sprintf("{{ .CamelCase%s }}", key)] = ToCamelCase(value)
+		placeholders[fmt.Sprintf("{{ .KebabCase%s }}", key)] = ToKebabCase(value)
+		placeholders[fmt.Sprintf("{{ .LowerCase%s }}", key)] = strings.ToLower(value)
 	}
 	return placeholders
 }
@@ -408,4 +449,74 @@ func GetTemplateVariableKeys(spec CommandSpec) ([]string, error) {
 	}
 	keys := InferVariableKeys(string(data))
 	return keys, nil
+}
+
+// GeneratePreviewFileTree generates a file tree preview (as a string) for the given command.
+// It loads the command's JSON template, applies the provided placeholders, parses the JSON,
+// simulates the file creation (without writing to disk), and then returns a tree view.
+func GeneratePreviewFileTree(cmdName string, placeholders map[string]string, projectPath string) (string, error) {
+	// Load command spec.
+	spec := GetCommandSpec(cmdName)
+	if spec.TemplatePath == "" {
+		return "", fmt.Errorf("command %q has no template", cmdName)
+	}
+
+	// Load raw template bytes.
+	data, err := LoadCommandTemplate(spec.TemplatePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to load template: %w", err)
+	}
+
+	// Replace placeholders in the template.
+	templateData := replacePlaceholders(string(data), placeholders)
+
+	// Unmarshal into the JSONCommandTemplate structure.
+	var tmpl JSONCommandTemplate
+	if err := json.Unmarshal([]byte(templateData), &tmpl); err != nil {
+		return "", fmt.Errorf("failed to parse template JSON: %w", err)
+	}
+
+	// Collect file paths that would be created. We aggregate file paths from each FilePathGroup.
+	var filePaths []string
+	for _, group := range tmpl.FilePaths {
+		// Calculate the base path for the group.
+		base := filepath.Join(projectPath, replacePlaceholders(group.Path, placeholders))
+		// Recursively collect file paths from the tree nodes.
+		var collectFiles func(nodes []TreeNode, currPath string) []string
+		collectFiles = func(nodes []TreeNode, currPath string) []string {
+			var paths []string
+			for _, n := range nodes {
+				name := replacePlaceholders(n.Name, placeholders)
+				fullPath := filepath.Join(currPath, name)
+				if len(n.Children) > 0 {
+					paths = append(paths, collectFiles(n.Children, fullPath)...)
+				} else {
+					paths = append(paths, fullPath)
+				}
+			}
+			return paths
+		}
+		filePaths = append(filePaths, collectFiles(group.Nodes, base)...)
+	}
+
+	// Convert filePaths to relative paths so that the preview only shows files from the launch folder.
+	var relPaths []string
+	for _, f := range filePaths {
+		if rel, err := filepath.Rel(projectPath, f); err == nil {
+			relPaths = append(relPaths, rel)
+		} else {
+			relPaths = append(relPaths, f)
+		}
+	}
+
+	// Build the file tree using the shared utils package.
+	treeRoot := utils.BuildFileTree(relPaths)
+	preview := utils.RenderFileTree(treeRoot, "", true, false, func(path string) bool {
+		// Check if the file at path is in the EditedIndexers map.
+		if edited, ok := EditedIndexers[path]; ok && edited {
+			return true
+		}
+		return false
+	})
+	return preview, nil
 }

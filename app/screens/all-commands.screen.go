@@ -104,7 +104,7 @@ func ViewAllScreen(m app.Model) string {
 		body += "\n" + app.ChoiceStyle.Render("Back") + "\n"
 	}
 
-	body += "\n" + app.HelpStyle.Render("(Use arrows or j/k/up/down to move; Enter on 'Back' returns to main screen; q quits.)")
+	body += "\n" + app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)")
 
 	return baseContainer(body)
 }
