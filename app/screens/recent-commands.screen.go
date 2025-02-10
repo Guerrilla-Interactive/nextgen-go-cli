@@ -85,7 +85,7 @@ func ViewMainScreen(m app.Model) string {
 // Added icons by calling app.CommandWithIcon(cmd).
 func renderRecentUsedInColumns(items []string, m *app.Model, offset, columns, rows int) string {
 	colStyle := lipgloss.NewStyle().
-		Width(30).
+		Width(40).
 		MarginRight(2).
 		Align(lipgloss.Left)
 

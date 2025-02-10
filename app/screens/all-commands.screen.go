@@ -69,7 +69,7 @@ func ViewAllScreen(m app.Model) string {
 	columns := (commandsCount + rows - 1) / rows
 
 	// Fixed-width columns
-	const colWidth = 30
+	const colWidth = 40
 	colStyle := lipgloss.NewStyle().
 		Width(colWidth).
 		MarginRight(2).
