@@ -12,14 +12,17 @@ const (
 	ScreenMain
 	ScreenAll
 	ScreenFilenamePrompt
+	ScreenInstallDetails
 )
 
 // Model is the primary application state shared by all screens.
 type Model struct {
-	CurrentScreen  Screen
-	IsLoggedIn     bool
-	SelectedIndex  int
-	AllCmdsIndex   int
+	CurrentScreen Screen
+	IsLoggedIn    bool
+	SelectedIndex int
+	AllCmdsIndex  int
+	CreatedFiles  []string
+
 	TotalItems     int
 	AllCmdsTotal   int
 	ProjectPath    string
@@ -48,4 +51,5 @@ var (
 	DocStyle       = lipgloss.NewStyle().Padding(1, 2).Margin(1, 2)
 	HelpStyle      = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("#888888"))
 	PathStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+	LinkStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Underline(true)
 )
