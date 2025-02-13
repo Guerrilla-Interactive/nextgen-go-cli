@@ -1,5 +1,9 @@
 package screens
 
+// NOTE: Although this file provides the Init screen functionality,
+// it is not used for display because the application now skips
+// the intro and directly shows the recent commands screen.
+
 import (
 	"encoding/json"
 	"io/ioutil"

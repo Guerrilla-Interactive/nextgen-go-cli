@@ -5,6 +5,8 @@ import (
 )
 
 // Screen indicates which screen is currently shown.
+// Typically, ScreenSelect is used for the intro/initial command selection,
+// while ScreenMain displays the recent commands (this is now used as the starting screen).
 type Screen int
 
 const (

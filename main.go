@@ -96,52 +96,6 @@ func (pm ProgramModel) View() string {
 	return ""
 }
 
-// Here's an example of how to set the initial Model so that if
-// the user was already "logged in" or had chosen "offline" previously,
-// we skip directly to app.ScreenMain.
-func main() {
-	// Read from env or a file that stores whether the user was logged in/offline
-	// in a previous session. This example just reads an environment variable:
-	skipIntro := os.Getenv("SKIP_INTRO")
-
-	// Build your initial model.
-	// If skipIntro is "1" (or if you have stored isLoggedIn == true, etc.),
-	// you'd set up your Model accordingly.
-	initialModel := app.Model{
-		IsLoggedIn: false, // or read from session
-	}
-
-	// Suppose setting SKIP_INTRO=1 means we skip the intro screen no matter what:
-	if skipIntro == "1" {
-		initialModel.IsLoggedIn = true
-		initialModel.CurrentScreen = app.ScreenMain
-	} else {
-		// Otherwise, start on the "select" screen as usual.
-		// (app.ScreenSelect is default, so you might leave it out.)
-		initialModel.CurrentScreen = app.ScreenSelect
-	}
-
-	// Set default terminal dimensions so panels are anchored on first render.
-	if initialModel.TerminalHeight == 0 {
-		initialModel.TerminalHeight = 24
-	}
-	if initialModel.TerminalWidth == 0 {
-		initialModel.TerminalWidth = 80
-	}
-
-	// Start the Bubble Tea program using ProgramModel as our root model.
-	p := tea.NewProgram(
-		ProgramModel{
-			M: initialModel,
-		},
-		tea.WithAltScreen(),
-	)
-	if err := p.Start(); err != nil {
-		fmt.Println("Error running program:", err)
-		os.Exit(1)
-	}
-}
-
 // Main update function. Your program should call this.
 func update(msg tea.Msg, m app.Model) (app.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -180,4 +134,32 @@ func update(msg tea.Msg, m app.Model) (app.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func main() {
+	// Build your initial model and force skipping the intro screen.
+	initialModel := app.Model{
+		IsLoggedIn:    true,           // Mark the user as already logged in.
+		CurrentScreen: app.ScreenMain, // Jump directly to the recent commands screen.
+	}
+
+	// Set default terminal dimensions so panels are anchored on first render.
+	if initialModel.TerminalHeight == 0 {
+		initialModel.TerminalHeight = 24
+	}
+	if initialModel.TerminalWidth == 0 {
+		initialModel.TerminalWidth = 80
+	}
+
+	// Start the Bubble Tea program using ProgramModel as our root model.
+	p := tea.NewProgram(
+		ProgramModel{
+			M: initialModel,
+		},
+		tea.WithAltScreen(),
+	)
+	if err := p.Start(); err != nil {
+		fmt.Println("Error running program:", err)
+		os.Exit(1)
+	}
 }
