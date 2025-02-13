@@ -377,6 +377,7 @@ func BuildPlaceholders(vars map[string]string) map[string]string {
 		placeholders[fmt.Sprintf("{{.CamelCase%s}}", key)] = ToCamelCase(value)
 		placeholders[fmt.Sprintf("{{.KebabCase%s}}", key)] = ToKebabCase(value)
 		placeholders[fmt.Sprintf("{{.LowerCase%s}}", key)] = strings.ToLower(value)
+		placeholders[fmt.Sprintf("{{.UpperCase%s}}", key)] = strings.ToUpper(value)
 
 		// With extra spaces (in case tokens include spaces).
 		placeholders[fmt.Sprintf("{{ .%s }}", key)] = value
@@ -384,6 +385,7 @@ func BuildPlaceholders(vars map[string]string) map[string]string {
 		placeholders[fmt.Sprintf("{{ .CamelCase%s }}", key)] = ToCamelCase(value)
 		placeholders[fmt.Sprintf("{{ .KebabCase%s }}", key)] = ToKebabCase(value)
 		placeholders[fmt.Sprintf("{{ .LowerCase%s }}", key)] = strings.ToLower(value)
+		placeholders[fmt.Sprintf("{{ .UpperCase%s }}", key)] = strings.ToUpper(value)
 	}
 	return placeholders
 }
@@ -421,8 +423,8 @@ func BuildAutoPlaceholders(vars map[string]string) map[string]string {
 // variable names (ignoring transformation prefixes).
 func InferVariableKeys(content string) []string {
 	// This regex matches patterns like {{.PascalCaseComponentName}},
-	// {{.CamelCaseComponentName}}, etc. It captures the base variable name.
-	regex := regexp.MustCompile(`{{\.(?:PascalCase|CamelCase|KebabCase|LowerCase)?([A-Za-z0-9_]+)}}`)
+	// {{.CamelCaseComponentName}}, etc. It now also includes "UpperCase".
+	regex := regexp.MustCompile(`{{\.(?:PascalCase|CamelCase|KebabCase|LowerCase|UpperCase)?([A-Za-z0-9_]+)}}`)
 	matches := regex.FindAllStringSubmatch(content, -1)
 	keysSet := make(map[string]struct{})
 	for _, match := range matches {

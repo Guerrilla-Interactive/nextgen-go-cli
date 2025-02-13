@@ -7,6 +7,7 @@ import (
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
+	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -218,16 +219,27 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 
 // ViewFilenamePrompt displays the proper prompt based on the current mode.
 func ViewFilenamePrompt(m app.Model) string {
+	// Define a cursor style and determine whether to show the input cursor
+	cursorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	inputCursor := ""
+	// blink the cursor if the input field is focused
+
+	if !m.PromptOptionFocused {
+		inputCursor = cursorStyle.Render("▎")
+		cursor.Blink()
+
+	}
+
 	var prompt string
 	if m.MultipleVariables {
 		if m.CurrentVariableIndex >= len(m.VariableKeys) {
 			prompt = "\nProcessing command... please wait.\n"
 		} else {
 			currentKey := m.VariableKeys[m.CurrentVariableIndex]
-			prompt = fmt.Sprintf("Enter value for %s:\n> %s", currentKey, m.TempFilename)
+			prompt = fmt.Sprintf("Enter value for %s:\n> %s%s", currentKey, m.TempFilename, inputCursor)
 		}
 	} else {
-		prompt = fmt.Sprintf("Enter the new file/component name:\n> %s", m.TempFilename)
+		prompt = fmt.Sprintf("Enter the new file/component name:\n> %s%s", m.TempFilename, inputCursor)
 	}
 
 	// Build the input panel with a border that changes based on focus.

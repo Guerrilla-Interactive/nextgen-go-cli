@@ -5,7 +5,16 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	// NEW: Import Lipgloss for styled output.
+	"github.com/charmbracelet/lipgloss"
 )
+
+// NEW: Define route style to color filetree route lines with #444.
+var routeStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#444"))
+
+// NEW: Define text style to color file names and icons with #888.
+var textStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#888"))
 
 // FileNode represents a node in the file tree.
 type FileNode struct {
@@ -61,9 +70,10 @@ type IsEditedFunc func(path string) bool
 func RenderFileTree(node *FileNode, prefix string, isLast bool, skipSelf bool, isEdited IsEditedFunc) string {
 	var line string
 	if !skipSelf && node.Name != "" {
-		branch := "┣"
+		// Use the routeStyle to render branch characters.
+		branch := routeStyle.Render("┣")
 		if isLast {
-			branch = "┗"
+			branch = routeStyle.Render("┗")
 		}
 		// Use 📂 for directories and 📜 for files.
 		icon := "📜"
@@ -74,7 +84,7 @@ func RenderFileTree(node *FileNode, prefix string, isLast bool, skipSelf bool, i
 		if node.IsFile && isEdited != nil && isEdited(node.Path) {
 			displayName += " (edited)"
 		}
-		line = fmt.Sprintf("%s%s %s %s\n", prefix, branch, icon, displayName)
+		line = fmt.Sprintf("%s%s %s\n", prefix, branch, textStyle.Render(fmt.Sprintf("%s %s", icon, displayName)))
 	}
 
 	// Update prefix for subsequent children.
@@ -83,7 +93,7 @@ func RenderFileTree(node *FileNode, prefix string, isLast bool, skipSelf bool, i
 		if isLast {
 			newPrefix += "   "
 		} else {
-			newPrefix += "┃  "
+			newPrefix += routeStyle.Render("┃") + "  "
 		}
 	}
 

@@ -22,6 +22,7 @@ type Model struct {
 	SelectedIndex int
 	AllCmdsIndex  int
 	CreatedFiles  []string
+	CursorVisible bool
 
 	TotalItems     int
 	AllCmdsTotal   int
