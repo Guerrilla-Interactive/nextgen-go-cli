@@ -17,7 +17,7 @@ func summarizeProjectStats(m app.Model) string {
 		result += ""
 	} else {
 		// Render recognized packages in up to 6 columns using Lipgloss.
-		result += renderPackagesHorizontally(m.RecognizedPkgs, 3)
+		result += renderPackagesHorizontally(m.RecognizedPkgs, 6)
 	}
 	return result
 }
