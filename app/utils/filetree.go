@@ -113,3 +113,11 @@ func RenderFileTree(node *FileNode, prefix string, isLast bool, skipSelf bool, i
 	}
 	return result
 }
+
+// NEW: RenderFileTreeWithHeader renders the file tree with a header showing the current folder.
+// You can pass the current folder (or working directory) as `currentFolder`.
+// It prepends a styled header before the file tree.
+func RenderFileTreeWithHeader(root *FileNode, currentFolder string, isEdited IsEditedFunc) string {
+	header := textStyle.Render(fmt.Sprintf("Current folder: %s", currentFolder))
+	return header + "\n\n" + RenderFileTree(root, "", true, true, isEdited)
+}

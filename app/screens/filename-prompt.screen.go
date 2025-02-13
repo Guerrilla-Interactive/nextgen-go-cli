@@ -3,6 +3,7 @@ package screens
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
@@ -308,29 +309,18 @@ func ViewFilenamePrompt(m app.Model) string {
 		}
 	}
 
-	// Use a fallback height if TerminalHeight is zero.
-	termHeight := m.TerminalHeight
-	if termHeight == 0 {
-		termHeight = 24
-	}
+	// Prepend header with package icon and current folder name.
+	folderName := filepath.Base(m.ProjectPath)
+	header := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("�� %s", folderName))
+	preview = header + "\n\n" + preview
 
-	// Always anchor the left panel to the bottom.
-	anchoredLeftPanel := lipgloss.Place(
-		lipgloss.Width(leftPanel), // preserve left panel width
-		termHeight,                // target height (with fallback)
-		lipgloss.Left,             // horizontal alignment
-		lipgloss.Bottom,           // vertical alignment (anchor at bottom)
-		leftPanel,                 // content to anchor
-		lipgloss.WithWhitespaceChars(" "),
-	)
-
-	// Build the right panel (the file tree preview) using the live preview from the model.
+	// Build the right panel (the file tree preview) using the updated preview.
 	rightPanel := sideContainer(preview)
 
 	// Join the anchored left panel and the right panel horizontally with bottom alignment,
 	// then append the help notice.
 	return lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.JoinHorizontal(lipgloss.Bottom, anchoredLeftPanel, rightPanel),
+		lipgloss.JoinHorizontal(lipgloss.Bottom, leftPanel, rightPanel),
 		app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)"),
 	)
 }

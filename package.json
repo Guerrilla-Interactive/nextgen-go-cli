@@ -34,5 +34,7 @@
   },
   "bugs": {
     "url": "https://github.com/guerrilla-interactive/nextgen-go-cli/issues"
+  },
+  "dependencies": {
   }
 }

@@ -14,10 +14,10 @@ import (
 func summarizeProjectStats(m app.Model) string {
 	result := ""
 	if len(m.RecognizedPkgs) == 0 {
-		result += "    • None recognized packages\n"
+		result += ""
 	} else {
 		// Render recognized packages in up to 6 columns using Lipgloss.
-		result += renderPackagesHorizontally(m.RecognizedPkgs, 6)
+		result += renderPackagesHorizontally(m.RecognizedPkgs, 3)
 	}
 	return result
 }
@@ -37,10 +37,11 @@ func renderPackagesHorizontally(items []string, maxCols int) string {
 	// Compute how many rows we need (integer ceiling).
 	rows := (len(items) + cols - 1) / cols
 
-	// No fixed width, just a small margin to the right for spacing.
+	// No fixed width, just a small margin to the right for spacing. Gray color.
 	colStyle := lipgloss.NewStyle().
 		MarginRight(2).
-		Align(lipgloss.Left)
+		Align(lipgloss.Left).
+		Foreground(lipgloss.Color("#888"))
 
 	var lines []string
 
@@ -52,9 +53,9 @@ func renderPackagesHorizontally(items []string, maxCols int) string {
 				break
 			}
 
-			// Insert "•" before each item except the first in a row.
+			// Insert "•" before each item except the first in a row. Gray color.
 			if c > 0 {
-				line += "•  "
+				line += lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render("•  ")
 			}
 
 			item := items[index]

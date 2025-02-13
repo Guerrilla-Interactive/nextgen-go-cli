@@ -3,6 +3,7 @@ package screens
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
@@ -58,19 +59,18 @@ func ViewMainScreen(m app.Model) string {
 	// Logo logic: "NEXTGEN CLI" where "GEN" is styled with color "#ff3600".
 	logo := app.TitleStyle.Render("NEXT") +
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#ff3600")).Render("GEN") +
-		" CLI"
+		" CLI" + lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(" v0.01") + "\n"
 	title := logo
 
 	// Gray path row
-	pathLine := app.PathStyle.Render(m.ProjectPath)
 
 	// Start building body using the new logo title.
-	body := title + "\n" + pathLine + "\n\n"
+	body := title
 
 	// Optionally (if you still want to display recognized packages info):
 	body += summarizeProjectStats(m) + "\n"
 
-	body += app.SubtitleStyle.Render("Recent used commands:") + "\n\n"
+	body += app.SubtitleStyle.Render("Recently used commands:") + "\n\n"
 	// 1×5 grid (single column, 5 rows):
 	body += renderRecentUsedInColumns(commands.RecentUsed, &m, 0, 1, 5)
 
@@ -127,6 +127,11 @@ func ViewMainScreen(m app.Model) string {
 	if len(lines) > maxPreviewHeight {
 		preview = strings.Join(lines[:maxPreviewHeight], "\n")
 	}
+
+	// Prepend header with package icon and current folder name.
+	folderName := filepath.Base(m.ProjectPath)
+	header := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
+	preview = header + "\n" + preview
 
 	// Declare the rightPanel variable.
 	rightPanel := sideContainer(preview)
