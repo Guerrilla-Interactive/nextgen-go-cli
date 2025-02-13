@@ -121,8 +121,9 @@ var NextSteps = []string{
 // CommandIconMap associates non-add/remove commands with an icon.
 // The "add" and "remove" commands are now handled automatically.
 var CommandIconMap = map[string]string{
-	"undo": "↺",
-	"redo": "↻",
+	"undo":                 "↺",
+	"redo":                 "↻",
+	"paste from clipboard": "📋",
 	// Other commands that do not start with "add " or "remove " can be added here.
 }
 
