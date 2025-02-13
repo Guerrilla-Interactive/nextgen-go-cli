@@ -41,6 +41,11 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		if isLast {
 			m.IsLoggedIn = !m.IsLoggedIn
 			m.CurrentScreen = app.ScreenSelect
+		} else if strings.ToLower(itemName) == "paste from clipboard" {
+			m.PendingCommand = itemName
+			m.CurrentScreen = app.ScreenFilenamePrompt
+			m.TempFilename = ""
+			m.LivePreview = ""
 		} else {
 			m = *HandleCommandSelection(&m, itemName)
 		}
@@ -97,8 +102,15 @@ func ViewMainScreen(m app.Model) string {
 		} else {
 			placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": "Filename"})
 		}
-		// Generate the preview file tree.
-		pv, err2 := commands.GeneratePreviewFileTree(cmdName, placeholderMap, m.ProjectPath)
+		var pv string
+		var err2 error
+		// <== NEW: Branch for "paste from clipboard" preview generation.
+		if strings.ToLower(cmdName) == "paste from clipboard" {
+			pv, err2 = commands.GeneratePreviewFileTreeFromClipboard(placeholderMap, m.ProjectPath)
+		} else {
+			pv, err2 = commands.GeneratePreviewFileTree(cmdName, placeholderMap, m.ProjectPath)
+		}
+
 		if err2 == nil {
 			preview = pv
 		} else {

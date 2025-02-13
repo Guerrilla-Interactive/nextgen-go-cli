@@ -3,6 +3,7 @@ module github.com/Guerrilla-Interactive/nextgen-go-cli
 go 1.21
 
 require (
+	github.com/atotto/clipboard v0.1.4
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.2.4
 	github.com/charmbracelet/lipgloss v1.0.0

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/utils"
+	"github.com/atotto/clipboard"
 )
 
 // -----------------------------------------------------------------------------
@@ -403,11 +404,16 @@ func BuildMultiPlaceholders(mainValue string, extraVars map[string]string) map[s
 	return placeholders
 }
 
-// BuildAutoPlaceholders creates a placeholder map from the given map of variables.
+// BuildAutoPlaceholders builds a placeholder map from the given map of variables.
 func BuildAutoPlaceholders(vars map[string]string) map[string]string {
 	if len(vars) == 1 {
-		for _, value := range vars {
-			return BuildPlaceholders(map[string]string{"Main": value})
+		for k, value := range vars {
+			// If the key is "Main", then apply the default behavior.
+			if k == "Main" {
+				return BuildPlaceholders(map[string]string{"Main": value})
+			}
+			// Otherwise, preserve the provided key.
+			return BuildPlaceholders(vars)
 		}
 	}
 	return BuildPlaceholders(vars)
@@ -443,6 +449,21 @@ func InferVariableKeys(content string) []string {
 // and returns the inferred variable keys.
 func GetTemplateVariableKeys(spec CommandSpec) ([]string, error) {
 	if spec.TemplatePath == "" {
+		// For commands like "paste from clipboard", we don't have an embedded template.
+		// So, try to read the clipboard and infer variable keys from its content.
+		if strings.ToLower(spec.Name) == "paste from clipboard" {
+			clipboardContent, err := clipboard.ReadAll()
+			if err != nil {
+				// Fallback if reading the clipboard fails.
+				return []string{"Filename"}, nil
+			}
+			keys := InferVariableKeys(clipboardContent)
+			if len(keys) == 0 {
+				// If no keys found, return a default key.
+				return []string{"Filename"}, nil
+			}
+			return keys, nil
+		}
 		return nil, nil
 	}
 	data, err := LoadCommandTemplate(spec.TemplatePath)
@@ -515,6 +536,65 @@ func GeneratePreviewFileTree(cmdName string, placeholders map[string]string, pro
 	treeRoot := utils.BuildFileTree(relPaths)
 	preview := utils.RenderFileTree(treeRoot, "", true, false, func(path string) bool {
 		// Check if the file at path is in the EditedIndexers map.
+		if edited, ok := EditedIndexers[path]; ok && edited {
+			return true
+		}
+		return false
+	})
+	return preview, nil
+}
+
+// -----------------------------------------------------------------------------
+// New: GeneratePreviewFileTreeFromClipboard
+// -----------------------------------------------------------------------------
+// GeneratePreviewFileTreeFromClipboard reads the clipboard content (assumed to be a JSON
+// template), applies the provided placeholders, and returns the preview file tree.
+func GeneratePreviewFileTreeFromClipboard(placeholders map[string]string, projectPath string) (string, error) {
+	clipboardContent, err := clipboard.ReadAll()
+	if err != nil {
+		return "", fmt.Errorf("failed to read clipboard: %w", err)
+	}
+
+	templateData := replacePlaceholders(clipboardContent, placeholders)
+	var tmpl JSONCommandTemplate
+	if err := json.Unmarshal([]byte(templateData), &tmpl); err != nil {
+		return "", fmt.Errorf("failed to parse clipboard JSON: %w", err)
+	}
+
+	// Collect file paths that would be created.
+	var filePaths []string
+	for _, group := range tmpl.FilePaths {
+		base := filepath.Join(projectPath, replacePlaceholders(group.Path, placeholders))
+		var collectFiles func(nodes []TreeNode, currPath string) []string
+		collectFiles = func(nodes []TreeNode, currPath string) []string {
+			var paths []string
+			for _, n := range nodes {
+				name := replacePlaceholders(n.Name, placeholders)
+				fullPath := filepath.Join(currPath, name)
+				if len(n.Children) > 0 {
+					paths = append(paths, collectFiles(n.Children, fullPath)...)
+				} else {
+					paths = append(paths, fullPath)
+				}
+			}
+			return paths
+		}
+		filePaths = append(filePaths, collectFiles(group.Nodes, base)...)
+	}
+
+	// Convert filePaths to relative paths.
+	var relPaths []string
+	for _, f := range filePaths {
+		if rel, err := filepath.Rel(projectPath, f); err == nil {
+			relPaths = append(relPaths, rel)
+		} else {
+			relPaths = append(relPaths, f)
+		}
+	}
+
+	// Build the file tree using the shared utils package.
+	treeRoot := utils.BuildFileTree(relPaths)
+	preview := utils.RenderFileTree(treeRoot, "", true, false, func(path string) bool {
 		if edited, ok := EditedIndexers[path]; ok && edited {
 			return true
 		}

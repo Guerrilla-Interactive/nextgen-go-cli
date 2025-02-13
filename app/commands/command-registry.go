@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -96,10 +97,12 @@ var Commands = []CommandSpec{
 	{Name: "undo"},
 	{Name: "redo"},
 	{Name: "add hello", TemplatePath: "app/commands/hello-world.json"},
+	{Name: "paste from clipboard"},
 }
 
 // RecentUsed & NextSteps remain separate slices, for usage in the UI.
 var RecentUsed = []string{
+	"paste from clipboard",
 	"add wordpress block",
 	"add nextgen pagebuilder block",
 	"add multiple variables example",
@@ -163,6 +166,18 @@ func TemplatePathFor(cmdName string) (string, bool) {
 // RunCommand checks if the command is recognized and, if it has a TemplatePath,
 // fetches that JSON from embedded memory. Otherwise, it's just a placeholder.
 func RunCommand(cmdName, projectPath string, placeholders map[string]string) error {
+	if strings.ToLower(cmdName) == "paste from clipboard" {
+		successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
+		fmt.Println(successStyle.Render("➤ Running Paste from Clipboard command"))
+		clipboardContent, err := clipboard.ReadAll()
+		if err != nil {
+			return fmt.Errorf("failed to read clipboard: %w", err)
+		}
+		// NEW: Replace placeholders in the clipboard content before running the command.
+		updatedTemplate := replacePlaceholders(string(clipboardContent), placeholders)
+		return RunJsonTemplateBytes([]byte(updatedTemplate), projectPath, placeholders)
+	}
+
 	tPath, found := TemplatePathFor(cmdName)
 	if !found {
 		return fmt.Errorf("unknown command: %q", cmdName)
