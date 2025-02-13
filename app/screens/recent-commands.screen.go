@@ -55,17 +55,16 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 
 // ViewMainScreen is the view for the main screen.
 func ViewMainScreen(m app.Model) string {
-	// Title logic
-	titleText := "=== Offline Mode ==="
-	if m.IsLoggedIn {
-		titleText = "=== Online Mode ==="
-	}
-	title := app.TitleStyle.Render(titleText)
+	// Logo logic: "NEXTGEN CLI" where "GEN" is styled with color "#ff3600".
+	logo := app.TitleStyle.Render("NEXT") +
+		lipgloss.NewStyle().Foreground(lipgloss.Color("#ff3600")).Render("GEN") +
+		" CLI"
+	title := logo
 
 	// Gray path row
 	pathLine := app.PathStyle.Render(m.ProjectPath)
 
-	// Start building body
+	// Start building body using the new logo title.
 	body := title + "\n" + pathLine + "\n\n"
 
 	// Optionally (if you still want to display recognized packages info):
@@ -78,7 +77,6 @@ func ViewMainScreen(m app.Model) string {
 	body += "\n"
 
 	// NextSteps: [ "Show all my commands", "Back" ]
-	// We'll rename the second item to "Back" for the user:
 	opts := []string{commands.NextSteps[0], "Back"}
 	body += renderItemList(opts, m, len(commands.RecentUsed))
 
