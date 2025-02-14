@@ -141,6 +141,8 @@ func main() {
 	initialModel := app.Model{
 		IsLoggedIn:    true,           // Mark the user as already logged in.
 		CurrentScreen: app.ScreenMain, // Jump directly to the recent commands screen.
+		// Dummy recognized packages for testing the advanced grouping:
+		RecognizedPkgs: []string{"Next.js", "React", "Tailwind CSS", "Bootstrap", "Bulma"},
 	}
 
 	// Set default terminal dimensions so panels are anchored on first render.

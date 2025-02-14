@@ -26,9 +26,12 @@ type Model struct {
 	CreatedFiles  []string
 	CursorVisible bool
 
-	TotalItems     int
-	AllCmdsTotal   int
-	ProjectPath    string
+	TotalItems   int
+	AllCmdsTotal int
+	ProjectPath  string
+	// RecognizedPkgs holds detected package names.
+	// With the advanced recognizer these are grouped (e.g. React frameworks are deduplicated
+	// and multiple CSS frameworks are summarized) before display.
 	RecognizedPkgs []string
 	TempFilename   string // Used for single-variable input.
 	PendingCommand string // Stores the command that triggered the prompt.

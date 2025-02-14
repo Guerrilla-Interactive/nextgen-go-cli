@@ -16,10 +16,98 @@ func summarizeProjectStats(m app.Model) string {
 	if len(m.RecognizedPkgs) == 0 {
 		result += ""
 	} else {
-		// Render recognized packages in up to 6 columns using Lipgloss.
-		result += renderPackagesHorizontally(m.RecognizedPkgs, 6)
+		// Group recognized packages for advanced display.
+		groupedPkgs := groupRecognizedPackages(m.RecognizedPkgs)
+		// Render grouped packages in up to 6 columns using Lipgloss.
+		result += renderPackagesHorizontally(groupedPkgs, 6)
 	}
 	return result
+}
+
+// groupRecognizedPackages processes a list of package names, grouping React-based frameworks
+// and CSS frameworks. For example:
+//   - If "Next.js" (or Gatsby, etc.) is detected, only that candidate is kept (with a preference for Next.js).
+//   - If multiple CSS frameworks are detected, they are summarized as "N CSS Packages".
+func groupRecognizedPackages(pkgs []string) []string {
+	// Define known react frameworks (all lower-case comparisons).
+	reactFrameworks := map[string]bool{
+		"next.js":      true,
+		"gatsby":       true,
+		"react-native": true,
+		"remix":        true,
+		"blitzjs":      true,
+	}
+	// Define known CSS frameworks (lower-case); add more as needed.
+	cssFrameworks := map[string]bool{
+		"tailwind css": true,
+		"bootstrap":    true,
+		"bulma":        true,
+		"foundation":   true,
+		"semantic-ui":  true,
+		"material-ui":  true,
+		"chakra ui":    true,
+		"ant design":   true,
+	}
+
+	var finalPkgs []string
+	var reactCandidate string
+	cssCount := 0
+	var cssCandidate string
+
+	// For non-group packages, avoid duplicates.
+	seen := map[string]bool{}
+
+	for _, pkg := range pkgs {
+		normalized := strings.ToLower(pkg)
+		// If package is in the React frameworks group.
+		if reactFrameworks[normalized] {
+			// If no candidate selected yet, choose this one.
+			if reactCandidate == "" {
+				reactCandidate = pkg
+			} else {
+				// Give preference to "Next.js" if encountered.
+				if normalized == "next.js" {
+					reactCandidate = pkg
+				}
+			}
+			continue
+		}
+		// For the base "react" itself, only consider it if no framework candidate was already found.
+		if normalized == "react" {
+			if reactCandidate == "" {
+				reactCandidate = pkg
+			}
+			continue
+		}
+		// If package is in the CSS group.
+		if cssFrameworks[normalized] {
+			cssCount++
+			if cssCandidate == "" {
+				cssCandidate = pkg
+			}
+			continue
+		}
+		// For all other packages, add if not already added.
+		if !seen[pkg] {
+			finalPkgs = append(finalPkgs, pkg)
+			seen[pkg] = true
+		}
+	}
+
+	// Append the React candidate (if any) only once.
+	if reactCandidate != "" {
+		finalPkgs = append(finalPkgs, reactCandidate)
+	}
+
+	// Append CSS frameworks – if more than one CSS framework was detected, summarize the count.
+	if cssCount > 0 {
+		if cssCount == 1 {
+			finalPkgs = append(finalPkgs, cssCandidate)
+		} else {
+			finalPkgs = append(finalPkgs, fmt.Sprintf("%d CSS Packages", cssCount))
+		}
+	}
+	return finalPkgs
 }
 
 // renderPackagesHorizontally displays items in a grid of up to maxCols columns,

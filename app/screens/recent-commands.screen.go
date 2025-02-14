@@ -67,8 +67,9 @@ func ViewMainScreen(m app.Model) string {
 	// Start building body using the new logo title.
 	body := title
 
-	// Optionally (if you still want to display recognized packages info):
-	body += summarizeProjectStats(m) + "\n"
+	// Display grouped package recognizer stats.
+	// (This now groups React-based frameworks and aggregates CSS frameworks.)
+	body += app.SummarizeProjectStats(m.RecognizedPkgs) + "\n"
 
 	body += app.SubtitleStyle.Render("Recently used commands:") + "\n\n"
 	// 1×5 grid (single column, 5 rows):
