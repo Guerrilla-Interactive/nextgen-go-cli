@@ -105,9 +105,10 @@ var RecentUsed = []string{
 	"paste from clipboard",
 	"add wordpress block",
 	"add nextgen pagebuilder block",
+	"add nextgen slug route",
 	"add multiple variables example",
 	"add test pagebuilder block",
-	"add nextgen slug route",
+
 	"add page",
 	"undo",
 	"redo",
@@ -124,6 +125,7 @@ var CommandIconMap = map[string]string{
 	"undo":                 "↺",
 	"redo":                 "↻",
 	"paste from clipboard": "📋",
+	"view project stats":   "📦",
 	// Other commands that do not start with "add " or "remove " can be added here.
 }
 

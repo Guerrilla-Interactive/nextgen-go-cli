@@ -17,15 +17,31 @@ func normalizePkgName(s string) string {
 	return nonAlphaNumRegex.ReplaceAllString(strings.ToLower(s), "")
 }
 
-// SummarizeProjectStats returns a formatted string of project stats.
-// It groups recognized packages (e.g. React frameworks are deduplicated and multiple CSS
-// frameworks are summarized) and renders them in a grid with up to maxCols columns.
-func SummarizeProjectStats(recognizedPkgs []string) string {
+// SummarizeLimitedProjectStats returns a formatted string of project stats limited to 'limit' items.
+func SummarizeLimitedProjectStats(recognizedPkgs []string, limit int) string {
 	if len(recognizedPkgs) == 0 {
 		return ""
 	}
-	groupedPkgs := GroupRecognizedPackages(recognizedPkgs)
-	return RenderPackagesHorizontally(groupedPkgs, 6)
+	pkgList := GroupRecognizedPackages(recognizedPkgs)
+	if len(pkgList) > limit {
+		pkgList = pkgList[:limit]
+	}
+	return RenderPackagesHorizontally(pkgList, 6)
+}
+
+// SummarizeFullProjectStats returns a formatted string of all recognized packages.
+func SummarizeFullProjectStats(recognizedPkgs []string) string {
+	if len(recognizedPkgs) == 0 {
+		return ""
+	}
+	pkgList := GroupRecognizedPackages(recognizedPkgs)
+	return RenderPackagesHorizontally(pkgList, 6)
+}
+
+// SummarizeProjectStats (for the main screen) returns a formatted project stats summary
+// limited to a maximum of 3 items.
+func SummarizeProjectStats(recognizedPkgs []string) string {
+	return SummarizeLimitedProjectStats(recognizedPkgs, 3)
 }
 
 // GroupRecognizedPackages processes a list of package names, grouping React-based frameworks
@@ -54,6 +70,7 @@ func GroupRecognizedPackages(pkgs []string) []string {
 		"styledcomponents": true,
 	}
 
+	// Define known CMS frameworks using normalized keys.
 	cmsFrameworks := map[string]bool{
 		"wordpress": true,
 		"drupal":    true,
@@ -63,7 +80,7 @@ func GroupRecognizedPackages(pkgs []string) []string {
 		"sanity":    true,
 	}
 
-	var finalPkgs []string
+	var otherPkgs []string
 	var reactCandidate string
 	cssCount := 0
 	var cssCandidate string
@@ -75,26 +92,21 @@ func GroupRecognizedPackages(pkgs []string) []string {
 
 	for _, pkg := range pkgs {
 		norm := normalizePkgName(pkg)
-		// If package is in the React frameworks group.
+		// Check VIP groups first.
 		if reactFrameworks[norm] {
 			if reactCandidate == "" {
 				reactCandidate = pkg
-			} else {
-				// Give preference to "nextjs" if encountered.
-				if norm == "nextjs" {
-					reactCandidate = pkg
-				}
+			} else if norm == "nextjs" { // prefer nextjs
+				reactCandidate = pkg
 			}
 			continue
 		}
-		// For the base "react" itself, only consider it if no framework candidate was already found.
 		if norm == "react" {
 			if reactCandidate == "" {
 				reactCandidate = pkg
 			}
 			continue
 		}
-		// If package is in the CSS group.
 		if cssFrameworks[norm] {
 			cssCount++
 			if cssCandidate == "" {
@@ -102,8 +114,6 @@ func GroupRecognizedPackages(pkgs []string) []string {
 			}
 			continue
 		}
-
-		// If package is in the CMS group.
 		if cmsFrameworks[norm] {
 			cmsCount++
 			if cmsCandidate == "" {
@@ -114,28 +124,34 @@ func GroupRecognizedPackages(pkgs []string) []string {
 
 		// For all other packages, add if not already added.
 		if !seen[pkg] {
-			finalPkgs = append(finalPkgs, pkg)
+			otherPkgs = append(otherPkgs, pkg)
 			seen[pkg] = true
 		}
 	}
 
-	// Append the React candidate (if any) only once.
+	// Build VIP packages list.
+	var vip []string
 	if reactCandidate != "" {
-		finalPkgs = append(finalPkgs, reactCandidate)
+		vip = append(vip, reactCandidate)
 	}
-
-	// Append CSS frameworks – if more than one CSS framework was detected, summarize the count.
-	if cssCount > 0 {
-		if cssCount == 1 {
-			finalPkgs = append(finalPkgs, cssCandidate)
+	if cmsCandidate != "" {
+		if cmsCount > 1 {
+			vip = append(vip, fmt.Sprintf("%d CMS Packages", cmsCount))
 		} else {
-			finalPkgs = append(finalPkgs, fmt.Sprintf("%d CSS Packages", cssCount))
+			vip = append(vip, cmsCandidate)
+		}
+	}
+	if cssCount > 0 {
+		if cssCount > 1 {
+			vip = append(vip, fmt.Sprintf("%d CSS Packages", cssCount))
+		} else {
+			vip = append(vip, cssCandidate)
 		}
 	}
 
-	// Append CMS frameworks – if more than one CMS framework was detected, summarize the count.
-
-	return finalPkgs
+	// Prepend VIP packages before the other (non-VIP) packages.
+	finalGroup := append(vip, otherPkgs...)
+	return finalGroup
 }
 
 // RenderPackagesHorizontally displays items in a grid of up to maxCols columns

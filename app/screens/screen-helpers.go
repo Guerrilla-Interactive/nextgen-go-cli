@@ -158,31 +158,22 @@ func renderPackagesHorizontally(items []string, maxCols int) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// getItemName returns the label (and a bool if it's the last item).
-func getItemName(m app.Model, index int) (string, bool) {
-	// offset = len(commands.RecentUsed) + (len(commands.NextSteps) - 1)
-	offset := len(commands.RecentUsed) + (len(commands.NextSteps) - 1)
-
-	// If index == offset, we're on Logout/Login.
-	if index == offset {
-		if m.IsLoggedIn {
-			return "Logout", true
-		}
-		return "Login", true
-	}
-
-	// If within recent commands:
-	if index < len(commands.RecentUsed) {
-		return commands.RecentUsed[index], false
-	}
-
-	// Otherwise, it's a NextStep.
-	stepIndex := index - len(commands.RecentUsed)
-	return commands.NextSteps[stepIndex], false
-}
-
 // recordCommand moves the chosen command to the front of RecentUsed, removing duplicates, limit to 8.
 func recordCommand(m *app.Model, cmd string) {
+	// Only record commands that are not part of the action row or navigation commands.
+	lower := strings.ToLower(cmd)
+	excluded := map[string]bool{
+		"undo":                     true,
+		"redo":                     true,
+		"show all my commands":     true,
+		"view project stats":       true,
+		"logoutorloginplaceholder": true,
+		"paste from clipboard":     true,
+	}
+	if excluded[lower] {
+		return
+	}
+
 	idx := -1
 	for i, v := range commands.RecentUsed {
 		if v == cmd {
@@ -277,6 +268,11 @@ func extractVariableKeys(cmdName string) []string {
 func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
 	// Always record the command so it appears at the top of RecentUsed:
 	recordCommand(m, itemName)
+
+	if strings.ToLower(itemName) == "view project stats" {
+		m.CurrentScreen = app.ScreenProjectStats
+		return m
+	}
 
 	if itemName == commands.NextSteps[0] {
 		m.CurrentScreen = app.ScreenAll

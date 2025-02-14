@@ -15,16 +15,18 @@ const (
 	ScreenAll
 	ScreenFilenamePrompt
 	ScreenInstallDetails
+	ScreenProjectStats
 )
 
 // Model is the primary application state shared by all screens.
 type Model struct {
-	CurrentScreen Screen
-	IsLoggedIn    bool
-	SelectedIndex int
-	AllCmdsIndex  int
-	CreatedFiles  []string
-	CursorVisible bool
+	CurrentScreen   Screen
+	IsLoggedIn      bool
+	SelectedIndex   int
+	AllCmdsIndex    int
+	CreatedFiles    []string
+	CursorVisible   bool
+	LastActionIndex int
 
 	TotalItems   int
 	AllCmdsTotal int

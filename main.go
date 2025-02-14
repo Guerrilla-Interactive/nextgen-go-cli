@@ -70,6 +70,10 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			updatedM, cmd := screens.UpdateInstallDetailsScreen(pm.M, typedMsg)
 			pm.M = updatedM
 			return pm, cmd
+		case app.ScreenProjectStats:
+			updatedM, cmd := screens.UpdateScreenProjectStats(pm.M, typedMsg)
+			pm.M = updatedM
+			return pm, cmd
 		default:
 			return pm, nil
 		}
@@ -92,6 +96,8 @@ func (pm ProgramModel) View() string {
 		return screens.ViewFilenamePrompt(pm.M)
 	case app.ScreenInstallDetails:
 		return screens.ViewInstallDetailsScreen(pm.M)
+	case app.ScreenProjectStats:
+		return screens.ViewProjectStatsScreen(pm.M)
 	}
 	return ""
 }
