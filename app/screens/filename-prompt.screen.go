@@ -43,7 +43,7 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 		switch keyMsg.String() {
 		case "ctrl+c":
 			os.Exit(0)
-		case "esc", "b", "B":
+		case "esc":
 			// Go back to recent commands.
 			m.CurrentScreen = app.ScreenMain
 			m.TempFilename = ""
@@ -158,7 +158,7 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 	switch keyMsg.String() {
 	case "ctrl+c":
 		os.Exit(0)
-	case "esc", "b", "B":
+	case "esc":
 		// Go back to recent commands.
 		m.CurrentScreen = app.ScreenMain
 		m.TempFilename = ""
