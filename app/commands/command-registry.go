@@ -81,6 +81,7 @@ var Commands = []CommandSpec{
 	{Name: "add wordpress block", TemplatePath: "wordpress-interactive-block-for-nextgen-theme.json"},
 	{Name: "add nextgen pagebuilder block", TemplatePath: "add-nextgen-pagebuilder-block.json"},
 	{Name: "add multiple variables example", TemplatePath: "multiple-variables-example.json"},
+	{Name: "add wordpress gutenberg block", TemplatePath: "wordpress-gutenberg-block.json"},
 	{Name: "add test pagebuilder block", TemplatePath: "test-pagebuilder.json"},
 	{Name: "add nextgen slug route", TemplatePath: "add-nextgen-slug-route.json"},
 	{Name: "remove page"},
@@ -104,6 +105,7 @@ var Commands = []CommandSpec{
 var RecentUsed = []string{
 	"paste from clipboard",
 	"add wordpress block",
+	"add wordpress gutenberg block",
 	"add nextgen pagebuilder block",
 	"add nextgen slug route",
 	"add multiple variables example",

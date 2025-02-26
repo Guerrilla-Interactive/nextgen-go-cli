@@ -238,6 +238,16 @@ func renderItemList(items []string, m app.Model, offset int) string {
 // requiresMultipleVars checks whether the command requires multiple variable inputs.
 // It loads the command's JSON template and infers variable keys automatically.
 func requiresMultipleVars(cmdName string) bool {
+	// Special handling for clipboard paste command
+	if strings.ToLower(cmdName) == "paste from clipboard" {
+		keys, err := commands.ExtractVariablesFromClipboard()
+		if err != nil {
+			return false
+		}
+		return len(keys) > 1
+	}
+
+	// Regular template handling (existing code)
 	spec := commands.GetCommandSpec(cmdName)
 	if spec.TemplatePath == "" {
 		return false
@@ -253,6 +263,16 @@ func requiresMultipleVars(cmdName string) bool {
 
 // extractVariableKeys returns the list of variable keys inferred from the command's JSON template.
 func extractVariableKeys(cmdName string) []string {
+	// Special handling for clipboard paste command
+	if strings.ToLower(cmdName) == "paste from clipboard" {
+		keys, err := commands.ExtractVariablesFromClipboard()
+		if err != nil {
+			return []string{"Filename"}
+		}
+		return keys
+	}
+
+	// Regular template handling (existing code)
 	spec := commands.GetCommandSpec(cmdName)
 	if spec.TemplatePath == "" {
 		return nil

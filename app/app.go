@@ -20,8 +20,9 @@ const (
 
 // Model is the primary application state shared by all screens.
 type Model struct {
-	CurrentScreen   Screen
-	IsLoggedIn      bool
+	CurrentScreen Screen
+	IsLoggedIn    bool
+
 	SelectedIndex   int
 	AllCmdsIndex    int
 	CreatedFiles    []string

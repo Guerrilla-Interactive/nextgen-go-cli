@@ -69,9 +69,14 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 				// Use the first variable as "Main" and the rest as extra variables.
 				mainValue := m.Variables[m.VariableKeys[0]]
 				extraVars := make(map[string]string)
-				for i := 1; i < len(m.VariableKeys); i++ {
-					extraVars[m.VariableKeys[i]] = m.Variables[m.VariableKeys[i]]
+
+				// Add all variables to extraVars, not just from index 1
+				for i := 0; i < len(m.VariableKeys); i++ {
+					key := m.VariableKeys[i]
+					extraVars[key] = m.Variables[key]
 				}
+
+				// Build placeholders using both main value and all variables
 				placeholders := commands.BuildMultiPlaceholders(mainValue, extraVars)
 
 				// Update the live preview.
@@ -92,19 +97,36 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 			}
 			// Update live preview for multi-variable mode.
 			{
+				// Copy all current variables
 				tempVars := make(map[string]string)
 				for k, v := range m.Variables {
 					tempVars[k] = v
 				}
+
+				// Add placeholder for current variable being entered
 				if m.CurrentVariableIndex < len(m.VariableKeys) {
 					currentKey := m.VariableKeys[m.CurrentVariableIndex]
 					if strings.TrimSpace(m.TempFilename) == "" {
-						tempVars[currentKey] = "Filename"
+						tempVars[currentKey] = currentKey // Use variable name as placeholder
 					} else {
 						tempVars[currentKey] = m.TempFilename
 					}
 				}
-				placeholders := commands.BuildPlaceholders(tempVars)
+
+				// Create both a main placeholder and extra vars
+				var mainValue string
+				if len(m.VariableKeys) > 0 {
+					if val, ok := tempVars[m.VariableKeys[0]]; ok {
+						mainValue = val
+					} else {
+						mainValue = "Main"
+					}
+				}
+
+				// Build placeholders with all variables
+				placeholders := commands.BuildMultiPlaceholders(mainValue, tempVars)
+
+				// Generate preview
 				if strings.ToLower(m.PendingCommand) == "paste from clipboard" {
 					if preview, err := commands.GeneratePreviewFileTreeFromClipboard(placeholders, m.ProjectPath); err == nil {
 						m.LivePreview = preview

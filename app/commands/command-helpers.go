@@ -394,13 +394,17 @@ func BuildPlaceholders(vars map[string]string) map[string]string {
 // BuildMultiPlaceholders builds a placeholder map that includes a main variable called "Main"
 // along with additional variables.
 func BuildMultiPlaceholders(mainValue string, extraVars map[string]string) map[string]string {
+	// Create base placeholders with the main value
 	placeholders := BuildPlaceholders(map[string]string{"Main": mainValue})
+
+	// Add each extra variable with its own transformations
 	for key, value := range extraVars {
 		extraPlaceholders := BuildPlaceholders(map[string]string{key: value})
 		for k, v := range extraPlaceholders {
 			placeholders[k] = v
 		}
 	}
+
 	return placeholders
 }
 
@@ -601,4 +605,54 @@ func GeneratePreviewFileTreeFromClipboard(placeholders map[string]string, projec
 		return false
 	})
 	return preview, nil
+}
+
+// ExtractVariablesFromClipboard reads the clipboard content and extracts
+// variable keys if it contains valid JSON template content.
+func ExtractVariablesFromClipboard() ([]string, error) {
+	clipboardContent, err := clipboard.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read clipboard: %w", err)
+	}
+
+	// First, try to parse it as JSON to check if it's a valid template
+	var tmpl JSONCommandTemplate
+	if err := json.Unmarshal([]byte(clipboardContent), &tmpl); err != nil {
+		// Not valid JSON, just extract variable keys from the text
+		return InferVariableKeys(clipboardContent), nil
+	}
+
+	// Valid JSON template - extract variables from all code blocks
+	vars := make(map[string]struct{})
+	for _, group := range tmpl.FilePaths {
+		var processNodes func(nodes []TreeNode)
+		processNodes = func(nodes []TreeNode) {
+			for _, node := range nodes {
+				if node.Code != "" {
+					// Extract variables from code content
+					for _, key := range InferVariableKeys(node.Code) {
+						vars[key] = struct{}{}
+					}
+				}
+				// Process children recursively
+				if len(node.Children) > 0 {
+					processNodes(node.Children)
+				}
+			}
+		}
+		processNodes(group.Nodes)
+	}
+
+	// Convert map to slice
+	var result []string
+	for key := range vars {
+		result = append(result, key)
+	}
+
+	// If no variables found, return a default
+	if len(result) == 0 {
+		return []string{"Filename"}, nil
+	}
+
+	return result, nil
 }

@@ -147,6 +147,16 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 		itemName, _ := getItemName(m, m.SelectedIndex)
 		if strings.ToLower(itemName) == "paste from clipboard" {
 			m.PendingCommand = itemName
+
+			// Check if clipboard content requires multiple variables
+			if requiresMultipleVars(itemName) {
+				m.MultipleVariables = true
+				m.VariableKeys = extractVariableKeys(itemName)
+				fmt.Printf("Detected clipboard variable keys: %v\n", m.VariableKeys)
+				m.CurrentVariableIndex = 0
+				m.Variables = make(map[string]string)
+			}
+
 			m.CurrentScreen = app.ScreenFilenamePrompt
 			m.TempFilename = ""
 			m.LivePreview = ""
