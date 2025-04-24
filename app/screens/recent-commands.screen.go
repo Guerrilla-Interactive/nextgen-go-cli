@@ -5,9 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -343,7 +345,7 @@ func moveSelectionDown(m app.Model) app.Model {
 }
 
 // UpdateScreenProjectStats handles input on the Project Stats screen.
-// On any key press it returns to the Main screen.
+// It returns to the main screen on any key press.
 func UpdateScreenProjectStats(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 	m.CurrentScreen = app.ScreenMain
 	return m, nil
@@ -351,9 +353,76 @@ func UpdateScreenProjectStats(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) 
 
 // ViewProjectStatsScreen renders the full project stats (all recognized packages)
 // along with a header and footer.
+// For the full version that includes project registry data, use ViewProjectStatsScreenWithRegistry.
 func ViewProjectStatsScreen(m app.Model) string {
+	// This is a backward-compatible wrapper for apps that don't yet have access to the registry
+	return ViewProjectStatsScreenWithRegistry(m, nil)
+}
+
+// ViewProjectStatsScreenWithRegistry renders project stats with additional information from the
+// project registry if available.
+func ViewProjectStatsScreenWithRegistry(m app.Model, registry *project.ProjectRegistry) string {
 	header := app.TitleStyle.Render("Project Stats") + "\n\n"
-	body := app.SummarizeFullProjectStats(m.RecognizedPkgs) + "\n"
+
+	// Display project path if available
+	var body string
+	if m.ProjectPath != "" {
+		body += app.SubtitleStyle.Render("Project Path: ") +
+			app.PathStyle.Render(m.ProjectPath) + "\n\n"
+	}
+
+	// Display packages
+	if len(m.RecognizedPkgs) > 0 {
+		body += app.SubtitleStyle.Render("Detected Packages:") + "\n"
+		body += app.SummarizeFullProjectStats(m.RecognizedPkgs) + "\n"
+	} else {
+		body += app.ChoiceStyle.Render("No packages detected") + "\n\n"
+	}
+
+	// Add project usage information from registry if available
+	body += app.SubtitleStyle.Render("Project Usage:") + "\n"
+
+	if registry != nil && m.ProjectPath != "" {
+		// Try to get project info from registry
+		if projectInfo, found := registry.GetProject(m.ProjectPath); found {
+			// Format the usage count
+			body += app.ChoiceStyle.Render("- Usage Count: ") +
+				fmt.Sprintf("%d", projectInfo.UsageCount) + "\n"
+
+			// Format the last access time
+			lastAccess := time.Unix(projectInfo.LastAccessTime, 0)
+			body += app.ChoiceStyle.Render("- Last Access: ") +
+				lastAccess.Format("Jan 2, 2006 at 3:04 PM") + "\n"
+
+			// Add project type if available
+			if projectInfo.Type != "" {
+				body += app.ChoiceStyle.Render("- Project Type: ") +
+					projectInfo.Type + "\n"
+			}
+		} else {
+			body += app.ChoiceStyle.Render("- Usage Count: ") + "Not yet recorded\n"
+			body += app.ChoiceStyle.Render("- Last Access: ") + "Not yet recorded\n"
+		}
+	} else {
+		body += app.ChoiceStyle.Render("- Usage Count: ") + "Not available\n"
+		body += app.ChoiceStyle.Render("- Last Access: ") + "Not available\n"
+	}
+
+	body += "\n"
+
+	// Add placeholder for command history information
+	body += app.SubtitleStyle.Render("Command History:") + "\n"
+
+	if registry != nil {
+		body += app.ChoiceStyle.Render("- Total Global CLI Usage: ") +
+			fmt.Sprintf("%d", registry.GlobalUsages) + "\n"
+	} else {
+		body += app.ChoiceStyle.Render("- Most Used Command: ") + "Not yet available\n"
+		body += app.ChoiceStyle.Render("- Total Commands Run: ") + "Not yet available\n"
+	}
+
+	body += "\n"
+
 	footer := app.HelpStyle.Render("Press any key to return to main screen")
 	return header + body + "\n" + footer
 }

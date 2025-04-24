@@ -1,0 +1,91 @@
+{
+  "meta": {
+    "generatedAt": "2025-04-24T11:52:34.709Z",
+    "tasksAnalyzed": 10,
+    "thresholdScore": 5,
+    "projectName": "Your Project Name",
+    "usedResearch": false
+  },
+  "complexityAnalysis": [
+    {
+      "taskId": 1,
+      "taskTitle": "Implement Enhanced Project Detection System",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the Enhanced Project Detection System implementation into 5 subtasks, focusing on the different detection mechanisms (package.json, git repositories, framework markers), the core detection algorithm, and the data structures needed.",
+      "reasoning": "This task involves multiple detection mechanisms and complex logic for walking directory trees. It requires implementing new data structures and algorithms for project detection across different project types, with intelligent categorization and deduplication."
+    },
+    {
+      "taskId": 2,
+      "taskTitle": "Build Project Registry with Persistent Storage",
+      "complexityScore": 6,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Divide the Project Registry implementation into 4 subtasks covering the core registry structure, serialization/deserialization, usage statistics tracking, and cross-platform path resolution with cleanup logic.",
+      "reasoning": "This task requires implementing persistent storage with JSON serialization, cross-platform path handling, and usage statistics tracking. It has moderate complexity due to the need for proper file I/O, error handling, and cleanup mechanisms."
+    },
+    {
+      "taskId": 3,
+      "taskTitle": "Implement Subfolder Detection and Project Prompting",
+      "complexityScore": 5,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the Subfolder Detection feature into 4 subtasks covering the directory relationship detection algorithm, UI prompt implementation, app model updates, and integration with the application initialization flow.",
+      "reasoning": "This task combines algorithmic work (detecting subdirectory relationships) with UI implementation for prompting. It's moderately complex due to the need to modify the application initialization flow and update the app model."
+    },
+    {
+      "taskId": 4,
+      "taskTitle": "Create Project-Specific Command Filtering",
+      "complexityScore": 6,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Divide the Command Filtering implementation into 4 subtasks covering command registry modifications, compatibility specification, filtering logic implementation, and UI updates to show filtered/unfiltered commands.",
+      "reasoning": "This task requires modifying existing command structures and implementing filtering logic based on project types. It has moderate complexity due to the need to update multiple components while maintaining backward compatibility."
+    },
+    {
+      "taskId": 5,
+      "taskTitle": "Design Command-Line Argument Parser",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the Command-Line Argument Parser implementation into 5 subtasks covering the core parsing algorithm, handling of special flags, argument validation, edge case handling (quotes, escapes), and integration with the command system.",
+      "reasoning": "Parsing command-line arguments correctly is complex due to numerous edge cases like quoted strings, escaped characters, and special flag handling. This requires careful algorithm design and thorough testing."
+    },
+    {
+      "taskId": 6,
+      "taskTitle": "Implement Direct Command Execution",
+      "complexityScore": 8,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Divide the Direct Command Execution implementation into 5 subtasks covering command resolution by name, argument-to-variable mapping, non-interactive execution flow, main entry point modification, and output format consistency.",
+      "reasoning": "This task involves creating a parallel execution path for commands that bypasses the interactive UI. It's complex because it requires mapping command-line arguments to template variables and ensuring consistent behavior between interactive and direct modes."
+    },
+    {
+      "taskId": 7,
+      "taskTitle": "Generate Help Text System",
+      "complexityScore": 5,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the Help Text System implementation into 4 subtasks covering general help generation, command-specific help formatting, integration with direct execution mode, and interactive UI help display.",
+      "reasoning": "This task involves creating formatted help text that works in both CLI and interactive contexts. It's moderately complex due to the need to extract and format information from command specifications in a user-friendly way."
+    },
+    {
+      "taskId": 8,
+      "taskTitle": "Design Environment Variable Storage Structure",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Divide the Environment Variable Storage implementation into 5 subtasks covering the core data structures, environment management functions, secure storage for sensitive values, modification tracking, and integration with the project system.",
+      "reasoning": "This task requires designing data structures for environment variables with support for multiple environments and secure storage. The complexity comes from implementing encryption for sensitive values and ensuring proper integration with the project system."
+    },
+    {
+      "taskId": 9,
+      "taskTitle": "Implement Environment Manager UI Screen",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the Environment Manager UI implementation into 5 subtasks covering the basic screen layout, environment selection/creation, variable editing with encryption, import/export functionality, and app model updates.",
+      "reasoning": "This task involves creating a UI for managing environment variables with multiple operations (view, edit, switch, import, export). It has moderate complexity due to the need to handle different editing modes and secure input for sensitive values."
+    },
+    {
+      "taskId": 10,
+      "taskTitle": "Integrate Environment Variables with Command Templates",
+      "complexityScore": 7,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Divide the Environment Variable Template Integration into 4 subtasks covering template syntax for environment variables, parsing and interpolation logic, environment selection for commands, and ensuring compatibility with both execution modes.",
+      "reasoning": "This task requires modifying the template system to support environment variable interpolation. It's complex because it needs to work across both execution modes and requires careful parsing to handle variable references correctly."
+    }
+  ]
+}
