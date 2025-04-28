@@ -1,6 +1,6 @@
 {
   "name": "nextgen-go-cli",
-  "version": "1.0.39",
+  "version": "1.0.40",
   "description": "A CLI tool built in Go",
   "keywords": [],
   "bin": {
@@ -35,6 +35,5 @@
   "bugs": {
     "url": "https://github.com/guerrilla-interactive/nextgen-go-cli/issues"
   },
-  "dependencies": {
-  }
+  "dependencies": {}
 }
