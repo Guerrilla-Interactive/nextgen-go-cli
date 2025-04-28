@@ -57,7 +57,7 @@ func getItemName(m app.Model, index int) (string, bool) {
 //     moves to the first NextSteps, pressing ↑ again returns to the bottom of RecentUsed.
 //   - SPECIAL REQUEST: When ↑ from the first NextSteps item ("Show all my commands"),
 //     select the bottom of the first column in RecentUsed (index=4 if we have ≥5 commands).
-func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
+func UpdateScreenMain(m app.Model, msg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
 	// First, compute group counts for navigation.
 	recentFiltered := filterRecentUsed(commands.RecentUsed)
 	actionCount := len(actionRow)
@@ -87,7 +87,7 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			m.SelectedIndex = currentActionIndex
 			m.LastActionIndex = currentActionIndex
 			// Update preview based on new selection
-			m = updatePreview(m)
+			m = updatePreview(m, registry)
 		}
 
 	case "right", "l":
@@ -101,7 +101,7 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			m.SelectedIndex = currentActionIndex
 			m.LastActionIndex = currentActionIndex
 			// Update preview based on new selection
-			m = updatePreview(m)
+			m = updatePreview(m, registry)
 		}
 
 	case "up", "k":
@@ -127,7 +127,7 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			}
 		}
 		// Update preview based on new selection
-		m = updatePreview(m)
+		m = updatePreview(m, registry)
 
 	case "down", "j":
 		if group == "action" {
@@ -151,7 +151,7 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			}
 		}
 		// Update preview based on new selection
-		m = updatePreview(m)
+		m = updatePreview(m, registry)
 
 	case "enter":
 		itemName, _ := getItemName(m, m.SelectedIndex)
@@ -195,7 +195,7 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 }
 
 // NEW: updatePreview determines and generates the correct preview based on the current selection.
-func updatePreview(m app.Model) app.Model {
+func updatePreview(m app.Model, registry *project.ProjectRegistry) app.Model {
 	cmdName, _ := getItemName(m, m.SelectedIndex)
 	lowerCmd := strings.ToLower(cmdName)
 
@@ -206,10 +206,33 @@ func updatePreview(m app.Model) app.Model {
 
 	switch lowerCmd {
 	case "view project stats":
-		m.StatsPreview = app.SummarizeFullProjectStats(m.RecognizedPkgs)
-		if m.StatsPreview == "" {
-			m.StatsPreview = "No project stats available."
+		// Build a custom preview string for the main screen
+		var previewBuilder strings.Builder
+		previewBuilder.WriteString(app.SubtitleStyle.Render("Project Info:") + "\n")
+
+		// Project Path
+		if m.ProjectPath != "" {
+			previewBuilder.WriteString(app.ChoiceStyle.Render("- Path: ") + app.PathStyle.Render(m.ProjectPath) + "\n")
+		} else {
+			previewBuilder.WriteString(app.ChoiceStyle.Render("- Path: Not Available") + "\n")
 		}
+
+		// Project Usage from Registry
+		previewBuilder.WriteString(app.SubtitleStyle.Render("Usage:") + "\n")
+		if registry != nil && m.ProjectPath != "" {
+			if projectInfo, found := registry.GetProject(m.ProjectPath); found {
+				previewBuilder.WriteString(app.ChoiceStyle.Render("- Count: ") + fmt.Sprintf("%d", projectInfo.UsageCount) + "\n")
+				lastAccess := time.Unix(projectInfo.LastAccessTime, 0)
+				previewBuilder.WriteString(app.ChoiceStyle.Render("- Last: ") + lastAccess.Format("Jan 2, 3:04 PM") + "\n") // Shorter format
+			} else {
+				previewBuilder.WriteString(app.ChoiceStyle.Render("- Count: Not Recorded") + "\n")
+			}
+			previewBuilder.WriteString(app.ChoiceStyle.Render("- Global Count: ") + fmt.Sprintf("%d", registry.GlobalUsages) + "\n")
+		} else {
+			previewBuilder.WriteString(app.ChoiceStyle.Render("- Usage info not available") + "\n")
+		}
+
+		m.StatsPreview = previewBuilder.String()
 		m.CurrentPreviewType = "stats"
 	case "undo", "redo":
 		// No preview for these actions
