@@ -42,7 +42,7 @@ try {
   // --- 5. Git Commit ---
   try {
     console.log('Committing version bump...');
-    execSync(`git add ${packageJsonPath} ${mainGoPath}`, { stdio: 'inherit' }); 
+    execSync(`git add ${packageJsonPath} ${mainGoPath}`, { stdio: 'inherit' });
     execSync(`git commit -m "chore: Release ${newVersionTag}"`, { stdio: 'inherit' });
     console.log('Committed staged changes for release.');
   } catch (commitError) {
