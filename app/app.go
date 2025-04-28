@@ -62,6 +62,9 @@ type Model struct {
 	// NEW: Terminal dimensions (updated via tea.WindowSizeMsg)
 	TerminalWidth  int
 	TerminalHeight int
+
+	// NEW: Application Version (passed from main)
+	Version string
 }
 
 // Example styles (keep or remove as you prefer).

@@ -11,8 +11,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Define Version (consider setting this via linker flags during build)
-const Version = "v0.1.0-dev"
+// Define Version (will be set via linker flags during build)
+var Version = "v0.1.0-dev"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -316,12 +316,13 @@ func main() {
 		}
 	}
 
-	// Build your initial model and force skipping the intro screen.
+	// Build your initial model
 	initialModel := app.Model{
-		IsLoggedIn:     true,           // Mark the user as already logged in.
-		CurrentScreen:  app.ScreenMain, // Jump directly to the recent commands screen.
-		ProjectPath:    currentDir,     // Set detected project path
-		RecognizedPkgs: recognizedPkgs, // Use detected packages
+		IsLoggedIn:     true,
+		CurrentScreen:  app.ScreenMain,
+		ProjectPath:    currentDir,
+		RecognizedPkgs: recognizedPkgs,
+		Version:        Version,
 	}
 
 	// Set default terminal dimensions so panels are anchored on first render.

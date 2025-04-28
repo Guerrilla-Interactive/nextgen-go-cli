@@ -262,7 +262,7 @@ func ViewMainScreen(m app.Model) string {
 	// Logo logic: "NEXTGEN CLI" where "GEN" is styled with color "#ff3600".
 	logo := app.TitleStyle.Render("NEXT") +
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#ff3600")).Render("GEN") +
-		" CLI" + lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(" v0.01") + "\n"
+		" CLI" + lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(" "+m.Version) + "\n"
 	title := logo
 
 	// Gray path row
