@@ -12,7 +12,7 @@ import (
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.48"
+var Version = "v1.0.49"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -89,7 +89,7 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenAll:
-			updatedM, cmd := screens.UpdateScreenAll(pm.M, typedMsg)
+			updatedM, cmd := screens.UpdateScreenAll(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenFilenamePrompt:
@@ -139,46 +139,6 @@ func (pm ProgramModel) View() string {
 		return screens.ViewProjectStatsScreenWithRegistry(pm.M, pm.ProjectRegistry)
 	}
 	return ""
-}
-
-// Main update function. Your program should call this.
-func update(msg tea.Msg, m app.Model) (app.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	// When a command finishes we either show the installation details with an error,
-	// or simply show installation details and quit.
-	case screens.CommandFinishedMsg:
-		if msg.Err != nil {
-			// Optionally log or update a field that holds error info.
-			fmt.Println("Command finished with error:", msg.Err)
-		}
-		// Set the current screen to the installation details screen.
-		m.CurrentScreen = app.ScreenInstallDetails
-		// Option 1 - Immediately quit:
-		// return m, tea.Quit
-
-		// Option 2 - Wait for a key press on the install details screen to quit:
-		return m, nil
-
-	case tea.KeyMsg:
-		// If we're on the installation details screen, any key press quits.
-		if m.CurrentScreen == app.ScreenInstallDetails {
-			return m, tea.Quit
-		}
-		// Delegate to screen-specific updates.
-		switch m.CurrentScreen {
-		case app.ScreenAll:
-			return screens.UpdateScreenAll(m, msg)
-		case app.ScreenFilenamePrompt:
-			return screens.UpdateScreenFilenamePrompt(m, msg)
-		case app.ScreenSelect:
-			return screens.UpdateScreenSelect(m, msg)
-		// ... add additional cases for other screens as needed.
-		default:
-			return m, nil
-		}
-	}
-
-	return m, nil
 }
 
 func main() {
