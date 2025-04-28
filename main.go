@@ -185,9 +185,10 @@ func main() {
 	args := os.Args[1:] // Get arguments excluding program name
 
 	// --- Load Project Registry ---
-	// Load the project registry from disk at startup
+	fmt.Println("DEBUG: Attempting to load project registry...")
 	projectRegistry, err := project.LoadProjectRegistry()
 	if err != nil {
+		fmt.Printf("DEBUG: Error loading project registry: %v\n", err)
 		fmt.Printf("Warning: Could not load project registry: %v\n", err)
 		// Continue with an empty registry rather than failing
 		projectRegistry = &project.ProjectRegistry{
@@ -195,6 +196,9 @@ func main() {
 			LastUsedPath: "",
 			GlobalUsages: 0,
 		}
+	} else {
+		fmt.Printf("DEBUG: Project registry loaded successfully from %s. Contains %d projects. Global usages: %d\n",
+			projectRegistry.RegistryPath, len(projectRegistry.Projects), projectRegistry.GlobalUsages)
 	}
 
 	// --- Direct Command Execution Handling ---
@@ -235,10 +239,14 @@ func main() {
 		}
 
 		// Get current directory for project detection
+		fmt.Println("DEBUG: Attempting to get current working directory...")
 		currentDir, err := os.Getwd()
 		if err != nil {
+			fmt.Printf("DEBUG: Error getting working directory: %v\n", err)
 			fmt.Printf("Warning: Could not determine current directory: %v\n", err)
 			currentDir = "" // Default to empty if unable to determine
+		} else {
+			fmt.Printf("DEBUG: Current working directory: %s\n", currentDir)
 		}
 
 		// Detect project if we have a current directory
@@ -288,10 +296,14 @@ func main() {
 	fmt.Println("No command-line arguments provided, starting interactive mode...")
 
 	// Get current directory for project detection
+	fmt.Println("DEBUG: Attempting to get current working directory...")
 	currentDir, err := os.Getwd()
 	if err != nil {
+		fmt.Printf("DEBUG: Error getting working directory: %v\n", err)
 		fmt.Printf("Warning: Could not determine current directory: %v\n", err)
 		currentDir = "" // Default to empty if unable to determine
+	} else {
+		fmt.Printf("DEBUG: Current working directory: %s\n", currentDir)
 	}
 
 	// Try to detect project information for the current directory
