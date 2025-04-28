@@ -7,9 +7,9 @@ import (
 	"log"
 	"path/filepath"
 	"strings"
+	"time"
 
-	"github.com/atotto/clipboard"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
 )
 
 // Use *.json to embed JSON files in the same directory (non-recursively).
@@ -168,45 +168,71 @@ func TemplatePathFor(cmdName string) (string, bool) {
 	return "", false
 }
 
-// RunCommand checks if the command is recognized and, if it has a TemplatePath,
-// fetches that JSON from embedded memory. Otherwise, it's just a placeholder.
-func RunCommand(cmdName, projectPath string, placeholders map[string]string) error {
-	if strings.ToLower(cmdName) == "paste from clipboard" {
-		successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
-		fmt.Println(successStyle.Render("➤ Running Paste from Clipboard command"))
-		clipboardContent, err := clipboard.ReadAll()
-		if err != nil {
-			return fmt.Errorf("failed to read clipboard: %w", err)
-		}
-		// NEW: Replace placeholders in the clipboard content before running the command.
-		updatedTemplate := replacePlaceholders(string(clipboardContent), placeholders)
-		return RunJsonTemplateBytes([]byte(updatedTemplate), projectPath, placeholders)
+// RunCommand executes the command defined by the JSON template.
+// It now accepts the registry to record history after execution.
+func RunCommand(cmdName, projectPath string, placeholders map[string]string, registry *project.ProjectRegistry) error {
+	// Reset CreatedFiles and EditedIndexers for this run.
+	CreatedFiles = []string{}
+	EditedIndexers = make(map[string]bool)
+
+	spec := GetCommandSpec(cmdName)
+	if spec.TemplatePath == "" {
+		return fmt.Errorf("command '%s' not found or has no template path", cmdName)
 	}
 
-	tPath, found := TemplatePathFor(cmdName)
-	if !found {
-		return fmt.Errorf("unknown command: %q", cmdName)
-	}
-
-	// If TemplatePath is empty -> "not yet implemented."
-	if tPath == "" {
-		fmt.Printf("[Placeholder] %q command is recognized but not yet implemented.\n", cmdName)
-		return nil
-	}
-
-	// Use a success style for output.
-	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
-	fmt.Println(successStyle.Render(fmt.Sprintf("➤ Running command: %s", cmdName)))
-	fmt.Println(successStyle.Render(fmt.Sprintf("Template: %s", tPath)))
-	fmt.Println(successStyle.Render(fmt.Sprintf("Project: %s", projectPath)))
-	fmt.Println(successStyle.Render(fmt.Sprintf("Placeholders: %+v", placeholders)))
-
-	// Load template bytes from memory via the registry:
-	data, err := LoadCommandTemplate(tPath)
+	// Read the template content.
+	jsonBytes, err := commandFiles.ReadFile(spec.TemplatePath)
 	if err != nil {
-		return fmt.Errorf("template %q not found in embedded registry: %w", tPath, err)
+		return fmt.Errorf("error reading embedded template %s: %w", spec.TemplatePath, err)
 	}
 
-	// Run the JSON template. (File actions have been removed.)
-	return RunJsonTemplateBytes(data, projectPath, placeholders)
+	// Execute the template logic (creates/modifies files).
+	err = ExecuteJSONTemplateFromMemory(jsonBytes, projectPath, placeholders)
+	if err != nil {
+		// Return the execution error, but still try to record history if needed?
+		// Or maybe only record history on success? Let's record regardless for now.
+		// return fmt.Errorf("error executing template for command '%s': %w", cmdName, err)
+	}
+
+	// --- Record Command History (Moved Here) ---
+	// Log the placeholders received by RunCommand *before* recording history
+	fmt.Printf("DEBUG: RunCommand received placeholders: %+v\n", placeholders)
+
+	// Record even if ExecuteJSONTemplateFromMemory returned an error,
+	// as the user initiated the command.
+	if registry != nil && projectPath != "" {
+		if projectInfo, found := registry.GetProject(projectPath); found {
+			historicCmd := project.HistoricCommand{
+				Name:           cmdName,
+				Variables:      placeholders, // Store the actual variables used!
+				Timestamp:      time.Now().Unix(),
+				GeneratedFiles: append([]string{}, CreatedFiles...), // Copy slice
+			}
+			if projectInfo.CommandHistory == nil {
+				projectInfo.CommandHistory = []project.HistoricCommand{}
+			}
+			projectInfo.CommandHistory = append(projectInfo.CommandHistory, historicCmd)
+			// Limit history size
+			if len(projectInfo.CommandHistory) > 20 { // Use a constant later?
+				projectInfo.CommandHistory = projectInfo.CommandHistory[len(projectInfo.CommandHistory)-20:]
+			}
+			registry.AddOrUpdateProject(projectInfo) // Update registry (also updates usage count)
+			if saveErr := registry.Save(); saveErr != nil {
+				// Log non-fatal error
+				fmt.Printf("Warning: Failed to save project registry after executing command '%s': %v\n", cmdName, saveErr)
+			}
+		} else {
+			fmt.Printf("Warning: Project '%s' not found in registry, cannot record history.\n", projectPath)
+		}
+	} else {
+		fmt.Println("Warning: Registry or ProjectPath unavailable, cannot record history.")
+	}
+	// --- End History Recording ---
+
+	// Return the original execution error, if any
+	if err != nil {
+		return fmt.Errorf("error executing template for command '%s': %w", cmdName, err)
+	}
+
+	return nil
 }

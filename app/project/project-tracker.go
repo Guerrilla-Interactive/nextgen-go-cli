@@ -83,6 +83,15 @@ func LoadProjectRegistry() (*ProjectRegistry, error) {
 	// We need to re-assign the RegistryPath as it's ignored by json
 	registry.RegistryPath = registryPath
 
+	// --- Ensure CommandHistory is initialized for each loaded project ---
+	for key, projectInfo := range registry.Projects {
+		if projectInfo.CommandHistory == nil {
+			// Initialize if nil after unmarshalling
+			projectInfo.CommandHistory = []HistoricCommand{}
+			registry.Projects[key] = projectInfo // Update the map with the initialized struct
+		}
+	}
+
 	return registry, nil
 }
 
@@ -129,6 +138,11 @@ func (r *ProjectRegistry) AddOrUpdateProject(info ProjectInfo) {
 		existingInfo.DevDependencies = info.DevDependencies
 		existingInfo.DetectedPackages = info.DetectedPackages
 		existingInfo.GitInfo = info.GitInfo
+		// --- DO NOT update CommandHistory here ---
+		// CommandHistory should only be updated by RunCommand after execution.
+		// if info.CommandHistory != nil {
+		// 	existingInfo.CommandHistory = info.CommandHistory
+		// }
 		r.Projects[info.RootPath] = existingInfo
 	} else {
 		// Add new project
@@ -136,6 +150,16 @@ func (r *ProjectRegistry) AddOrUpdateProject(info ProjectInfo) {
 		info.LastAccessTime = time.Now().Unix()
 		if info.Environments == nil {
 			info.Environments = make(map[string]EnvironmentConfig)
+		}
+		if info.CommandHistory == nil {
+			info.CommandHistory = []HistoricCommand{}
+		}
+		// Ensure GeneratedFiles slice is initialized within each history entry if needed
+		// (Although RunCommand should provide it)
+		for i := range info.CommandHistory {
+			if info.CommandHistory[i].GeneratedFiles == nil {
+				info.CommandHistory[i].GeneratedFiles = []string{}
+			}
 		}
 		r.Projects[info.RootPath] = info
 	}

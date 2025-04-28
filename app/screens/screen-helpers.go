@@ -3,12 +3,16 @@ package screens
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+const maxCommandHistory = 20 // Limit project-specific history size
 
 // summarizeProjectStats returns a string with project stats.
 func summarizeProjectStats(m app.Model) string {
@@ -158,8 +162,12 @@ func renderPackagesHorizontally(items []string, maxCols int) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// recordCommand moves the chosen command to the front of RecentUsed, removing duplicates, limit to 8.
+// recordCommand moves the chosen command to the front of RecentUsed (session memory).
+// Persistent history is now recorded after RunCommand.
 func recordCommand(m *app.Model, cmd string) {
+	// --- Reset HistorySaveStatus (no longer relevant here) ---
+	m.HistorySaveStatus = ""
+
 	// Only record commands that are not part of the action row or navigation commands.
 	lower := strings.ToLower(cmd)
 	excluded := map[string]bool{
@@ -174,6 +182,7 @@ func recordCommand(m *app.Model, cmd string) {
 		return
 	}
 
+	// --- Update In-Memory RecentUsed list (Keep this part) ---
 	idx := -1
 	for i, v := range commands.RecentUsed {
 		if v == cmd {
@@ -193,8 +202,10 @@ func recordCommand(m *app.Model, cmd string) {
 	if len(commands.RecentUsed) > 8 {
 		commands.RecentUsed = commands.RecentUsed[:8]
 	}
-
 	m.TotalItems = len(commands.RecentUsed) + len(commands.NextSteps)
+
+	// --- Remove Persistent Project Command History Logic ---
+	// (This logic is moved to be called after RunCommand)
 }
 
 // renderItemsHorizontally is an example utility that can display a set of items in a row-based layout.
@@ -285,7 +296,8 @@ func extractVariableKeys(cmdName string) []string {
 }
 
 // HandleCommandSelection centralizes what happens when a command is selected.
-func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
+// It now accepts the registry to record history.
+func HandleCommandSelection(m *app.Model, registry *project.ProjectRegistry, itemName string) *app.Model {
 	// Always record the command so it appears at the top of RecentUsed:
 	recordCommand(m, itemName)
 
@@ -323,7 +335,8 @@ func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
 	}
 
 	// Otherwise, run the command immediately.
-	commands.RunCommand(itemName, m.ProjectPath, nil)
+	// Pass registry to RunCommand
+	commands.RunCommand(itemName, m.ProjectPath, nil, registry)
 	// After running the command, show the installation details screen.
 	m.CurrentScreen = app.ScreenInstallDetails
 	return m
@@ -357,4 +370,40 @@ func UpdateScreenInstallDetails(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd
 // CommandFinishedMsg is sent when an asynchronous command execution has completed.
 type CommandFinishedMsg struct {
 	Err error
+}
+
+// NEW: renderProjectInfoSection formats the common project info details.
+func renderProjectInfoSection(m app.Model, registry *project.ProjectRegistry) string {
+	var infoBuilder strings.Builder
+
+	// --- Project Path --- (Keep this concise)
+	if m.ProjectPath != "" {
+		// Maybe shorten long paths?
+		displayPath := m.ProjectPath
+		// Example shortening (adjust logic as needed):
+		// if len(displayPath) > 40 {
+		// 	displayPath = "..." + displayPath[len(displayPath)-37:]
+		// }
+		infoBuilder.WriteString(app.PathStyle.Render(displayPath) + "\n")
+	} else {
+		infoBuilder.WriteString(app.ChoiceStyle.Render("Path N/A") + "\n")
+	}
+	infoBuilder.WriteString("\n") // Add a separator
+
+	// --- Project Usage (Summary) ---
+	infoBuilder.WriteString(app.SubtitleStyle.Render("Usage:") + "\n")
+	if registry != nil && m.ProjectPath != "" {
+		if projectInfo, found := registry.GetProject(m.ProjectPath); found {
+			infoBuilder.WriteString(fmt.Sprintf("  Count: %d\n", projectInfo.UsageCount))
+			lastAccess := time.Unix(projectInfo.LastAccessTime, 0)
+			infoBuilder.WriteString(fmt.Sprintf("  Last: %s\n", lastAccess.Format("Jan 2, 3:04 PM")))
+		} else {
+			infoBuilder.WriteString(app.ChoiceStyle.Render("  (Not recorded yet)\n"))
+		}
+	} else {
+		infoBuilder.WriteString(app.ChoiceStyle.Render("  (Registry N/A)\n"))
+	}
+
+	// No extra padding here, let the caller handle container padding
+	return infoBuilder.String()
 }

@@ -8,13 +8,15 @@ import (
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // UpdateScreenFilenamePrompt handles input for both single and multiple variables.
-func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.Cmd) {
+// It now accepts the registry to pass down to RunCommand.
+func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
 	// Check for arrow keys (actual arrow keys) to change focus.
 	switch keyMsg.String() {
 	case "up":
@@ -100,7 +102,7 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 
 				// Run the command with the built placeholders.
 				return m, func() tea.Msg {
-					err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholders)
+					err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholders, registry)
 					return CommandFinishedMsg{Err: err}
 				}
 			}
@@ -223,7 +225,7 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 
 		// Run the command with the built placeholders.
 		return m, func() tea.Msg {
-			err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholderMap)
+			err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholderMap, registry)
 			return CommandFinishedMsg{Err: err}
 		}
 	}

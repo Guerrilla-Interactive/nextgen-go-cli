@@ -12,7 +12,7 @@ import (
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.49"
+var Version = "v1.0.50"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -88,12 +88,8 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			updatedM, cmd := screens.UpdateScreenMain(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
-		case app.ScreenAll:
-			updatedM, cmd := screens.UpdateScreenAll(pm.M, typedMsg, pm.ProjectRegistry)
-			pm.M = updatedM
-			return pm, cmd
 		case app.ScreenFilenamePrompt:
-			updatedM, cmd := screens.UpdateScreenFilenamePrompt(pm.M, typedMsg)
+			updatedM, cmd := screens.UpdateScreenFilenamePrompt(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenInstallDetails:
@@ -101,7 +97,11 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenProjectStats:
-			updatedM, cmd := screens.UpdateScreenProjectStats(pm.M, typedMsg)
+			updatedM, cmd := screens.UpdateScreenProjectStats(pm.M, typedMsg, pm.ProjectRegistry)
+			pm.M = updatedM
+			return pm, cmd
+		case app.ScreenCommandHistory:
+			updatedM, cmd := screens.UpdateScreenCommandHistory(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		default:
@@ -129,14 +129,14 @@ func (pm ProgramModel) View() string {
 		return screens.ViewSelectScreen(pm.M)
 	case app.ScreenMain:
 		return screens.ViewMainScreen(pm.M)
-	case app.ScreenAll:
-		return screens.ViewAllScreen(pm.M)
 	case app.ScreenFilenamePrompt:
 		return screens.ViewFilenamePrompt(pm.M)
 	case app.ScreenInstallDetails:
 		return screens.ViewInstallDetailsScreen(pm.M)
 	case app.ScreenProjectStats:
 		return screens.ViewProjectStatsScreenWithRegistry(pm.M, pm.ProjectRegistry)
+	case app.ScreenCommandHistory:
+		return screens.ViewScreenCommandHistory(pm.M, pm.ProjectRegistry)
 	}
 	return ""
 }

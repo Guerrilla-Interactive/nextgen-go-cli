@@ -16,6 +16,7 @@ const (
 	ScreenFilenamePrompt
 	ScreenInstallDetails
 	ScreenProjectStats
+	ScreenCommandHistory
 )
 
 // Model is the primary application state shared by all screens.
@@ -65,6 +66,16 @@ type Model struct {
 
 	// NEW: Application Version (passed from main)
 	Version string
+
+	// NEW: Status message for debugging history saving
+	HistorySaveStatus string
+
+	// NEW: Index for navigating the Project Stats screen categories
+	StatsScreenIndex int
+
+	// NEW: State for Command History screen
+	HistoryScreenIndex     int
+	HistoryFileTreePreview string
 }
 
 // Example styles (keep or remove as you prefer).

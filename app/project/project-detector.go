@@ -9,6 +9,14 @@ import (
 	"time"
 )
 
+// HistoricCommand stores details about a previously run command.
+type HistoricCommand struct {
+	Name           string            `json:"name"`
+	Variables      map[string]string `json:"variables"`
+	Timestamp      int64             `json:"timestamp"`
+	GeneratedFiles []string          `json:"generatedFiles"`
+}
+
 // ProjectInfo stores information about a detected project
 type ProjectInfo struct {
 	RootPath         string                       // Absolute path to project root
@@ -22,6 +30,7 @@ type ProjectInfo struct {
 	UsageCount       int                          // Times NextGen was used in this project
 	LastAccessTime   int64                        // Last time project was accessed (Unix timestamp)
 	Environments     map[string]EnvironmentConfig // Environment configurations (Placeholder for now)
+	CommandHistory   []HistoricCommand            // List of commands run in this project (limited size)
 }
 
 // EnvironmentConfig placeholder (will be defined fully later)
@@ -210,6 +219,7 @@ func createProjectInfo(rootPath string, pkgData map[string]interface{}, gitData 
 		UsageCount:       0,                                  // Initial usage count
 		LastAccessTime:   time.Now().Unix(),                  // Set initial access time
 		Environments:     make(map[string]EnvironmentConfig), // Initialize empty map
+		CommandHistory:   []HistoricCommand{},                // Initialize empty slice
 	}
 
 	// Default project name to the directory name

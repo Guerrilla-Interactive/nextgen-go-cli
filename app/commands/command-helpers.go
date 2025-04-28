@@ -494,25 +494,23 @@ func GeneratePreviewFileTree(cmdName string, placeholders map[string]string, pro
 		return "", fmt.Errorf("failed to load template: %w", err)
 	}
 
-	// Replace placeholders in the template.
-	templateData := replacePlaceholders(string(data), placeholders)
-
-	// Unmarshal into the JSONCommandTemplate structure.
+	// Unmarshal into the JSONCommandTemplate structure using original data.
 	var tmpl JSONCommandTemplate
-	if err := json.Unmarshal([]byte(templateData), &tmpl); err != nil {
+	if err := json.Unmarshal(data, &tmpl); err != nil {
 		return "", fmt.Errorf("failed to parse template JSON: %w", err)
 	}
 
-	// Collect file paths that would be created. We aggregate file paths from each FilePathGroup.
+	// Collect file paths that would be created.
 	var filePaths []string
 	for _, group := range tmpl.FilePaths {
-		// Calculate the base path for the group.
+		// Calculate the base path for the group, applying placeholders HERE.
 		base := filepath.Join(projectPath, replacePlaceholders(group.Path, placeholders))
-		// Recursively collect file paths from the tree nodes.
+		// Recursively collect file paths from the tree nodes, applying placeholders inside.
 		var collectFiles func(nodes []TreeNode, currPath string) []string
 		collectFiles = func(nodes []TreeNode, currPath string) []string {
 			var paths []string
 			for _, n := range nodes {
+				// Apply placeholders to name HERE.
 				name := replacePlaceholders(n.Name, placeholders)
 				fullPath := filepath.Join(currPath, name)
 				if len(n.Children) > 0 {
@@ -559,20 +557,21 @@ func GeneratePreviewFileTreeFromClipboard(placeholders map[string]string, projec
 		return "", fmt.Errorf("failed to read clipboard: %w", err)
 	}
 
-	templateData := replacePlaceholders(clipboardContent, placeholders)
 	var tmpl JSONCommandTemplate
-	if err := json.Unmarshal([]byte(templateData), &tmpl); err != nil {
+	if err := json.Unmarshal([]byte(clipboardContent), &tmpl); err != nil {
 		return "", fmt.Errorf("failed to parse clipboard JSON: %w", err)
 	}
 
 	// Collect file paths that would be created.
 	var filePaths []string
 	for _, group := range tmpl.FilePaths {
+		// Apply placeholders HERE
 		base := filepath.Join(projectPath, replacePlaceholders(group.Path, placeholders))
 		var collectFiles func(nodes []TreeNode, currPath string) []string
 		collectFiles = func(nodes []TreeNode, currPath string) []string {
 			var paths []string
 			for _, n := range nodes {
+				// Apply placeholders HERE
 				name := replacePlaceholders(n.Name, placeholders)
 				fullPath := filepath.Join(currPath, name)
 				if len(n.Children) > 0 {

@@ -184,7 +184,8 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg, registry *project.ProjectRegi
 			m.FileTreePreview = ""
 			m.StatsPreview = ""
 		} else {
-			m = *HandleCommandSelection(&m, itemName)
+			// Pass registry to HandleCommandSelection
+			m = *HandleCommandSelection(&m, registry, itemName)
 			// Clear previews after command execution starts
 			m.CurrentPreviewType = "none"
 			m.FileTreePreview = ""
@@ -206,33 +207,8 @@ func updatePreview(m app.Model, registry *project.ProjectRegistry) app.Model {
 
 	switch lowerCmd {
 	case "view project stats":
-		// Build a custom preview string for the main screen
-		var previewBuilder strings.Builder
-		previewBuilder.WriteString(app.SubtitleStyle.Render("Project Info:") + "\n")
-
-		// Project Path
-		if m.ProjectPath != "" {
-			previewBuilder.WriteString(app.ChoiceStyle.Render("- Path: ") + app.PathStyle.Render(m.ProjectPath) + "\n")
-		} else {
-			previewBuilder.WriteString(app.ChoiceStyle.Render("- Path: Not Available") + "\n")
-		}
-
-		// Project Usage from Registry
-		previewBuilder.WriteString(app.SubtitleStyle.Render("Usage:") + "\n")
-		if registry != nil && m.ProjectPath != "" {
-			if projectInfo, found := registry.GetProject(m.ProjectPath); found {
-				previewBuilder.WriteString(app.ChoiceStyle.Render("- Count: ") + fmt.Sprintf("%d", projectInfo.UsageCount) + "\n")
-				lastAccess := time.Unix(projectInfo.LastAccessTime, 0)
-				previewBuilder.WriteString(app.ChoiceStyle.Render("- Last: ") + lastAccess.Format("Jan 2, 3:04 PM") + "\n") // Shorter format
-			} else {
-				previewBuilder.WriteString(app.ChoiceStyle.Render("- Count: Not Recorded") + "\n")
-			}
-			previewBuilder.WriteString(app.ChoiceStyle.Render("- Global Count: ") + fmt.Sprintf("%d", registry.GlobalUsages) + "\n")
-		} else {
-			previewBuilder.WriteString(app.ChoiceStyle.Render("- Usage info not available") + "\n")
-		}
-
-		m.StatsPreview = previewBuilder.String()
+		// Use the new helper function to generate the preview
+		m.StatsPreview = renderProjectInfoSection(m, registry)
 		m.CurrentPreviewType = "stats"
 	case "undo", "redo":
 		// No preview for these actions
@@ -314,50 +290,86 @@ func ViewMainScreen(m app.Model) string {
 
 	// --- Render the dynamic preview based on the model state ---
 	var previewContent string
+	var rightPanel string // Use a string for the final rendered panel
+
 	switch m.CurrentPreviewType {
 	case "stats":
 		previewContent = m.StatsPreview
+		// Render stats preview directly without extra container/border for main screen
+		rightPanel = lipgloss.NewStyle().Padding(1, 2).Render(previewContent)
 	case "file-tree":
 		previewContent = m.FileTreePreview
+		// Keep the container for file tree preview
+		rightPanel = baseContainer(previewContent)
 	default:
 		previewContent = "No preview available for this command."
+		// Render default message without container
+		rightPanel = lipgloss.NewStyle().Padding(1, 2).Render(previewContent)
 	}
 
-	// Truncate the preview to fit reasonably within the available height.
-	// Use TerminalHeight for a more robust calculation.
-	// Subtracting a fixed number accounts for headers, footers, padding etc.
-	maxPreviewHeight := m.TerminalHeight - 10 // Adjust this offset as needed
-	if maxPreviewHeight < 5 {                 // Ensure a minimum height
+	// Truncate the *rendered* right panel content if needed
+	// ... (Existing truncation logic, but applied to 'rightPanel' string)
+	maxPreviewHeight := m.TerminalHeight - 10
+	if maxPreviewHeight < 5 {
 		maxPreviewHeight = 5
 	}
 	lpHeight := lipgloss.Height(leftPanel)
-	if lpHeight > maxPreviewHeight { // Ensure preview isn't taller than calculated max
+	if lpHeight > maxPreviewHeight {
 		maxPreviewHeight = lpHeight
 	}
 
-	lines := strings.Split(previewContent, "\n")
+	// Note: lipgloss.Height calculates height based on rendered width and newlines.
+	// We might need a more robust way to truncate if the preview is complex.
+	// For now, let's truncate the raw content string *before* rendering the panel.
+	lines := strings.Split(previewContent, "\n") // Truncate raw content
 	if len(lines) > maxPreviewHeight {
 		previewContent = strings.Join(lines[:maxPreviewHeight], "\n")
 		previewContent += "\n... (truncated)"
+		// Re-render the right panel with truncated content
+		if m.CurrentPreviewType == "stats" || m.CurrentPreviewType == "none" {
+			rightPanel = lipgloss.NewStyle().Padding(1, 2).Render(previewContent)
+		} else { // file-tree
+			rightPanel = baseContainer(previewContent)
+		}
 	}
 
 	// Prepend header with package icon and current folder name.
+	// Apply this *before* the final panel rendering if possible, or adjust styling.
+	// Let's add it directly to the raw preview content for simplicity here.
 	folderName := filepath.Base(m.ProjectPath)
 	header := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
-	previewContent = header + "\n" + previewContent
+	previewContentWithHeader := header + "\n" + previewContent
 
-	// Build the right panel (the preview panel).
-	rightPanel := baseContainer(previewContent)
+	// Re-render right panel with header included
+	if m.CurrentPreviewType == "stats" || m.CurrentPreviewType == "none" {
+		rightPanel = lipgloss.NewStyle().Padding(1, 2).Render(previewContentWithHeader)
+	} else { // file-tree
+		rightPanel = baseContainer(previewContentWithHeader)
+	}
+
+	// Build the right panel (already rendered based on type)
+	// rightPanel := baseContainer(previewContent) // <-- Remove this old line
 
 	// Combine left and right panels using lipgloss.JoinHorizontal.
-	// Use Top alignment and add some space between panels.
 	combined := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
 
-	// Optional: Add a footer with general help or status.
-	// footer := lipgloss.NewStyle().MarginTop(1).Render("Press 'q' to quit.")
-	// return combined + "\n" + footer
+	// --- Add History Save Status ---
+	var statusLine string
+	if m.HistorySaveStatus != "" {
+		// Use a different style for errors vs success
+		if strings.HasPrefix(m.HistorySaveStatus, "Error:") {
+			statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.HistorySaveStatus) // Red for errors
+		} else {
+			statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render(m.HistorySaveStatus) // Green for success
+		}
+		statusLine += "\n" // Add newline after status
+	}
 
-	return combined
+	// Footer with status (if any) and help text
+	footer := statusLine + app.HelpStyle.Render("(Use arrow keys or j/k to move; q quits.)")
+
+	// Return combined view with footer
+	return lipgloss.JoinVertical(lipgloss.Left, combined, footer)
 }
 
 // renderRecentUsedInColumns displays recent commands in *column-major* order, filling each column top-down.
@@ -425,9 +437,48 @@ func moveSelectionDown(m app.Model) app.Model {
 }
 
 // UpdateScreenProjectStats handles input on the Project Stats screen.
-// It returns to the main screen on any key press.
-func UpdateScreenProjectStats(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
-	m.CurrentScreen = app.ScreenMain
+func UpdateScreenProjectStats(m app.Model, msg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
+	numOptions := 5 // Path, Packages, Usage, History, Back
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit // Allow quitting
+
+	case "up", "k":
+		m.StatsScreenIndex = (m.StatsScreenIndex + numOptions - 1) % numOptions
+
+	case "down", "j":
+		m.StatsScreenIndex = (m.StatsScreenIndex + 1) % numOptions
+
+	case "enter":
+		// Index 0: Project Info (No action yet)
+		// Index 1: Detected Packages (No action yet)
+		// Index 2: Project Usage (No action yet)
+		// Index 3: Command History
+		if m.StatsScreenIndex == 3 {
+			m.CurrentScreen = app.ScreenCommandHistory
+			// Reset index for next time
+			m.HistoryScreenIndex = 0
+			// Trigger initial preview generation for history screen
+			m = updateHistoryPreview(m, registry) // Call helper from new file
+			return m, nil
+		}
+		// If "Back" is selected (index 4), go back to main screen
+		if m.StatsScreenIndex == 4 {
+			m.CurrentScreen = app.ScreenMain
+			// Reset index for next time
+			m.StatsScreenIndex = 0
+			return m, nil
+		}
+		// Enter on other items currently does nothing
+
+	case "esc", "b": // Add explicit back keys
+		m.CurrentScreen = app.ScreenMain
+		// Reset index for next time
+		m.StatsScreenIndex = 0
+		return m, nil
+	}
+
 	return m, nil
 }
 
@@ -439,72 +490,112 @@ func ViewProjectStatsScreen(m app.Model) string {
 	return ViewProjectStatsScreenWithRegistry(m, nil)
 }
 
-// ViewProjectStatsScreenWithRegistry renders project stats with additional information from the
-// project registry if available.
+// ViewProjectStatsScreenWithRegistry renders the interactive project stats screen.
 func ViewProjectStatsScreenWithRegistry(m app.Model, registry *project.ProjectRegistry) string {
-	header := app.TitleStyle.Render("Project Stats") + "\n\n"
+	header := app.TitleStyle.Render("Project Stats") + "\n"
 
-	// Display project path if available
-	var body string
-	if m.ProjectPath != "" {
-		body += app.SubtitleStyle.Render("Project Path: ") +
-			app.PathStyle.Render(m.ProjectPath) + "\n\n"
+	// --- Left Pane: Navigation ---
+	navItems := []string{"Project Info", "Detected Packages", "Project Usage", "Command History", "Back"}
+	var leftBuilder strings.Builder
+	leftBuilder.WriteString(app.SubtitleStyle.Render("Categories") + "\n\n")
+	for i, item := range navItems {
+		if i == m.StatsScreenIndex {
+			leftBuilder.WriteString(app.HighlightStyle.Render("> "+item) + "\n")
+		} else {
+			leftBuilder.WriteString(app.ChoiceStyle.Render("  "+item) + "\n")
+		}
 	}
+	// Use a fixed width for the left panel for consistent layout
+	leftPanel := lipgloss.NewStyle().
+		Width(30).
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Render(leftBuilder.String())
 
-	// Display packages
-	if len(m.RecognizedPkgs) > 0 {
-		body += app.SubtitleStyle.Render("Detected Packages:") + "\n"
-		body += app.SummarizeFullProjectStats(m.RecognizedPkgs) + "\n"
-	} else {
-		body += app.ChoiceStyle.Render("No packages detected") + "\n\n"
-	}
-
-	// Add project usage information from registry if available
-	body += app.SubtitleStyle.Render("Project Usage:") + "\n"
-
-	if registry != nil && m.ProjectPath != "" {
-		// Try to get project info from registry
-		if projectInfo, found := registry.GetProject(m.ProjectPath); found {
-			// Format the usage count
-			body += app.ChoiceStyle.Render("- Usage Count: ") +
-				fmt.Sprintf("%d", projectInfo.UsageCount) + "\n"
-
-			// Format the last access time
-			lastAccess := time.Unix(projectInfo.LastAccessTime, 0)
-			body += app.ChoiceStyle.Render("- Last Access: ") +
-				lastAccess.Format("Jan 2, 2006 at 3:04 PM") + "\n"
-
-			// Add project type if available
-			if projectInfo.Type != "" {
-				body += app.ChoiceStyle.Render("- Project Type: ") +
-					projectInfo.Type + "\n"
+	// --- Right Pane: Details Preview ---
+	var previewContent string
+	switch m.StatsScreenIndex {
+	case 0: // Project Info (Path, Type)
+		var pb strings.Builder
+		pb.WriteString(app.SubtitleStyle.Render("Project Info") + "\n\n")
+		if m.ProjectPath != "" {
+			pb.WriteString("Path: " + app.PathStyle.Render(m.ProjectPath) + "\n")
+			if registry != nil {
+				if info, found := registry.GetProject(m.ProjectPath); found && info.Type != "" {
+					pb.WriteString(fmt.Sprintf("Type: %s\n", info.Type))
+				}
 			}
 		} else {
-			body += app.ChoiceStyle.Render("- Usage Count: ") + "Not yet recorded\n"
-			body += app.ChoiceStyle.Render("- Last Access: ") + "Not yet recorded\n"
+			pb.WriteString(app.ChoiceStyle.Render("Path not available.") + "\n")
 		}
-	} else {
-		body += app.ChoiceStyle.Render("- Usage Count: ") + "Not available\n"
-		body += app.ChoiceStyle.Render("- Last Access: ") + "Not available\n"
+		previewContent = pb.String()
+	case 1: // Detected Packages
+		previewContent = app.SubtitleStyle.Render("Detected Packages") + "\n\n"
+		if len(m.RecognizedPkgs) > 0 {
+			previewContent += app.SummarizeFullProjectStats(m.RecognizedPkgs) // Uses the existing summarization
+		} else {
+			previewContent += app.ChoiceStyle.Render("No packages detected.")
+		}
+	case 2: // Project Usage (Count, Last Access)
+		var pb strings.Builder
+		pb.WriteString(app.SubtitleStyle.Render("Project Usage") + "\n\n")
+		if registry != nil && m.ProjectPath != "" {
+			if info, found := registry.GetProject(m.ProjectPath); found {
+				pb.WriteString(fmt.Sprintf("- Count: %d\n", info.UsageCount))
+				lastAccess := time.Unix(info.LastAccessTime, 0)
+				pb.WriteString(fmt.Sprintf("- Last Access: %s\n", lastAccess.Format("Jan 2, 2006 at 3:04 PM")))
+			} else {
+				pb.WriteString(app.ChoiceStyle.Render("  (Project usage not recorded yet)\n"))
+			}
+		} else {
+			pb.WriteString(app.ChoiceStyle.Render("  (Registry or Project Path not available)\n"))
+		}
+		previewContent = pb.String()
+	case 3: // Command History
+		var pb strings.Builder
+		pb.WriteString(app.SubtitleStyle.Render("Recent Commands (Preview)") + "\n\n") // Update title
+		if registry != nil && m.ProjectPath != "" {
+			if info, found := registry.GetProject(m.ProjectPath); found && len(info.CommandHistory) > 0 {
+				// Display only the names of the last N commands
+				maxToShow := 10 // Or adjust as needed for preview space
+				start := 0
+				if len(info.CommandHistory) > maxToShow {
+					start = len(info.CommandHistory) - maxToShow
+				}
+				for i := start; i < len(info.CommandHistory); i++ {
+					// Display command name with a simple list format
+					pb.WriteString(fmt.Sprintf("- %s\n", info.CommandHistory[i].Name))
+				}
+			} else {
+				pb.WriteString(app.ChoiceStyle.Render("  (No commands recorded yet)\n"))
+			}
+		} else {
+			pb.WriteString(app.ChoiceStyle.Render("  (History not available)\n"))
+		}
+		previewContent = pb.String()
+	case 4: // Back
+		previewContent = app.HelpStyle.Render("Select an item on the left to view details.")
+	default:
+		previewContent = "Unknown selection."
 	}
 
-	body += "\n"
+	// Apply common styling to the right panel
+	rightPanel := lipgloss.NewStyle().
+		Padding(1, 2).
+		Width(m.TerminalWidth - 30 - 8).    // Adjust width based on left panel and spacing
+		Height(lipgloss.Height(leftPanel)). // Match height roughly
+		Border(lipgloss.RoundedBorder()).
+		Render(previewContent)
 
-	// Add placeholder for command history information
-	body += app.SubtitleStyle.Render("Command History:") + "\n"
+	// --- Combine Panes ---
+	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
 
-	if registry != nil {
-		body += app.ChoiceStyle.Render("- Total Global CLI Usage: ") +
-			fmt.Sprintf("%d", registry.GlobalUsages) + "\n"
-	} else {
-		body += app.ChoiceStyle.Render("- Most Used Command: ") + "Not yet available\n"
-		body += app.ChoiceStyle.Render("- Total Commands Run: ") + "Not yet available\n"
-	}
+	// --- Footer ---
+	footer := app.HelpStyle.Render("Use ↑/↓ to navigate, Enter on Back (or Esc/b) to return.")
 
-	body += "\n"
-
-	footer := app.HelpStyle.Render("Press any key to return to main screen")
-	return header + body + "\n" + footer
+	// --- Final Layout ---
+	return lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
 }
 
 // renderActionRowItems displays the given items in a row-based layout but only shows their icons.
