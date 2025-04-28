@@ -1,0 +1,933 @@
+<context>
+# Overview  
+NextGen Go CLI is a modern, terminal-based user interface (TUI) application that provides developers with an intuitive command palette for generating code, managing project components, and executing common development tasks. Built with the Bubble Tea framework in Go, it delivers a beautiful, interactive experience that detects project frameworks and offers contextually relevant commands.
+
+The CLI addresses the pain point of repetitive code creation by providing ready-made templates for various components across different frameworks (React, Next.js, WordPress, etc.) while maintaining a consistent and intuitive interface across different project types. By combining an elegant UI with powerful code generation capabilities, NextGen CLI significantly accelerates development workflows and ensures consistency across projects.
+
+# Completed Features
+The following features have already been successfully implemented in the current version:
+
+## Core UI Framework
+- ✅ Basic Bubble Tea application structure
+- ✅ Screen navigation system with multiple screens
+- ✅ Command registry with JSON template support
+- ✅ UI components using Lipgloss styling
+- ✅ Column-major navigation within screens
+
+## Command System
+- ✅ JSON template parsing and execution
+- ✅ Variable substitution mechanism 
+- ✅ Single and multi-variable input flows
+- ✅ Command history tracking (recently used commands)
+- ✅ Live preview generation
+
+## UI Screens
+- ✅ Main screen with recent commands and action row
+- ✅ All commands screen with grid layout
+- ✅ Filename/variable prompt screen with live preview
+- ✅ Installation details screen with file tree
+- ✅ Project stats screen
+
+## Framework Detection
+- ✅ Basic project framework detection from package.json
+- ✅ Grouping of related frameworks (React, CSS, etc.)
+- ✅ Display of detected frameworks in UI
+
+# Core Features  
+## Interactive Command Interface
+- Presents commands in an attractive, navigable grid with smart keyboard navigation
+- Provides intuitive keyboard shortcuts (arrows, vim-like hjkl keys) for efficient movement
+- Maintains a list of recently used commands for quick access
+- Implements action row for common operations (undo, redo, paste from clipboard)
+- Supports intelligent wrapping when navigating between screen edges
+- Uses consistent, contextual highlighting for selected items
+
+## Project Framework Detection
+- Automatically identifies project type by analyzing package.json and other files
+- Detects and categorizes multiple framework types:
+  - JS/TS frameworks (React, Next.js, Vue, Angular)
+  - CSS frameworks (Tailwind, Bootstrap, styled-components)
+  - CMS systems (WordPress, Sanity, Contentful)
+- Groups and displays recognized frameworks with intelligent deduplication
+- Adapts available commands to the detected project context
+- Provides project statistics and usage information
+
+## Component Generation Templates
+- Provides JSON-based templates for generating various components (pages, blocks, routes)
+- Supports variable substitution in templates for customization
+- Implements smart merging of new code into existing files when appropriate
+- Handles complex template requirements with nested variables
+- Supports code snippets with markers for insertion points
+- Enables clipboard-based template execution
+
+## Live Preview System
+- Shows real-time preview of command effects while typing variables
+- Displays file tree visualization of what will be created/modified
+- Provides immediate feedback without executing commands
+- Updates preview as each character is typed
+- Supports multi-variable preview with partially completed inputs
+- Uses styled tree visualization with icons and branch characters
+
+## Project Awareness and Configuration
+- Tracks usage statistics per project
+- Detects when CLI is run in a subfolder of a known project
+- Allows setting current location as a new project
+- Stores project-specific environment variables and configuration
+- Persists project information between sessions
+- Provides project-specific command recommendations
+
+## Environment Variable Management
+- Stores project-specific environment variables securely
+- Supports different environment configurations (dev, staging, production)
+- Allows easy viewing, editing, and switching between environments
+- Integrates with existing .env files in projects
+- Provides encryption for sensitive values
+- Allows sharing environment configurations between team members
+
+## Direct Command Execution
+- Enables running commands directly from the terminal without interactive screens
+- Supports passing variables as command-line arguments
+- Allows executing specific command templates with syntax: `ng command-name variable1 variable2`
+- Provides clipboard paste functionality via direct commands: `ng clipboard-paste variable1 variable2`
+- Maintains command history for both interactive and direct executions
+- Produces consistent output format for both modes of operation
+
+# User Experience  
+## User Personas
+- **Frontend Developers**: Regularly need to create new components, pages, and routes
+  - Typically work with React, Next.js, or similar frameworks
+  - Value speed and consistency in component creation
+  - Need tools that understand their project structure
+
+- **Full-Stack Developers**: Work across multiple frameworks and need consistency
+  - Switch between different types of projects frequently
+  - Need tools that adapt to different project contexts
+  - Benefit from stored project configuration
+
+- **WordPress Developers**: Create custom blocks and components for WordPress sites
+  - Work with specific WordPress patterns and structures
+  - Need templates for Gutenberg blocks and theme components
+  - Value tools that understand WordPress-specific patterns
+
+- **Team Leads**: Need to ensure consistency across team projects
+  - Want to share project configurations and environments
+  - Need insights into project structure and organization
+  - Value tools that promote standardization
+
+## Key User Flows
+- **Command Selection Flow**:
+  1. Start application in project directory
+  2. View recent commands on main screen
+  3. Select command using arrow/hjkl keys
+  4. View live preview of selected command
+  5. Confirm selection with Enter key
+
+- **Variable Input Flow**:
+  1. After command selection, enter variable prompt screen
+  2. Input required variables (single or multiple)
+  3. See live preview update as typing occurs
+  4. Navigate between fields (for multi-variable)
+  5. Confirm with Enter when complete
+
+- **Project Recognition Flow**:
+  1. CLI detects if running in project subfolder
+  2. Presents options to use parent project or create new
+  3. Records decision and stores project information
+  4. Updates usage statistics for selected project
+  5. Shows project information in main screen
+
+- **Environment Management Flow**:
+  1. Select environment management command
+  2. View list of existing environment configurations
+  3. Select environment to edit/view/activate
+  4. Modify variables or create new configuration
+  5. Save changes and apply to current session
+
+- **Direct Command Execution Flow**:
+  1. Run CLI with command name and variables as arguments
+  2. CLI parses arguments and identifies command template
+  3. Variables are mapped to template placeholders
+  4. Command is executed without interactive prompts
+  5. Results are displayed with file tree visualization
+
+## UI/UX Considerations
+- Column-major grid layout for efficient navigation of commands
+- Two-panel layout with live preview in the right panel
+- Consistent styling with Lipgloss for beautiful terminal UI
+- File tree visualization with Unicode box-drawing characters and icons
+- Color-coded interface for different types of information
+- Contextual help text displayed at appropriate moments
+- Keyboard shortcuts displayed consistently
+- Responsive layout adapting to terminal dimensions
+- Visual indicators for selected items and active states
+- Consistent output format between interactive and direct command modes
+</context>
+<PRD>
+# Technical Architecture  
+## System Components
+- **Core Application**: 
+  - Central model (app.go) defining application state with 25+ fields managing UI state
+  - Entry point (main.go) implementing TEA pattern with Init, Update, View cycles
+  - Environment variable manager for project-specific configuration
+  - Session state manager for persistent usage across executions
+  - Command-line argument parser for direct command execution
+
+- **Screen System**: 
+  - Multiple specialized screen implementations (screens/*.go) for different UI states
+  - Recent-commands screen with action row and command grid
+  - All-commands screen with multi-column pagination
+  - Filename-prompt screen for variable collection with live preview
+  - Install-details screen showing execution results
+  - Project-stats screen displaying framework information
+  - Project-prompt screen for subfolder detection
+  - Environment-manager screen for config editing
+
+- **Command Registry**: 
+  - Centralized command definition system (command-registry.go)
+  - Embedded JSON templates using Go 1.16+ embed directives
+  - Template loading and verification system
+  - Command execution pipeline with error handling
+  - Clipboard integration for external templates
+  - Direct command resolution from command-line arguments
+
+- **Command Templates**: 
+  - Structured JSON templates for code generation (*.json)
+  - File path definitions with dynamic naming
+  - Code snippets with insertion point markers
+  - Variable placeholder system with formatting options
+  - Smart merge logic for existing file modifications
+
+- **Project Detection**: 
+  - Multi-stage project identification system
+  - Framework detection via package.json analysis
+  - Git repository detection and metadata extraction
+  - Project registry with usage statistics
+  - Location awareness for subfolder detection
+  - Environment variable storage keyed by project ID
+
+- **File Tree Renderer**: 
+  - Hierarchical file structure visualization (filetree.go)
+  - Unicode box-drawing characters for branches
+  - File/directory icons with differentiation
+  - Color styling for improved readability
+  - Edited file indicators for modified files
+  - Path abbreviation for deep structures
+
+- **Command-Line Interface**:
+  - Argument parser for direct command execution
+  - Variable mapping from arguments to template placeholders
+  - Command validation and error reporting
+  - Help text generation for available commands
+  - Non-interactive execution mode with consistent output
+
+## Data Models
+- **App Model**: 
+  - Central state container with all UI and session information
+  - Screen enumeration (CurrentScreen) for navigation control
+  - Selection indices for different views (SelectedIndex, AllCmdsIndex)
+  - Temporary state for input collection (TempFilename, Variables)
+  - Project context information (ProjectPath, RecognizedPkgs)
+  - Environment configuration storage (ProjectEnvVars)
+  - Command-line arguments for direct execution
+
+- **Screen Enums**: 
+  - Typed constants for screen identification (Screen type)
+  - Values for all UI states (ScreenMain, ScreenAll, ScreenFilenamePrompt, etc.)
+  - New values for project prompt and environment management
+
+- **Command Specs**: 
+  - Structured command definitions (CommandSpec struct)
+  - Metadata including name, category, and description
+  - Template path references for execution
+  - Variable keys for input collection
+  - Usage count for popularity tracking
+  - Command-line usage documentation
+
+- **Project Info**: 
+  - Comprehensive project metadata (ProjectInfo struct)
+  - Root path and project name for identification
+  - Framework type and detected packages
+  - Git repository information if available
+  - Usage statistics (count, timestamp)
+  - Environment variables map keyed by environment name
+
+- **Environment Config**:
+  - Structure for storing environment variables
+  - Multiple named environments per project (dev, staging, prod)
+  - Variable maps with name/value pairs
+  - Encryption status flags for sensitive data
+  - Timestamp tracking for modification history
+  - Source tracking (manual, .env file, shared)
+
+- **File Nodes**: 
+  - Tree structure for file visualization (FileNode struct)
+  - Hierarchical parent/child relationships
+  - File metadata (name, path, type)
+  - Edit status tracking for highlighting
+  - Child collection for directory representation
+
+- **Command Arguments**:
+  - Parser for command-line arguments
+  - Mapping of positional arguments to template variables
+  - Support for named parameters with flags
+  - Command identification from first argument
+  - Help text generation for usage instructions
+
+## Component Integration
+- **TEA Pattern**: 
+  - Strict adherence to The Elm Architecture
+  - Clear separation between Init, Update, and View functions
+  - Consistent message passing for state changes
+  - Pure function approach to state transformation
+  - Asynchronous command execution via message queue
+  - Support for bypassing interactive mode with direct execution
+
+- **Screen Navigation**: 
+  - Transitions managed through model.CurrentScreen updates
+  - State preparation before screen changes
+  - History tracking for back navigation
+  - Context preservation between screen transitions
+  - Clean state reset when entering input screens
+
+- **Command Execution**: 
+  - Asynchronous execution with tea.Cmd wrapping
+  - Message-based completion notification
+  - Error propagation through CommandFinishedMsg
+  - Result visualization in install details screen
+  - Environment variable interpolation in command templates
+  - Direct execution pathway for command-line arguments
+
+- **UI Composition**: 
+  - Hierarchical approach with Lipgloss styles
+  - Compositional layout with nested containers
+  - Style inheritance for consistent theming
+  - Panel anchoring to terminal dimensions
+  - Responsive design adapting to window size
+
+## External Dependencies
+- **Bubble Tea**: Core TUI framework (github.com/charmbracelet/bubbletea)
+- **Lipgloss**: Terminal styling library (github.com/charmbracelet/lipgloss)
+- **Bubbles**: UI components for Bubble Tea (github.com/charmbracelet/bubbles)
+- **Clipboard**: System clipboard integration (github.com/atotto/clipboard)
+
+## Implementation Details
+- **File Hierarchy**: 
+  - File structure follows standard Go project layout
+  - Logical grouping by component type (screens, commands, utils)
+  - Clear separation of concerns between packages
+  - Central app package for shared models and utilities
+
+- **Naming Conventions**: 
+  - Consistent prefixes for function types (Update*, View*, render*)
+  - Screen-specific function prefixes for clarity
+  - Helper function naming with action verbs
+  - File naming with component names and .screen.go suffixes
+
+- **State Management**: 
+  - Immutable state passing between functions
+  - Copy-on-write pattern for model updates
+  - Clear ownership of state transitions
+  - Explicit state initialization for new screens
+
+- **Error Handling**: 
+  - Graceful fallbacks with informative messages
+  - Error propagation through message system
+  - User-friendly error presentation in UI
+  - Logging for diagnostic purposes
+  - Defensive coding for external interactions
+
+# Development Roadmap  
+## Phase 1: Core UI Framework (Completed)
+- Implement basic Bubble Tea application structure
+- Create screen navigation system
+- Implement command registry
+- Build basic UI components and styling
+
+## Phase 2: Command Template System (Completed)
+- Implement JSON template parser
+- Create variable substitution mechanism
+- Build file tree visualization
+- Develop live preview system
+
+## Phase 3: Enhanced Project Awareness
+- Implement comprehensive package.json and git detection
+- Create detailed project type identification
+- Build enhanced usage tracking system
+- Develop project registry persistence
+- Implement subfolder detection and prompting
+- Create project-specific command filtering
+
+## Phase 4: Direct Command Execution
+- Design command-line argument parser
+- Implement command resolution from arguments
+- Build variable mapping from arguments to template
+- Create non-interactive execution mode
+- Develop consistent output formatting
+- Implement help text generation system
+- Add command history tracking for direct execution
+
+## Phase 5: Environment Variable Management
+- Design environment variable storage structure
+- Implement secure storage for sensitive values
+- Create UI for environment management
+- Build import/export for .env files
+- Implement environment switching
+- Develop environment variable interpolation in templates
+
+## Phase 6: Project Configuration System
+- Implement project-specific configuration files
+- Create UI for configuration management
+- Build template recommendation system
+- Develop project statistics dashboard
+- Implement configuration sharing mechanisms
+- Create project health indicators
+
+## Phase 7: Advanced Template Features
+- Implement conditional logic in templates
+- Create template variations based on project type
+- Build template marketplace integration
+- Develop custom template editor
+- Implement template version control
+- Create template testing framework
+
+# Logical Dependency Chain
+## Foundation Components (Completed)
+1. Basic Bubble Tea application structure
+2. Central model definition
+3. Screen navigation system
+4. Command registry
+5. Command execution logic
+
+## Core User Experience (Completed)
+1. Main screen with recent commands
+2. Command selection and navigation
+3. Variable input screen
+4. Installation details screen
+5. File tree visualization
+
+## Project Awareness (Next Priority)
+1. Enhanced project type detection system
+2. Project registry with persistent storage
+3. Project usage statistics tracking
+4. Subfolder detection and prompting
+5. Project-aware command filtering
+
+## Direct Command Execution
+1. Command-line argument parser
+2. Command resolution from arguments
+3. Variable mapping system
+4. Non-interactive execution mode
+5. Help text generation
+
+## Environment Management
+1. Environment variable storage structure
+2. Secure storage mechanisms
+3. Environment manager UI screen
+4. .env file import/export
+5. Environment variable interpolation in templates
+
+## Configuration System
+1. Project configuration file format
+2. Configuration UI screen
+3. Template recommendation engine
+4. Project statistics dashboard
+5. Configuration sharing mechanisms
+
+# Risks and Mitigations  
+## Technical Challenges
+- **Challenge**: Command-line argument parsing for complex templates
+  **Mitigation**: Develop a flexible argument parser with support for both positional and named parameters
+
+- **Challenge**: Maintaining consistent behavior between interactive and direct modes
+  **Mitigation**: Extract shared command execution logic into a common module used by both pathways
+
+- **Challenge**: Complex project detection across different framework types
+  **Mitigation**: Modular detection system with framework-specific detectors and extensible registry
+
+- **Challenge**: Secure storage of sensitive environment variables
+  **Mitigation**: Use of OS-specific secure storage APIs and optional encryption
+
+- **Challenge**: Complex navigation patterns across different screens
+  **Mitigation**: Clear screen transition patterns and consistent update functions
+
+- **Challenge**: Template parsing and variable substitution
+  **Mitigation**: Well-defined JSON structure and robust placeholder handling
+
+- **Challenge**: Cross-platform terminal compatibility
+  **Mitigation**: Use of Bubble Tea and Lipgloss for consistent rendering
+
+## Resource Constraints
+- **Challenge**: Supporting many different framework types
+  **Mitigation**: Modular command system that can be extended incrementally
+
+- **Challenge**: Maintaining large template library
+  **Mitigation**: Community contributions and template marketplace
+
+- **Challenge**: Complex UI in terminal environment
+  **Mitigation**: Use of Lipgloss for advanced styling and layout
+
+## User Adoption
+- **Challenge**: Learning curve for terminal-based UI
+  **Mitigation**: Intuitive navigation, clear help text, and familiar keyboard shortcuts
+
+- **Challenge**: Competition from GUI-based tools
+  **Mitigation**: Focus on speed, CLI integration, and developer workflow advantages
+
+- **Challenge**: Different project structures across teams
+  **Mitigation**: Customizable templates and project-specific configurations
+
+# Task List
+## Core UI Framework
+
+### ✅ DONE
+- Implement basic Bubble Tea application structure
+- Create screen navigation system with history tracking
+- Build command registry with JSON template support
+- Implement UI components using Lipgloss styling
+- Create column-major navigation within screens
+- Implement responsive layout adapting to terminal dimensions
+- Add keyboard shortcuts (arrows, vim-like hjkl keys)
+- Implement contextual highlighting for selected items
+
+### ⏳ PENDING
+- Add support for bypassing interactive mode with direct execution
+- Implement enhanced error presentation in UI
+- Create improved help text displayed at appropriate moments
+
+## Command System
+
+### ✅ DONE
+- Implement JSON template parser for command definitions
+- Create variable substitution mechanism for templates
+- Implement single and multi-variable input flows
+- Add command history tracking (recently used commands)
+- Build live preview generation during variable input
+- Implement clipboard integration for external templates
+- Create template path references for execution
+
+### ⏳ PENDING
+- Implement command resolution from command-line arguments
+- Build direct execution pathway for command-line arguments
+- Create help text generation system for command usage
+- Add command history tracking for direct execution
+- Implement command-line usage documentation
+- Add template variations based on project type
+- Implement conditional logic in templates
+
+## Screens
+
+### ✅ DONE
+- Create main screen with recent commands and action row
+- Implement all-commands screen with grid layout
+- Build filename/variable prompt screen with live preview
+- Create installation details screen showing execution results
+- Implement project stats screen displaying framework information
+
+### ⏳ PENDING
+- Implement project-prompt screen for subfolder detection
+- Create environment-manager screen for config editing
+- Add enhanced navigation between new screens
+- Implement context preservation between new screen transitions
+
+## File Tree Visualization
+
+### ✅ DONE
+- Implement hierarchical file structure visualization
+- Add Unicode box-drawing characters for branches
+- Create file/directory icons with differentiation
+- Implement color styling for improved readability
+- Add edited file indicators for modified files
+
+### ⏳ PENDING
+- Implement path abbreviation for deep structures
+- Add improved visualization for direct command execution results
+
+## Project Awareness
+
+### ✅ DONE
+- Implement basic project framework detection from package.json
+- Add grouping of related frameworks (React, CSS, etc.)
+- Display detected frameworks in UI
+- Create project context information storage
+
+### ⏳ PENDING
+- Implement comprehensive package.json and git detection
+- Create detailed project type identification
+- Build enhanced usage tracking system
+- Develop project registry persistence
+- Implement subfolder detection and prompting
+- Create project-specific command filtering
+- Add project-specific command recommendations
+- Build project registry with persistent storage
+
+## Direct Command Execution (New Feature)
+
+### ⏳ PENDING
+- Design command-line argument parser
+- Implement command resolution from arguments
+- Build variable mapping from arguments to template
+- Create non-interactive execution mode
+- Develop consistent output formatting
+- Implement help text generation system
+- Add command history tracking for direct execution
+- Add support for clipboard paste via direct commands
+- Create command validation and error reporting
+- Implement named parameter handling with flags
+
+## Environment Variable Management
+
+### ⏳ PENDING
+- Design environment variable storage structure
+- Implement secure storage for sensitive values
+- Create UI for environment management
+- Build import/export for .env files
+- Implement environment switching
+- Develop environment variable interpolation in templates
+- Create support for different environments (dev, staging, prod)
+- Add encryption for sensitive values
+- Implement environment configuration sharing
+
+## Project Configuration System
+
+### ⏳ PENDING
+- Implement project-specific configuration files
+- Create UI for configuration management
+- Build template recommendation system
+- Develop project statistics dashboard
+- Implement configuration sharing mechanisms
+- Create project health indicators
+
+## Testing and Quality Assurance
+
+### ⏳ PENDING
+- Implement unit tests for core functionality
+- Create integration tests for command execution flow
+- Build test suite for template system
+- Implement cross-platform compatibility testing
+- Add performance benchmarks for command execution
+- Create test templates for verifying template engine
+
+## Documentation
+
+### ✅ DONE
+- Create basic project architecture documentation
+- Document command structure and execution flow
+- Detail UI screen navigation system
+
+### ⏳ PENDING
+- Create comprehensive user documentation
+- Add command-line usage examples
+- Create template authoring guide
+- Document environment variable system
+- Add project configuration documentation
+- Create contributing guidelines
+
+## Advanced Features
+
+### ⏳ PENDING
+- Implement template marketplace integration
+- Develop custom template editor
+- Implement template version control
+- Create template testing framework
+- Build extension mechanisms for third-party developers
+- Add analytics for template usage and popularity
+
+## Next Priority Tasks
+
+1. Implement enhanced project type detection system
+2. Build project registry with persistent storage
+3. Create project usage statistics tracking
+4. Implement subfolder detection and prompting
+5. Build project-aware command filtering
+6. Design command-line argument parser
+7. Implement command resolution from arguments
+8. Build variable mapping from arguments to template
+
+# Implementation Specifications
+## Project Detection System
+
+```go
+// ProjectInfo stores information about a detected project
+type ProjectInfo struct {
+    RootPath       string                       // Absolute path to project root
+    Name           string                       // Project name
+    Type           string                       // Project type (nextjs, react, etc.)
+    PackageInfo    map[string]string            // Selected info from package.json
+    GitInfo        map[string]string            // Info from .git config (if available)
+    UsageCount     int                          // Times NextGen was used in this project
+    LastAccessTime int64                        // Last time project was accessed (Unix timestamp)
+    Environments   map[string]EnvironmentConfig // Environment configurations
+}
+
+// ProjectRegistry holds information about all known projects
+type ProjectRegistry struct {
+    Projects      map[string]ProjectInfo // Map of project paths to info
+    LastUsedPath  string                 // Path of most recently used project
+    GlobalUsages  int                    // Total number of CLI usages
+    RegistryPath  string                 // Path to the registry file
+}
+
+// DetectProject examines the directory tree to find project markers
+func DetectProject(startPath string) (ProjectInfo, bool) {
+    // Walk up directory tree checking for markers
+    // Return project info if found
+}
+
+// IsSubdirectoryOfProject checks if path is inside a known project
+func IsSubdirectoryOfProject(registry ProjectRegistry, path string) (ProjectInfo, bool) {
+    // Check if path is within a known project root
+    // Return parent project info if true
+}
+```
+
+## Direct Command Execution System
+
+```go
+// CommandArgs holds parsed command-line arguments
+type CommandArgs struct {
+    CommandName string            // First argument (command name)
+    Variables   []string          // Positional arguments (variables)
+    Flags       map[string]string // Named parameters with flags
+    HelpRequested bool            // Whether --help flag was provided
+}
+
+// ParseCommandLineArgs parses os.Args into structured CommandArgs
+func ParseCommandLineArgs() CommandArgs {
+    // Extract command name, variables, and flags
+    // Handle special flags like --help
+    // Return structured args
+}
+
+// ResolveCommand finds the command spec for a command name
+func ResolveCommand(cmdName string) (CommandSpec, bool) {
+    // Find the matching command in registry
+    // Return the command spec if found
+}
+
+// MapArgsToVariables maps command-line args to template variables
+func MapArgsToVariables(args CommandArgs, cmd CommandSpec) (map[string]string, error) {
+    // Match positional args to variable keys
+    // Validate required variables are provided
+    // Return variable map or error
+}
+
+// ExecuteCommandDirect runs a command with provided variables
+func ExecuteCommandDirect(cmd CommandSpec, variables map[string]string, projectPath string) error {
+    // Execute command without interactive screens
+    // Use same core execution logic as interactive mode
+    // Return any errors
+}
+
+// GenerateHelpText creates help text for a command or all commands
+func GenerateHelpText(cmdName string) string {
+    // Generate usage instructions
+    // List available commands if no specific command
+    // Show variable requirements for specific command
+    // Return formatted help text
+}
+
+// HandleDirectCommand is the main entry point for direct command execution
+func HandleDirectCommand() {
+    // Parse command-line args
+    // Show help if requested
+    // Resolve command
+    // Map variables
+    // Execute command
+    // Show results
+}
+```
+
+## Environment Variable Management
+
+```go
+// EnvironmentConfig stores a set of environment variables
+type EnvironmentConfig struct {
+    Name         string            // Environment name (dev, staging, prod)
+    Variables    map[string]string // Environment variables
+    Encrypted    []string          // List of encrypted variable names
+    LastModified int64             // Last modification timestamp
+    Source       string            // Source of config (manual, file, shared)
+}
+
+// StoreEnvironmentVar adds or updates an environment variable
+func StoreEnvironmentVar(projectInfo *ProjectInfo, envName string, varName string, 
+                        varValue string, encrypt bool) error {
+    // Store variable in the specified environment
+    // Encrypt if specified
+    // Update registry
+}
+
+// GetEnvironmentVar retrieves an environment variable
+func GetEnvironmentVar(projectInfo ProjectInfo, envName string, varName string) (string, error) {
+    // Retrieve and decrypt if necessary
+    // Return value
+}
+
+// ImportFromEnvFile imports variables from a .env file
+func ImportFromEnvFile(projectInfo *ProjectInfo, envName string, filePath string) error {
+    // Parse .env file
+    // Add variables to environment
+    // Update registry
+}
+
+// ExportToEnvFile exports variables to a .env file
+func ExportToEnvFile(projectInfo ProjectInfo, envName string, filePath string) error {
+    // Get all variables for environment
+    // Write to .env file format
+}
+```
+
+## Project Prompt Screen
+
+```go
+// UpdateScreenProjectPrompt handles input for the project prompt screen
+func UpdateScreenProjectPrompt(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
+    // Handle keyboard input
+    // Allow choosing parent project or creating new
+    // Update project registry based on choice
+    // Transition to main screen after selection
+}
+
+// ViewProjectPromptScreen renders the project prompt screen
+func ViewProjectPromptScreen(m app.Model) string {
+    // Show current location
+    // Show detected parent project details
+    // Present options with highlighting
+    // Return formatted screen content
+}
+```
+
+## Environment Manager Screen
+
+```go
+// UpdateScreenEnvironmentManager handles input for environment management
+func UpdateScreenEnvironmentManager(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
+    // Handle keyboard navigation
+    // Allow environment selection, creation, editing
+    // Support variable editing with encryption option
+    // Enable import/export operations
+    // Return to main screen when complete
+}
+
+// ViewScreenEnvironmentManager renders the environment manager screen
+func ViewScreenEnvironmentManager(m app.Model) string {
+    // Show project context
+    // List available environments
+    // Show variables for selected environment
+    // Present editing interface
+    // Return formatted screen content
+}
+```
+
+## Example Direct Command Usage
+
+```
+# Run a specific command with variables
+ng add-page HomePage
+
+# Run with multiple variables
+ng add-nextgen-pagebuilder-block HeroSection "Hero Section Block" 
+
+# Use clipboard paste with variables
+ng clipboard-paste UserProfile "User Profile Component"
+
+# Get help on a specific command
+ng add-page --help
+
+# List all available commands
+ng --help
+```
+
+# Appendix  
+## Command Structure
+```go
+type CommandSpec struct {
+    Name         string            // Command name
+    Category     string            // Command category for grouping
+    Description  string            // Brief description
+    TemplatePath string            // Path to JSON template
+    Variables    []VariableSpec    // Variable specifications
+    UsageCount   int               // Times command has been used
+    Usage        string            // Command-line usage example
+}
+
+type VariableSpec struct {
+    Key         string    // Variable key used in template
+    DisplayName string    // User-friendly name for prompts
+    DefaultValue string   // Default value if provided
+    Required     bool     // Whether input is required
+    Validation   string   // Regex pattern for validation
+    Position     int      // Position in command-line arguments
+}
+```
+
+## Model Structure
+```go
+type Model struct {
+    // Core UI state
+    CurrentScreen Screen
+    SelectedIndex int
+    AllCmdsIndex  int
+    ProjectPath   string
+    
+    // Command execution context
+    TempFilename    string
+    PendingCommand  string
+    LivePreview     string
+    CreatedFiles    []string
+    
+    // Variable input state
+    MultipleVariables    bool
+    VariableKeys         []string
+    CurrentVariableIndex int
+    Variables            map[string]string
+    
+    // Project awareness
+    ProjectInfo       ProjectInfo
+    FoundProject      bool
+    InSubdirectory    bool
+    ParentProject     ProjectInfo
+    ProjectPromptOption bool
+    
+    // Environment management
+    CurrentEnvironment    string
+    SelectedEnvironment   string
+    EnvironmentEditMode   bool
+    CurrentVariable       string
+    VariableValue         string
+    EncryptVariable       bool
+    
+    // Command-line execution
+    DirectMode          bool
+    CommandLineArgs     []string
+    DirectCommandName   string
+    DirectVariables     []string
+    
+    // Terminal dimensions
+    TerminalWidth  int
+    TerminalHeight int
+}
+```
+
+## Project Info Structure
+```go
+type ProjectInfo struct {
+    RootPath       string            // Absolute path to project root
+    Name           string            // Project name
+    Type           string            // Project type (nextjs, react, etc.)
+    PackageInfo    map[string]string // Selected info from package.json
+    GitInfo        map[string]string // Info from .git config (if available)
+    UsageCount     int               // Times NextGen was used in this project
+    LastAccessTime int64             // Last time project was accessed (Unix timestamp)
+    Environments   map[string]EnvironmentConfig // Environment configurations
+}
+
+type EnvironmentConfig struct {
+    Name         string            // Environment name (dev, staging, prod)
+    Variables    map[string]string // Environment variables
+    Encrypted    []string          // List of encrypted variable names
+    LastModified int64             // Last modification timestamp
+    Source       string            // Source of config (manual, file, shared)
+}
+```
+</PRD>

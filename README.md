@@ -2,7 +2,7 @@
 
 how to push: 
 
-git tag v0.0.88
-git push origin  v0.0.88
+git tag 1.0.35
+git push origin  1.0.35
 
 

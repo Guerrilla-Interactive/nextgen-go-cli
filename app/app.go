@@ -48,8 +48,10 @@ type Model struct {
 	// List of files we plan to generate (for the FileGenModel):
 	PlannedFiles []string
 
-	// NEW: Field to hold the live file tree preview.
-	LivePreview string
+	// Preview fields:
+	CurrentPreviewType string // "file-tree", "stats", or "none"
+	FileTreePreview    string // Holds the generated file tree preview string.
+	StatsPreview       string // Holds the generated project stats preview string.
 
 	// NEW: Field to track selected option on Install Details screen.
 	InstallDetailsSelectedOption int

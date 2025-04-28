@@ -86,6 +86,8 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			}
 			m.SelectedIndex = currentActionIndex
 			m.LastActionIndex = currentActionIndex
+			// Update preview based on new selection
+			m = updatePreview(m)
 		}
 
 	case "right", "l":
@@ -98,6 +100,8 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 			}
 			m.SelectedIndex = currentActionIndex
 			m.LastActionIndex = currentActionIndex
+			// Update preview based on new selection
+			m = updatePreview(m)
 		}
 
 	case "up", "k":
@@ -122,6 +126,8 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 				m = moveSelectionUp(m)
 			}
 		}
+		// Update preview based on new selection
+		m = updatePreview(m)
 
 	case "down", "j":
 		if group == "action" {
@@ -144,9 +150,21 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 				m = moveSelectionDown(m)
 			}
 		}
+		// Update preview based on new selection
+		m = updatePreview(m)
 
 	case "enter":
 		itemName, _ := getItemName(m, m.SelectedIndex)
+		// Special handling for "view project stats" on Enter
+		if strings.ToLower(itemName) == "view project stats" {
+			m.CurrentScreen = app.ScreenProjectStats
+			// Clear previews when navigating away
+			m.CurrentPreviewType = "none"
+			m.FileTreePreview = ""
+			m.StatsPreview = ""
+			return m, nil // Return early
+		}
+
 		if strings.ToLower(itemName) == "paste from clipboard" {
 			m.PendingCommand = itemName
 
@@ -161,12 +179,82 @@ func UpdateScreenMain(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 
 			m.CurrentScreen = app.ScreenFilenamePrompt
 			m.TempFilename = ""
-			m.LivePreview = ""
+			// Clear previews when navigating away
+			m.CurrentPreviewType = "none"
+			m.FileTreePreview = ""
+			m.StatsPreview = ""
 		} else {
 			m = *HandleCommandSelection(&m, itemName)
+			// Clear previews after command execution starts
+			m.CurrentPreviewType = "none"
+			m.FileTreePreview = ""
+			m.StatsPreview = ""
 		}
 	}
 	return m, nil
+}
+
+// NEW: updatePreview determines and generates the correct preview based on the current selection.
+func updatePreview(m app.Model) app.Model {
+	cmdName, _ := getItemName(m, m.SelectedIndex)
+	lowerCmd := strings.ToLower(cmdName)
+
+	// Reset previews
+	m.FileTreePreview = ""
+	m.StatsPreview = ""
+	m.CurrentPreviewType = "none"
+
+	switch lowerCmd {
+	case "view project stats":
+		m.StatsPreview = app.SummarizeFullProjectStats(m.RecognizedPkgs)
+		if m.StatsPreview == "" {
+			m.StatsPreview = "No project stats available."
+		}
+		m.CurrentPreviewType = "stats"
+	case "undo", "redo":
+		// No preview for these actions
+		m.CurrentPreviewType = "none"
+	case "paste from clipboard":
+		// Generate preview based on clipboard content
+		// Use default placeholders as we don't have real input yet
+		placeholderMap := commands.BuildAutoPlaceholders(map[string]string{"Filename": "<PastedItem>"})
+		pv, err := commands.GeneratePreviewFileTreeFromClipboard(placeholderMap, m.ProjectPath)
+		if err == nil && strings.TrimSpace(pv) != "" {
+			m.FileTreePreview = pv
+			m.CurrentPreviewType = "file-tree"
+		} else {
+			m.FileTreePreview = "Preview unavailable for clipboard content."
+			if err != nil {
+				m.FileTreePreview += fmt.Sprintf("\nError: %v", err)
+			}
+			m.CurrentPreviewType = "none" // Set to none if preview failed
+		}
+	default:
+		// Attempt to generate file tree preview for other commands
+		spec := commands.GetCommandSpec(cmdName)
+		keys, err := commands.GetTemplateVariableKeys(spec)
+		var placeholderMap map[string]string
+		if err == nil && len(keys) > 0 {
+			// Use the first key as the primary placeholder
+			placeholders := map[string]string{keys[0]: "<" + keys[0] + ">"}
+			placeholderMap = commands.BuildPlaceholders(placeholders)
+		} else {
+			// Fallback if no keys found or error
+			placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Filename>"})
+		}
+
+		pv, err2 := commands.GeneratePreviewFileTree(cmdName, placeholderMap, m.ProjectPath)
+		if err2 == nil && strings.TrimSpace(pv) != "" {
+			m.FileTreePreview = pv
+			m.CurrentPreviewType = "file-tree"
+		} else {
+			m.CurrentPreviewType = "none"
+			if err2 != nil {
+				// Optional: Log error: fmt.Printf("Preview error for %s: %v\n", cmdName, err2)
+			}
+		}
+	}
+	return m
 }
 
 // ViewMainScreen is the view for the main screen.
@@ -201,83 +289,52 @@ func ViewMainScreen(m app.Model) string {
 	// Build the left panel (the main Recent Commands view).
 	leftPanel := baseContainer(body)
 
-	// Build the live preview for the currently selected command using the merged navigation index.
-	cmdName, _ := getItemName(m, m.SelectedIndex)
-	var preview string
-	lowerCmd := strings.ToLower(cmdName)
-	// Only attempt preview for commands that are not navigation or action commands.
-	if lowerCmd != "undo" && lowerCmd != "redo" &&
-		lowerCmd != "show all my commands" && lowerCmd != "view project stats" {
-		// Retrieve the command spec and its template variable keys.
-		spec := commands.GetCommandSpec(cmdName)
-		keys, err := commands.GetTemplateVariableKeys(spec)
-		var placeholderMap map[string]string
-		if err == nil && len(keys) > 0 {
-			placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: "Filename"})
-		} else {
-			placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": "Filename"})
-		}
-		var pv string
-		var err2 error
-		if lowerCmd == "paste from clipboard" {
-			pv, err2 = commands.GeneratePreviewFileTreeFromClipboard(placeholderMap, m.ProjectPath)
-		} else {
-			pv, err2 = commands.GeneratePreviewFileTree(cmdName, placeholderMap, m.ProjectPath)
-		}
-		if err2 == nil {
-			preview = pv
-		} else {
-			preview = fmt.Sprintf("Preview unavailable: %v", err2)
-		}
-	} else {
-		preview = "No preview available for this command."
+	// --- Render the dynamic preview based on the model state ---
+	var previewContent string
+	switch m.CurrentPreviewType {
+	case "stats":
+		previewContent = m.StatsPreview
+	case "file-tree":
+		previewContent = m.FileTreePreview
+	default:
+		previewContent = "No preview available for this command."
 	}
-	// Truncate the preview so it is shorter than the left panel.
+
+	// Truncate the preview to fit reasonably within the available height.
+	// Use TerminalHeight for a more robust calculation.
+	// Subtracting a fixed number accounts for headers, footers, padding etc.
+	maxPreviewHeight := m.TerminalHeight - 10 // Adjust this offset as needed
+	if maxPreviewHeight < 5 {                 // Ensure a minimum height
+		maxPreviewHeight = 5
+	}
 	lpHeight := lipgloss.Height(leftPanel)
-	maxPreviewHeight := lpHeight // Adjust this expression if needed, e.g. (lpHeight + 100) / 2
-	if maxPreviewHeight < 1 {
-		maxPreviewHeight = 1
+	if lpHeight > maxPreviewHeight { // Ensure preview isn't taller than calculated max
+		maxPreviewHeight = lpHeight
 	}
-	lines := strings.Split(preview, "\n")
+
+	lines := strings.Split(previewContent, "\n")
 	if len(lines) > maxPreviewHeight {
-		preview = strings.Join(lines[:maxPreviewHeight], "\n")
+		previewContent = strings.Join(lines[:maxPreviewHeight], "\n")
+		previewContent += "\n... (truncated)"
 	}
 
 	// Prepend header with package icon and current folder name.
 	folderName := filepath.Base(m.ProjectPath)
 	header := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
-	preview = header + "\n" + preview
+	previewContent = header + "\n" + previewContent
 
-	// Declare the rightPanel variable.
-	rightPanel := sideContainer(preview)
+	// Build the right panel (the preview panel).
+	rightPanel := baseContainer(previewContent)
 
-	// Use a fallback if TerminalHeight is zero.
-	termHeight := m.TerminalHeight
-	if termHeight == 0 {
-		termHeight = 24
-	}
+	// Combine left and right panels using lipgloss.JoinHorizontal.
+	// Use Top alignment and add some space between panels.
+	combined := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
 
-	// Force the left panel to have a fixed height equal to termHeight and align its content to the bottom.
-	fixedLeftPanel := lipgloss.Place(
-		lipgloss.Width(leftPanel), // preserve left panel width
-		termHeight,                // fixed height
-		lipgloss.Left,             // horizontal alignment
-		lipgloss.Bottom,           // vertical alignment (bottom)
-		leftPanel,                 // content to anchor
-		lipgloss.WithWhitespaceChars(" "),
-	)
+	// Optional: Add a footer with general help or status.
+	// footer := lipgloss.NewStyle().MarginTop(1).Render("Press 'q' to quit.")
+	// return combined + "\n" + footer
 
-	// Anchor the right panel (the preview/tree) to the bottom as well.
-	anchoredRightPanel := lipgloss.Place(
-		lipgloss.Width(rightPanel), // preserve right panel width
-		termHeight,                 // fixed height
-		lipgloss.Left,              // horizontal alignment
-		lipgloss.Bottom,            // vertical alignment (bottom)
-		rightPanel,                 // content to anchor
-	)
-
-	// Join the anchored panels horizontally.
-	return lipgloss.JoinHorizontal(lipgloss.Bottom, fixedLeftPanel, anchoredRightPanel)
+	return combined
 }
 
 // renderRecentUsedInColumns displays recent commands in *column-major* order, filling each column top-down.

@@ -209,7 +209,7 @@ func UpdateInstallDetailsScreen(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd
 			// Run Command Again: Navigate to the filename prompt screen and clear the input.
 			m.CurrentScreen = app.ScreenFilenamePrompt
 			m.TempFilename = ""
-			m.LivePreview = ""
+			m.FileTreePreview = ""
 			return m, nil
 		} else if m.InstallDetailsSelectedOption == 2 {
 			// Exit.
@@ -225,7 +225,7 @@ func UpdateInstallDetailsScreen(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd
 		// Shortcut to run command again: navigate to the filename prompt screen.
 		m.CurrentScreen = app.ScreenFilenamePrompt
 		m.TempFilename = ""
-		m.LivePreview = ""
+		m.FileTreePreview = ""
 		return m, nil
 	case "q", "Q", "e", "E":
 		// Shortcut to exit.

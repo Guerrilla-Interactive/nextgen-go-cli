@@ -32,7 +32,9 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 		if keyMsg.String() == "enter" {
 			m.CurrentScreen = app.ScreenMain
 			m.TempFilename = ""
-			m.LivePreview = ""
+			m.FileTreePreview = ""
+			m.StatsPreview = ""
+			m.CurrentPreviewType = "none"
 			m.PromptOptionFocused = false
 		}
 		return m, nil
@@ -47,7 +49,9 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 			// Go back to recent commands.
 			m.CurrentScreen = app.ScreenMain
 			m.TempFilename = ""
-			m.LivePreview = ""
+			m.FileTreePreview = ""
+			m.StatsPreview = ""
+			m.CurrentPreviewType = "none"
 			// Also ensure we are not in prompt option focus.
 			m.PromptOptionFocused = false
 			return m, nil
@@ -79,11 +83,16 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 				// Build placeholders using both main value and all variables
 				placeholders := commands.BuildMultiPlaceholders(mainValue, extraVars)
 
+				// *** Add Logging Here (Multi-Variable) ***
+				fmt.Printf("DEBUG: Multi-variable placeholderMap for RunCommand: %+v\n", placeholders)
+
 				// Update the live preview.
 				if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholders, m.ProjectPath); err == nil {
-					m.LivePreview = preview
+					m.FileTreePreview = preview
+					m.CurrentPreviewType = "file-tree"
 				} else {
-					m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
+					m.FileTreePreview = fmt.Sprintf("Preview unavailable: %v", err)
+					m.CurrentPreviewType = "none"
 				}
 
 				// Update the current screen to avoid later index-out-of-range in the view.
@@ -129,15 +138,19 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 				// Generate preview
 				if strings.ToLower(m.PendingCommand) == "paste from clipboard" {
 					if preview, err := commands.GeneratePreviewFileTreeFromClipboard(placeholders, m.ProjectPath); err == nil {
-						m.LivePreview = preview
+						m.FileTreePreview = preview
+						m.CurrentPreviewType = "file-tree"
 					} else {
-						m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
+						m.FileTreePreview = fmt.Sprintf("Preview unavailable: %v", err)
+						m.CurrentPreviewType = "none"
 					}
 				} else {
 					if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholders, m.ProjectPath); err == nil {
-						m.LivePreview = preview
+						m.FileTreePreview = preview
+						m.CurrentPreviewType = "file-tree"
 					} else {
-						m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
+						m.FileTreePreview = fmt.Sprintf("Preview unavailable: %v", err)
+						m.CurrentPreviewType = "none"
 					}
 				}
 			}
@@ -162,7 +175,9 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 		// Go back to recent commands.
 		m.CurrentScreen = app.ScreenMain
 		m.TempFilename = ""
-		m.LivePreview = ""
+		m.FileTreePreview = ""
+		m.StatsPreview = ""
+		m.CurrentPreviewType = "none"
 		return m, nil
 	case "enter":
 		filename := strings.TrimSpace(m.TempFilename)
@@ -184,18 +199,25 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 			}
 		}
 
+		// *** Add Logging Here (Single Variable) ***
+		fmt.Printf("DEBUG: Single variable placeholderMap for RunCommand: %+v\n", placeholderMap)
+
 		// Update live preview using the appropriate helper.
 		if strings.ToLower(m.PendingCommand) == "paste from clipboard" {
 			if preview, err := commands.GeneratePreviewFileTreeFromClipboard(placeholderMap, m.ProjectPath); err == nil {
-				m.LivePreview = preview
+				m.FileTreePreview = preview
+				m.CurrentPreviewType = "file-tree"
 			} else {
-				m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
+				m.FileTreePreview = fmt.Sprintf("Preview unavailable: %v", err)
+				m.CurrentPreviewType = "none"
 			}
 		} else {
 			if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholderMap, m.ProjectPath); err == nil {
-				m.LivePreview = preview
+				m.FileTreePreview = preview
+				m.CurrentPreviewType = "file-tree"
 			} else {
-				m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
+				m.FileTreePreview = fmt.Sprintf("Preview unavailable: %v", err)
+				m.CurrentPreviewType = "none"
 			}
 		}
 
@@ -213,39 +235,20 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.
 		m.TempFilename = m.TempFilename[:len(m.TempFilename)-1]
 	}
 
-	// In single variable mode, update live preview.
-	{
-		input := m.TempFilename
-		if strings.TrimSpace(input) == "" {
-			input = "Filename"
-		}
-		// Use the template variable key if available.
-		spec := commands.GetCommandSpec(m.PendingCommand)
-		keys, err := commands.GetTemplateVariableKeys(spec)
-		var placeholderMap map[string]string
-		if err == nil && len(keys) > 0 {
-			placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: input})
-		} else {
-			if strings.ToLower(m.PendingCommand) == "paste from clipboard" {
-				placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Filename": input})
-			} else {
-				placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": input})
-			}
-		}
-		if strings.ToLower(m.PendingCommand) == "paste from clipboard" {
-			if preview, err := commands.GeneratePreviewFileTreeFromClipboard(placeholderMap, m.ProjectPath); err == nil {
-				m.LivePreview = preview
-			} else {
-				m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
-			}
-		} else {
-			if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholderMap, m.ProjectPath); err == nil {
-				m.LivePreview = preview
-			} else {
-				m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
-			}
-		}
+	// --- Regenerate preview after input change ---
+	// Generate preview or update if needed.
+	if !m.MultipleVariables {
+		// Regenerate preview only if it's currently empty or stale, or input changed
+		// (We'll call it on every relevant keypress for simplicity here)
+		m = updateFilenamePromptPreview(m)
+	} else if m.MultipleVariables {
+		// Regenerate preview only if it's currently empty or stale, or input changed
+		// (We'll call it on every relevant keypress for simplicity here)
+		m = updateFilenamePromptPreview(m)
 	}
+	// --- End Preview Update ---
+
+	// Return model, no specific command needed here as View handles blink
 	return m, nil
 }
 
@@ -303,7 +306,7 @@ func ViewFilenamePrompt(m app.Model) string {
 	leftPanel := lipgloss.JoinVertical(lipgloss.Left, backButton, inputPanel)
 
 	// If LivePreview is empty, compute a default preview using default placeholder values.
-	preview := m.LivePreview
+	preview := m.FileTreePreview
 	if strings.TrimSpace(preview) == "" {
 		// Default input (used when no input is provided)
 		input := "Filename"
@@ -345,4 +348,57 @@ func ViewFilenamePrompt(m app.Model) string {
 		lipgloss.JoinHorizontal(lipgloss.Bottom, leftPanel, rightPanel),
 		app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)"),
 	)
+}
+
+// updateFilenamePromptPreview generates the file tree preview for the filename prompt screen.
+func updateFilenamePromptPreview(m app.Model) app.Model {
+	var placeholderMap map[string]string
+	if m.MultipleVariables {
+		// Build placeholders from the current state of variables
+		placeholders := make(map[string]string)
+		for i, key := range m.VariableKeys {
+			if val, ok := m.Variables[key]; ok && val != "" {
+				placeholders[key] = val
+			} else if i == m.CurrentVariableIndex && m.TempFilename != "" {
+				placeholders[key] = m.TempFilename // Use current input for the active field
+			} else {
+				placeholders[key] = "<" + key + ">" // Default placeholder
+			}
+		}
+		placeholderMap = commands.BuildPlaceholders(placeholders)
+	} else {
+		// Single variable mode
+		variableName := "Value"
+		spec := commands.GetCommandSpec(m.PendingCommand)
+		keys, err := commands.GetTemplateVariableKeys(spec)
+		if err == nil && len(keys) > 0 {
+			variableName = keys[0]
+		}
+		placeholders := map[string]string{variableName: m.TempFilename}
+		if m.TempFilename == "" {
+			placeholders[variableName] = "<" + variableName + ">"
+		}
+		placeholderMap = commands.BuildPlaceholders(placeholders)
+	}
+
+	// --- Generate preview using the correct function ---
+	var pv string
+	var err error
+	if strings.ToLower(m.PendingCommand) == "paste from clipboard" {
+		pv, err = commands.GeneratePreviewFileTreeFromClipboard(placeholderMap, m.ProjectPath)
+	} else {
+		pv, err = commands.GeneratePreviewFileTree(m.PendingCommand, placeholderMap, m.ProjectPath)
+	}
+	// --- End preview generation ---
+
+	if err == nil && strings.TrimSpace(pv) != "" {
+		m.FileTreePreview = pv
+		m.CurrentPreviewType = "file-tree"
+	} else {
+		m.FileTreePreview = ""
+		m.CurrentPreviewType = "none"
+		// Optional: Log error if needed: fmt.Printf("Preview error: %v\n", err)
+	}
+
+	return m
 }
