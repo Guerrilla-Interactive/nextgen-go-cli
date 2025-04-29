@@ -1,14 +1,17 @@
 package screens
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -85,17 +88,8 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 				// Build placeholders using both main value and all variables
 				placeholders := commands.BuildMultiPlaceholders(mainValue, extraVars)
 
-				// *** Add Logging Here (Multi-Variable) ***
+				// Log placeholders
 				fmt.Printf("DEBUG: Multi-variable placeholderMap for RunCommand: %+v\n", placeholders)
-
-				// Update the live preview.
-				if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholders, m.ProjectPath); err == nil {
-					m.FileTreePreview = preview
-					m.CurrentPreviewType = "file-tree"
-				} else {
-					m.FileTreePreview = fmt.Sprintf("Preview unavailable: %v", err)
-					m.CurrentPreviewType = "none"
-				}
 
 				// Update the current screen to avoid later index-out-of-range in the view.
 				m.CurrentScreen = app.ScreenInstallDetails
@@ -201,7 +195,6 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 			}
 		}
 
-		// *** Add Logging Here (Single Variable) ***
 		fmt.Printf("DEBUG: Single variable placeholderMap for RunCommand: %+v\n", placeholderMap)
 
 		// Update live preview using the appropriate helper.
@@ -225,6 +218,58 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 
 		// Run the command with the built placeholders.
 		return m, func() tea.Msg {
+			// --- Add/Modify Clipboard Saving Logic Here (Single Var) ---
+			if strings.ToLower(m.PendingCommand) == "paste from clipboard" && filename != "" {
+				if registry != nil {
+					// --- Determine Command Name to Save ---
+					commandNameToSave := filename // Default to user input
+					clipboardContent, readErr := clipboard.ReadAll()
+					if readErr == nil {
+						// --- Corrected JSON Parsing for Title ---
+						type cmdMeta struct {
+							Type  string `json:"_type"` // Expecting "command"
+							Title string `json:"title"`
+						}
+						var extractedMeta cmdMeta
+						if json.Unmarshal([]byte(clipboardContent), &extractedMeta) == nil && extractedMeta.Type == "command" && extractedMeta.Title != "" {
+							commandNameToSave = extractedMeta.Title
+							fmt.Printf("DEBUG: Using title '%s' from clipboard JSON as command name.\n", commandNameToSave)
+						} else {
+							fmt.Printf("DEBUG: Could not extract title (or _type!=command) from clipboard JSON, using user input '%s' as command name.\n", filename)
+						}
+						// --- End Corrected JSON Parsing ---
+					} else {
+						fmt.Printf("Warning: Could not read clipboard to extract title: %v\n", readErr)
+					}
+					// --- End Determine Command Name ---
+
+					if _, exists := registry.ClipboardCommands[commandNameToSave]; !exists {
+						// Ensure we have the clipboard content again (in case reading failed above)
+						if clipboardContent == "" && readErr != nil {
+							clipboardContent, readErr = clipboard.ReadAll()
+						}
+
+						if readErr == nil { // Proceed only if we have content
+							newCmd := project.ClipboardCommandSpec{
+								Name:       commandNameToSave, // Use determined name
+								Template:   clipboardContent,
+								IsFavorite: false,
+								Timestamp:  time.Now().Unix(),
+							}
+							if registry.ClipboardCommands == nil {
+								registry.ClipboardCommands = make(map[string]project.ClipboardCommandSpec)
+							}
+							registry.ClipboardCommands[commandNameToSave] = newCmd // Use determined name as key
+							if saveErr := registry.Save(); saveErr != nil {
+								fmt.Printf("Warning: Failed to save registry after adding clipboard command: %v\n", saveErr)
+							}
+						}
+					}
+				}
+			}
+			// --- End Clipboard Saving Logic ---
+
+			// Run command using original placeholderMap (based on user input `filename`)
 			err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholderMap, registry)
 			return CommandFinishedMsg{Err: err}
 		}

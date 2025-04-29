@@ -170,12 +170,11 @@ func ViewScreenCommandHistory(m app.Model, registry *project.ProjectRegistry) st
 		previewContent = app.HelpStyle.Render("Select a command from the history to see its generated file preview.")
 	}
 
-	rightPanelStyle := lipgloss.NewStyle().
+	rightPanel := lipgloss.NewStyle().
 		Padding(1, 2).
-		Width(m.TerminalWidth - 40 - 8).    // Adjust width
-		Height(lipgloss.Height(leftPanel)). // Match height
-		Border(lipgloss.RoundedBorder())
-	rightPanel := rightPanelStyle.Render(previewContent)
+		Width(m.TerminalWidth - 40 - 8).
+		Height(lipgloss.Height(leftPanel)).
+		Render(previewContent)
 
 	// --- Combine ---
 	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)

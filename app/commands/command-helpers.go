@@ -655,3 +655,52 @@ func ExtractVariablesFromClipboard() ([]string, error) {
 
 	return result, nil
 }
+
+// GeneratePreviewFileTreeFromBytes generates a file tree preview from template bytes.
+// Similar to GeneratePreviewFileTree but takes byte slice instead of command name.
+func GeneratePreviewFileTreeFromBytes(templateBytes []byte, placeholders map[string]string, projectPath string) (string, error) {
+	// Unmarshal into the JSONCommandTemplate structure.
+	var tmpl JSONCommandTemplate
+	if err := json.Unmarshal(templateBytes, &tmpl); err != nil {
+		return "", fmt.Errorf("failed to parse template JSON from bytes: %w", err)
+	}
+
+	// Collect file paths that would be created.
+	var filePaths []string
+	for _, group := range tmpl.FilePaths {
+		base := filepath.Join(projectPath, replacePlaceholders(group.Path, placeholders))
+		var collectFiles func(nodes []TreeNode, currPath string) []string
+		collectFiles = func(nodes []TreeNode, currPath string) []string {
+			var paths []string
+			for _, n := range nodes {
+				name := replacePlaceholders(n.Name, placeholders)
+				fullPath := filepath.Join(currPath, name)
+				if len(n.Children) > 0 {
+					paths = append(paths, collectFiles(n.Children, fullPath)...)
+				} else {
+					paths = append(paths, fullPath)
+				}
+			}
+			return paths
+		}
+		filePaths = append(filePaths, collectFiles(group.Nodes, base)...)
+	}
+
+	// Convert filePaths to relative paths.
+	var relPaths []string
+	for _, f := range filePaths {
+		if rel, err := filepath.Rel(projectPath, f); err == nil {
+			relPaths = append(relPaths, rel)
+		} else {
+			relPaths = append(relPaths, f)
+		}
+	}
+
+	// Build the file tree using the shared utils package.
+	treeRoot := utils.BuildFileTree(relPaths)
+	preview := utils.RenderFileTree(treeRoot, "", true, false, func(path string) bool {
+		// Preview doesn't know about edited indexers in this context
+		return false
+	})
+	return preview, nil
+}

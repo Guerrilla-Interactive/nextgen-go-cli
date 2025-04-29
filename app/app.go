@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/charmbracelet/bubbles/paginator"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -17,6 +18,14 @@ const (
 	ScreenInstallDetails
 	ScreenProjectStats
 	ScreenCommandHistory
+	ScreenCommandsCategory
+	ScreenClipboardList
+	ScreenClipboardActions
+	ScreenRenameClipboard
+	ScreenNativeList
+	ScreenNativeActions
+	ScreenProjectCommandsList
+	ScreenProjectCommandActions
 )
 
 // Model is the primary application state shared by all screens.
@@ -24,15 +33,29 @@ type Model struct {
 	CurrentScreen Screen
 	IsLoggedIn    bool
 
-	SelectedIndex   int
-	AllCmdsIndex    int
-	CreatedFiles    []string
-	CursorVisible   bool
-	LastActionIndex int
+	// --- Navigation/Selection State ---
+	MainScreenFocus              string // "action" or "list"
+	ActionIndex                  int    // Index for the top action bar
+	SelectedIndex                int    // Index for the main command list (relative to current page)
+	AllCmdsIndex                 int    // Index for the 'all commands' screen
+	StatsScreenIndex             int
+	HistoryScreenIndex           int
+	CommandsCategoryIndex        int
+	ClipboardListIndex           int
+	ClipboardActionIndex         int
+	NativeListIndex              int
+	NativeActionIndex            int
+	ProjectCommandsListIndex     int
+	ProjectCommandActionIndex    int
+	InstallDetailsSelectedOption int
+	PromptOptionFocused          bool
+	LastActionIndex              int // Keep for remembering last action focus?
 
-	TotalItems   int
-	AllCmdsTotal int
-	ProjectPath  string
+	// ... (Rest of the fields: CreatedFiles, Preview fields, Variables, Paginators, etc.)
+	CreatedFiles  []string
+	CursorVisible bool
+	AllCmdsTotal  int
+	ProjectPath   string
 	// RecognizedPkgs holds detected package names.
 	// With the advanced recognizer these are grouped (e.g. React frameworks are deduplicated
 	// and multiple CSS frameworks are summarized) before display.
@@ -54,12 +77,6 @@ type Model struct {
 	FileTreePreview    string // Holds the generated file tree preview string.
 	StatsPreview       string // Holds the generated project stats preview string.
 
-	// NEW: Field to track selected option on Install Details screen.
-	InstallDetailsSelectedOption int
-
-	// NEW: Used in the filename prompt screen to determine if the "[Back]" button is focused.
-	PromptOptionFocused bool
-
 	// NEW: Terminal dimensions (updated via tea.WindowSizeMsg)
 	TerminalWidth  int
 	TerminalHeight int
@@ -70,12 +87,25 @@ type Model struct {
 	// NEW: Status message for debugging history saving
 	HistorySaveStatus string
 
-	// NEW: Index for navigating the Project Stats screen categories
-	StatsScreenIndex int
-
 	// NEW: State for Command History screen
-	HistoryScreenIndex     int
 	HistoryFileTreePreview string
+
+	// NEW: State for Native/Clipboard List Previews
+	NativeListPreview    string
+	ClipboardListPreview string
+
+	// Paginator state
+	ClipboardPaginator       paginator.Model
+	NativePaginator          paginator.Model
+	ProjectCommandsPaginator paginator.Model
+	MainListPaginator        paginator.Model
+
+	// --- Data & Other State ---
+	SelectedClipboardCommand string
+	ClipboardRenameInput     string
+	SelectedNativeCommand    string
+	SelectedProjectCommand   string
+	ProjectCommandPreview    string
 }
 
 // Example styles (keep or remove as you prefer).

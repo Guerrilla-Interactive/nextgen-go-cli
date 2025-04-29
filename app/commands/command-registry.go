@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	"github.com/atotto/clipboard"
 )
 
 // Use *.json to embed JSON files in the same directory (non-recursively).
@@ -168,43 +169,68 @@ func TemplatePathFor(cmdName string) (string, bool) {
 	return "", false
 }
 
-// RunCommand executes the command defined by the JSON template.
-// It now accepts the registry to record history after execution.
+// RunCommand executes the command defined by the JSON template or clipboard.
 func RunCommand(cmdName, projectPath string, placeholders map[string]string, registry *project.ProjectRegistry) error {
 	// Reset CreatedFiles and EditedIndexers for this run.
 	CreatedFiles = []string{}
 	EditedIndexers = make(map[string]bool)
 
-	spec := GetCommandSpec(cmdName)
-	if spec.TemplatePath == "" {
-		return fmt.Errorf("command '%s' not found or has no template path", cmdName)
-	}
+	var jsonBytes []byte
+	var err error
+	var executionSource string // To know if it came from clipboard or file
 
-	// Read the template content.
-	jsonBytes, err := commandFiles.ReadFile(spec.TemplatePath)
-	if err != nil {
-		return fmt.Errorf("error reading embedded template %s: %w", spec.TemplatePath, err)
+	// --- Handle Clipboard Paste FIRST ---
+	if strings.ToLower(cmdName) == "paste from clipboard" {
+		clipboardContent, readErr := clipboard.ReadAll()
+		if readErr != nil {
+			return fmt.Errorf("failed to read clipboard: %w", readErr)
+		}
+		// Apply placeholders to the clipboard content *before* trying to execute
+		templateData := replacePlaceholders(string(clipboardContent), placeholders)
+		jsonBytes = []byte(templateData)
+		executionSource = "clipboard"
+	} else {
+		// --- Handle Regular Commands ---
+		spec := GetCommandSpec(cmdName)
+		if spec.TemplatePath == "" {
+			// Allow saving clipboard under a name even if template path is technically empty
+			// But return error if trying to run a non-clipboard command without a path
+			return fmt.Errorf("command '%s' not found or has no template path", cmdName)
+		}
+		// Read the template content from embedded FS.
+		jsonBytes, err = commandFiles.ReadFile(spec.TemplatePath)
+		if err != nil {
+			return fmt.Errorf("error reading embedded template %s: %w", spec.TemplatePath, err)
+		}
+		executionSource = fmt.Sprintf("template %s", spec.TemplatePath)
 	}
 
 	// Execute the template logic (creates/modifies files).
 	err = ExecuteJSONTemplateFromMemory(jsonBytes, projectPath, placeholders)
 	if err != nil {
-		// Return the execution error, but still try to record history if needed?
-		// Or maybe only record history on success? Let's record regardless for now.
-		// return fmt.Errorf("error executing template for command '%s': %w", cmdName, err)
+		// Record history even on execution error
 	}
 
-	// --- Record Command History (Moved Here) ---
-	// Log the placeholders received by RunCommand *before* recording history
-	fmt.Printf("DEBUG: RunCommand received placeholders: %+v\n", placeholders)
-
-	// Record even if ExecuteJSONTemplateFromMemory returned an error,
-	// as the user initiated the command.
+	// --- Record Command History (Common Logic) ---
+	fmt.Printf("DEBUG: RunCommand executed (%s), received placeholders: %+v\n", executionSource, placeholders)
 	if registry != nil && projectPath != "" {
 		if projectInfo, found := registry.GetProject(projectPath); found {
+			// Use the original cmdName for history, not "paste from clipboard"
+			// If it was clipboard, the *user-provided name* is stored in placeholders
+			recordName := cmdName
+			if strings.ToLower(cmdName) == "paste from clipboard" {
+				// Attempt to find the user-given name from placeholders
+				// This relies on the prompt screen sending the name correctly
+				if name, ok := placeholders["{{.Name}}"]; ok {
+					recordName = name
+				} else if name, ok := placeholders["{{.Filename}}"]; ok { // Fallback for single var clipboard
+					recordName = name
+				}
+			}
+
 			historicCmd := project.HistoricCommand{
-				Name:           cmdName,
-				Variables:      placeholders, // Store the actual variables used!
+				Name:           recordName, // Use original or user-provided name
+				Variables:      placeholders,
 				Timestamp:      time.Now().Unix(),
 				GeneratedFiles: append([]string{}, CreatedFiles...), // Copy slice
 			}
@@ -231,7 +257,7 @@ func RunCommand(cmdName, projectPath string, placeholders map[string]string, reg
 
 	// Return the original execution error, if any
 	if err != nil {
-		return fmt.Errorf("error executing template for command '%s': %w", cmdName, err)
+		return fmt.Errorf("error executing template for command '%s' from %s: %w", cmdName, executionSource, err)
 	}
 
 	return nil

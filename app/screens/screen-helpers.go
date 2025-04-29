@@ -168,8 +168,7 @@ func recordCommand(m *app.Model, cmd string) {
 	// --- Reset HistorySaveStatus (no longer relevant here) ---
 	m.HistorySaveStatus = ""
 
-	// Only record commands that are not part of the action row or navigation commands.
-	lower := strings.ToLower(cmd)
+	// Define excluded commands locally
 	excluded := map[string]bool{
 		"undo":                     true,
 		"redo":                     true,
@@ -178,6 +177,9 @@ func recordCommand(m *app.Model, cmd string) {
 		"logoutorloginplaceholder": true,
 		"paste from clipboard":     true,
 	}
+
+	// Only record commands that are not part of the action row or navigation commands.
+	lower := strings.ToLower(cmd)
 	if excluded[lower] {
 		return
 	}
@@ -202,34 +204,9 @@ func recordCommand(m *app.Model, cmd string) {
 	if len(commands.RecentUsed) > 8 {
 		commands.RecentUsed = commands.RecentUsed[:8]
 	}
-	m.TotalItems = len(commands.RecentUsed) + len(commands.NextSteps)
 
 	// --- Remove Persistent Project Command History Logic ---
 	// (This logic is moved to be called after RunCommand)
-}
-
-// renderItemsHorizontally is an example utility that can display a set of items in a row-based layout.
-func renderItemsHorizontally(items []string, m *app.Model, offset, columns int) string {
-	var outputLines []string
-	var currentLine string
-
-	for i, val := range items {
-		if i != 0 && i%columns == 0 {
-			outputLines = append(outputLines, currentLine)
-			currentLine = ""
-		}
-		fullIndex := offset + i
-		if m.SelectedIndex == fullIndex && m.CurrentScreen == app.ScreenMain {
-			currentLine += app.HighlightStyle.Render("> "+val+" <") + "  "
-		} else {
-			currentLine += app.ChoiceStyle.Render(val) + "  "
-		}
-	}
-	if currentLine != "" {
-		outputLines = append(outputLines, currentLine)
-	}
-
-	return strings.Join(outputLines, "\n") + "\n"
 }
 
 // renderItemList is used for the NextSteps on the main screen.

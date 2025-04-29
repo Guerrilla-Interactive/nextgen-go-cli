@@ -10,14 +10,37 @@ import (
 	"time"
 )
 
+// // HistoricCommand stores details ... (Remove this duplicate struct definition)
+// type HistoricCommand struct {
+// 	Name           string            `json:"name"`
+// 	Variables      map[string]string `json:"variables"`
+// 	Timestamp      int64             `json:"timestamp"`
+// 	GeneratedFiles []string          `json:"generatedFiles"`
+// }
+
+// --- Add ClipboardCommandSpec ---
+// ClipboardCommandSpec stores details about a saved clipboard command.
+type ClipboardCommandSpec struct {
+	Name       string `json:"name"`       // User-defined name
+	Template   string `json:"template"`   // The actual template content
+	IsFavorite bool   `json:"isFavorite"` // Flag for favorites
+	Timestamp  int64  `json:"timestamp"`  // When it was saved
+}
+
+// ProjectInfo stores information about a detected project
+// ... (existing struct definition)
+
 // ProjectRegistry holds information about all known projects
 // It uses a mutex for safe concurrent access if needed in the future.
 type ProjectRegistry struct {
-	Projects     map[string]ProjectInfo // Map of project RootPath to info
-	LastUsedPath string                 // Path of most recently used project
-	GlobalUsages int                    // Total number of CLI usages globally
-	RegistryPath string                 `json:"-"` // Path to the registry file (ignored in JSON)
-	mu           sync.RWMutex           `json:"-"` // Mutex for thread safety (ignored in JSON)
+	Projects                map[string]ProjectInfo          `json:"projects"`
+	LastUsedPath            string                          `json:"lastUsedPath"`
+	GlobalUsages            int                             `json:"globalUsages"`
+	ClipboardCommands       map[string]ClipboardCommandSpec `json:"clipboardCommands"`
+	FavoriteNativeCommands  map[string]bool                 `json:"favoriteNativeCommands"`
+	FavoriteProjectCommands map[string]bool                 `json:"favoriteProjectCommands"`
+	RegistryPath            string                          `json:"-"`
+	mu                      sync.RWMutex                    `json:"-"`
 }
 
 // registryFileName is the name of the file used to store the project registry.
@@ -46,10 +69,13 @@ func LoadProjectRegistry() (*ProjectRegistry, error) {
 	}
 
 	registry := &ProjectRegistry{
-		Projects:     make(map[string]ProjectInfo),
-		LastUsedPath: "",
-		GlobalUsages: 0,
-		RegistryPath: registryPath,
+		Projects:                make(map[string]ProjectInfo),
+		ClipboardCommands:       make(map[string]ClipboardCommandSpec),
+		FavoriteNativeCommands:  make(map[string]bool),
+		FavoriteProjectCommands: make(map[string]bool),
+		LastUsedPath:            "",
+		GlobalUsages:            0,
+		RegistryPath:            registryPath,
 	}
 
 	// Try to load existing registry data
@@ -80,8 +106,15 @@ func LoadProjectRegistry() (*ProjectRegistry, error) {
 	if registry.Projects == nil {
 		registry.Projects = make(map[string]ProjectInfo)
 	}
-	// We need to re-assign the RegistryPath as it's ignored by json
-	registry.RegistryPath = registryPath
+	if registry.ClipboardCommands == nil {
+		registry.ClipboardCommands = make(map[string]ClipboardCommandSpec)
+	}
+	if registry.FavoriteNativeCommands == nil {
+		registry.FavoriteNativeCommands = make(map[string]bool)
+	}
+	if registry.FavoriteProjectCommands == nil {
+		registry.FavoriteProjectCommands = make(map[string]bool)
+	}
 
 	// --- Ensure CommandHistory is initialized for each loaded project ---
 	for key, projectInfo := range registry.Projects {
@@ -91,6 +124,9 @@ func LoadProjectRegistry() (*ProjectRegistry, error) {
 			registry.Projects[key] = projectInfo // Update the map with the initialized struct
 		}
 	}
+
+	// We need to re-assign the RegistryPath as it's ignored by json
+	registry.RegistryPath = registryPath
 
 	return registry, nil
 }
