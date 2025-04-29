@@ -17,7 +17,7 @@ import (
 //
 // If you want to embed subfolders, you can say go:embed **/*.json
 //
-//go:embed *.json
+//go:embed native-commands/*.json
 var commandFiles embed.FS
 
 // A registry to hold recognized JSON templates in memory
@@ -78,13 +78,13 @@ type CommandSpec struct {
 var Commands = []CommandSpec{
 	{Name: "add section"}, // no template (placeholder)
 	{Name: "remove section"},
-	{Name: "add page", TemplatePath: "page-and-archive.json"},
-	{Name: "add wordpress block", TemplatePath: "wordpress-interactive-block-for-nextgen-theme.json"},
-	{Name: "add nextgen pagebuilder block", TemplatePath: "add-nextgen-pagebuilder-block.json"},
-	{Name: "add multiple variables example", TemplatePath: "multiple-variables-example.json"},
-	{Name: "add wordpress gutenberg block", TemplatePath: "wordpress-gutenberg-block.json"},
-	{Name: "add test pagebuilder block", TemplatePath: "test-pagebuilder.json"},
-	{Name: "add nextgen slug route", TemplatePath: "add-nextgen-slug-route.json"},
+	{Name: "add page", TemplatePath: "native-commands/page-and-archive.json"},
+	{Name: "add wordpress block", TemplatePath: "native-commands/wordpress-interactive-block-for-nextgen-theme.json"},
+	{Name: "add nextgen pagebuilder block", TemplatePath: "native-commands/add-nextgen-pagebuilder-block.json"},
+	{Name: "add multiple variables example", TemplatePath: "native-commands/multiple-variables-example.json"},
+	{Name: "add wordpress gutenberg block", TemplatePath: "native-commands/wordpress-gutenberg-block.json"},
+	{Name: "add test pagebuilder block", TemplatePath: "native-commands/test-pagebuilder.json"},
+	{Name: "add nextgen slug route", TemplatePath: "native-commands/add-nextgen-slug-route.json"},
 	{Name: "remove page"},
 	{Name: "add portable-component"},
 	{Name: "remove portable-component"},
@@ -98,7 +98,7 @@ var Commands = []CommandSpec{
 	{Name: "remove sanity-plugin"},
 	{Name: "undo"},
 	{Name: "redo"},
-	{Name: "add hello", TemplatePath: "app/commands/hello-world.json"},
+	{Name: "add hello", TemplatePath: "app/commands/native-commands/hello-world.json"},
 	{Name: "paste from clipboard"},
 }
 
