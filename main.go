@@ -8,11 +8,13 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/cli"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens"
+	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.50"
+var Version = "v1.0.51"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -104,6 +106,31 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			updatedM, cmd := screens.UpdateScreenCommandHistory(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
+		case app.ScreenCommandsCategory:
+			updatedM, cmd := screens.UpdateScreenCommandsCategory(pm.M, typedMsg, pm.ProjectRegistry)
+			pm.M = updatedM
+			return pm, cmd
+		case app.ScreenClipboardList:
+			updatedM, cmd := screens.UpdateScreenClipboardList(pm.M, typedMsg, pm.ProjectRegistry)
+			pm.M = updatedM
+			return pm, cmd
+		case app.ScreenClipboardActions:
+			updatedM, cmd := screens.UpdateScreenClipboardActions(pm.M, typedMsg, pm.ProjectRegistry)
+			pm.M = updatedM
+			return pm, cmd
+		case app.ScreenRenameClipboard:
+			updatedM, cmd := screens.UpdateScreenRenameClipboard(pm.M, typedMsg, pm.ProjectRegistry)
+			pm.M = updatedM
+			return pm, cmd
+		case app.ScreenNativeList:
+			// UpdateScreenNativeList doesn't need the registry
+			updatedM, cmd := screens.UpdateScreenNativeList(pm.M, typedMsg)
+			pm.M = updatedM
+			return pm, cmd
+		case app.ScreenNativeActions:
+			updatedM, cmd := screens.UpdateScreenNativeActions(pm.M, typedMsg, pm.ProjectRegistry)
+			pm.M = updatedM
+			return pm, cmd
 		default:
 			return pm, nil
 		}
@@ -137,6 +164,18 @@ func (pm ProgramModel) View() string {
 		return screens.ViewProjectStatsScreenWithRegistry(pm.M, pm.ProjectRegistry)
 	case app.ScreenCommandHistory:
 		return screens.ViewScreenCommandHistory(pm.M, pm.ProjectRegistry)
+	case app.ScreenCommandsCategory:
+		return screens.ViewScreenCommandsCategory(pm.M, pm.ProjectRegistry)
+	case app.ScreenClipboardList:
+		return screens.ViewScreenClipboardList(pm.M, pm.ProjectRegistry)
+	case app.ScreenClipboardActions:
+		return screens.ViewScreenClipboardActions(pm.M, pm.ProjectRegistry)
+	case app.ScreenRenameClipboard:
+		return screens.ViewScreenRenameClipboard(pm.M)
+	case app.ScreenNativeList:
+		return screens.ViewScreenNativeList(pm.M, pm.ProjectRegistry)
+	case app.ScreenNativeActions:
+		return screens.ViewScreenNativeActions(pm.M, pm.ProjectRegistry)
 	}
 	return ""
 }
@@ -276,13 +315,28 @@ func main() {
 		}
 	}
 
+	// --- Initialize Paginators ---
+	clipboardPaginator := paginator.New()
+	clipboardPaginator.Type = paginator.Dots
+	clipboardPaginator.PerPage = 10
+	clipboardPaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render("•")
+	clipboardPaginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("•")
+
+	nativePaginator := paginator.New()
+	nativePaginator.Type = paginator.Dots
+	nativePaginator.PerPage = 10
+	nativePaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render("•")
+	nativePaginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("•")
+
 	// Build your initial model
 	initialModel := app.Model{
-		IsLoggedIn:     true,
-		CurrentScreen:  app.ScreenMain,
-		ProjectPath:    currentDir,
-		RecognizedPkgs: recognizedPkgs,
-		Version:        Version,
+		IsLoggedIn:         true,
+		CurrentScreen:      app.ScreenMain,
+		ProjectPath:        currentDir,
+		RecognizedPkgs:     recognizedPkgs,
+		Version:            Version,
+		ClipboardPaginator: clipboardPaginator,
+		NativePaginator:    nativePaginator,
 	}
 
 	// Set default terminal dimensions so panels are anchored on first render.
