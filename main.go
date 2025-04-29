@@ -14,7 +14,7 @@ import (
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.52"
+var Version = "v1.0.53"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -123,8 +123,8 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenNativeList:
-			// UpdateScreenNativeList doesn't need the registry
-			updatedM, cmd := screens.UpdateScreenNativeList(pm.M, typedMsg)
+			// UpdateScreenNativeList *does* need the registry now (for consistency)
+			updatedM, cmd := screens.UpdateScreenNativeList(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenNativeActions:
@@ -133,6 +133,10 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return pm, cmd
 		case app.ScreenProjectCommandsList:
 			updatedM, cmd := screens.UpdateScreenProjectCommandsList(pm.M, typedMsg, pm.ProjectRegistry)
+			pm.M = updatedM
+			return pm, cmd
+		case app.ScreenProjectCommandActions:
+			updatedM, cmd := screens.UpdateScreenProjectCommandActions(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		default:
@@ -159,7 +163,7 @@ func (pm ProgramModel) View() string {
 	case app.ScreenSelect:
 		return screens.ViewSelectScreen(pm.M)
 	case app.ScreenMain:
-		return screens.ViewMainScreen(pm.M)
+		return screens.ViewMainScreen(pm.M, pm.ProjectRegistry)
 	case app.ScreenFilenamePrompt:
 		return screens.ViewFilenamePrompt(pm.M)
 	case app.ScreenInstallDetails:
@@ -182,6 +186,14 @@ func (pm ProgramModel) View() string {
 		return screens.ViewScreenNativeActions(pm.M, pm.ProjectRegistry)
 	case app.ScreenProjectCommandsList:
 		return screens.ViewScreenProjectCommandsList(pm.M, pm.ProjectRegistry)
+	case app.ScreenProjectCommandActions:
+		// --- Add Debug Logging Here ---
+		fmt.Fprintf(os.Stderr, "DEBUG: Routing to ViewScreenProjectCommandActions\n")
+		fmt.Fprintf(os.Stderr, "DEBUG:   pm.M.SelectedProjectCommand = '%s'\n", pm.M.SelectedProjectCommand)
+		registryIsNil := pm.ProjectRegistry == nil
+		fmt.Fprintf(os.Stderr, "DEBUG:   pm.ProjectRegistry == nil: %t\n", registryIsNil)
+		// --- End Debug Logging ---
+		return screens.ViewScreenProjectCommandActions(pm.M, pm.ProjectRegistry)
 	}
 	return ""
 }
@@ -331,14 +343,20 @@ func main() {
 	nativePaginator := paginator.New()
 	nativePaginator.Type = paginator.Dots
 	nativePaginator.PerPage = 10
-	nativePaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render("•")
+	nativePaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff3600")).Render("•")
 	nativePaginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("•")
 
 	projectCommandsPaginator := paginator.New()
 	projectCommandsPaginator.Type = paginator.Dots
 	projectCommandsPaginator.PerPage = 10 // Or a different value?
-	projectCommandsPaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render("•")
+	projectCommandsPaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff3600")).Render("•")
 	projectCommandsPaginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("•")
+
+	mainListPaginator := paginator.New()
+	mainListPaginator.Type = paginator.Dots
+	mainListPaginator.PerPage = 8 // Max 8 items per page for main list
+	mainListPaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff3600")).Render("•")
+	mainListPaginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("•")
 
 	// Build your initial model
 	initialModel := app.Model{
@@ -347,9 +365,13 @@ func main() {
 		ProjectPath:              currentDir,
 		RecognizedPkgs:           recognizedPkgs,
 		Version:                  Version,
+		MainScreenFocus:          "list", // Default focus to the list
+		ActionIndex:              0,
+		SelectedIndex:            0, // Start list selection at 0
 		ClipboardPaginator:       clipboardPaginator,
 		NativePaginator:          nativePaginator,
 		ProjectCommandsPaginator: projectCommandsPaginator,
+		MainListPaginator:        mainListPaginator,
 	}
 
 	// Set default terminal dimensions so panels are anchored on first render.
