@@ -14,7 +14,7 @@ import (
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.51"
+var Version = "v1.0.52"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -131,6 +131,10 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			updatedM, cmd := screens.UpdateScreenNativeActions(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
+		case app.ScreenProjectCommandsList:
+			updatedM, cmd := screens.UpdateScreenProjectCommandsList(pm.M, typedMsg, pm.ProjectRegistry)
+			pm.M = updatedM
+			return pm, cmd
 		default:
 			return pm, nil
 		}
@@ -176,6 +180,8 @@ func (pm ProgramModel) View() string {
 		return screens.ViewScreenNativeList(pm.M, pm.ProjectRegistry)
 	case app.ScreenNativeActions:
 		return screens.ViewScreenNativeActions(pm.M, pm.ProjectRegistry)
+	case app.ScreenProjectCommandsList:
+		return screens.ViewScreenProjectCommandsList(pm.M, pm.ProjectRegistry)
 	}
 	return ""
 }
@@ -328,15 +334,22 @@ func main() {
 	nativePaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render("•")
 	nativePaginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("•")
 
+	projectCommandsPaginator := paginator.New()
+	projectCommandsPaginator.Type = paginator.Dots
+	projectCommandsPaginator.PerPage = 10 // Or a different value?
+	projectCommandsPaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render("•")
+	projectCommandsPaginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("•")
+
 	// Build your initial model
 	initialModel := app.Model{
-		IsLoggedIn:         true,
-		CurrentScreen:      app.ScreenMain,
-		ProjectPath:        currentDir,
-		RecognizedPkgs:     recognizedPkgs,
-		Version:            Version,
-		ClipboardPaginator: clipboardPaginator,
-		NativePaginator:    nativePaginator,
+		IsLoggedIn:               true,
+		CurrentScreen:            app.ScreenMain,
+		ProjectPath:              currentDir,
+		RecognizedPkgs:           recognizedPkgs,
+		Version:                  Version,
+		ClipboardPaginator:       clipboardPaginator,
+		NativePaginator:          nativePaginator,
+		ProjectCommandsPaginator: projectCommandsPaginator,
 	}
 
 	// Set default terminal dimensions so panels are anchored on first render.
