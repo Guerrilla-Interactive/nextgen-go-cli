@@ -31,7 +31,7 @@ import (
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.58"
+var Version = "v1.0.59"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}

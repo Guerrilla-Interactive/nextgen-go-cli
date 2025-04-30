@@ -76,8 +76,6 @@ type CommandSpec struct {
 
 // Commands is our single authoritative list of all possible commands.
 var Commands = []CommandSpec{
-	{Name: "add section"}, // no template (placeholder)
-	{Name: "remove section"},
 	{Name: "add page", TemplatePath: "native-commands/page-and-archive.json"},
 	{Name: "add wordpress block", TemplatePath: "native-commands/wordpress-interactive-block-for-nextgen-theme.json"},
 	{Name: "add nextgen pagebuilder block", TemplatePath: "native-commands/add-nextgen-pagebuilder-block.json"},
@@ -85,21 +83,9 @@ var Commands = []CommandSpec{
 	{Name: "add wordpress gutenberg block", TemplatePath: "native-commands/wordpress-gutenberg-block.json"},
 	{Name: "add test pagebuilder block", TemplatePath: "native-commands/test-pagebuilder.json"},
 	{Name: "add nextgen slug route", TemplatePath: "native-commands/add-nextgen-slug-route.json"},
-	{Name: "remove page"},
-	{Name: "add portable-component"},
-	{Name: "remove portable-component"},
-	{Name: "add component"},
-	{Name: "remove component"},
-	{Name: "add schema"},
-	{Name: "remove schema"},
-	{Name: "add query"},
-	{Name: "remove query"},
-	{Name: "add sanity-plugin"},
-	{Name: "remove sanity-plugin"},
 	{Name: "undo"},
 	{Name: "redo"},
 	{Name: "add hello", TemplatePath: "native-commands/hello-world.json"},
-	{Name: "paste from clipboard"},
 }
 
 // RecentUsed & NextSteps remain separate slices, for usage in the UI.
