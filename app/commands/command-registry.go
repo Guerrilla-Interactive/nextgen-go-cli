@@ -98,7 +98,7 @@ var Commands = []CommandSpec{
 	{Name: "remove sanity-plugin"},
 	{Name: "undo"},
 	{Name: "redo"},
-	{Name: "add hello", TemplatePath: "app/commands/native-commands/hello-world.json"},
+	{Name: "add hello", TemplatePath: "native-commands/hello-world.json"},
 	{Name: "paste from clipboard"},
 }
 

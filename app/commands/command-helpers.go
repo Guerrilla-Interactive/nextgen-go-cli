@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/cli"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/utils"
 	"github.com/atotto/clipboard"
 )
@@ -331,11 +332,10 @@ func ExecuteJSONTemplateFromMemory(jsonBytes []byte, projectPath string, placeho
 	return nil
 }
 
-// ToKebabCase is a helper to produce "hello-world" from "Hello World".
+// ToKebabCase converts a string to kebab-case.
 func ToKebabCase(input string) string {
-	input = strings.ToLower(input)
-	input = strings.ReplaceAll(input, " ", "-")
-	return input
+	words := splitIntoWords(input)
+	return strings.ToLower(strings.Join(words, "-"))
 }
 
 // ToPascalCase converts input to PascalCase, e.g. "hello world" becomes "HelloWorld".
@@ -703,4 +703,63 @@ func GeneratePreviewFileTreeFromBytes(templateBytes []byte, placeholders map[str
 		return false
 	})
 	return preview, nil
+}
+
+// -----------------------------------------------------------------------------
+// Argument Validation Helper
+// -----------------------------------------------------------------------------
+
+// ValidateArgs checks the provided CommandArgs against the command's definitions.
+func ValidateArgs(parsedArgs cli.CommandArgs, expectedArgs []cli.ArgDef, expectedFlags []cli.FlagDef) error {
+	// 1. Check required positional arguments
+	requiredArgCount := 0
+	for _, argDef := range expectedArgs {
+		if argDef.Required {
+			requiredArgCount++
+		}
+	}
+	allowsTrailingArgs := false
+	if len(expectedArgs) > 0 && strings.HasSuffix(expectedArgs[len(expectedArgs)-1].Name, "...") {
+		allowsTrailingArgs = true
+	}
+
+	if len(parsedArgs.Variables) < requiredArgCount {
+		// Construct a meaningful error message based on expected args
+		var requiredNames []string
+		for i := 0; i < requiredArgCount; i++ {
+			requiredNames = append(requiredNames, fmt.Sprintf("<%s>", expectedArgs[i].Name))
+		}
+		return fmt.Errorf("missing required arguments: %s", strings.Join(requiredNames, " "))
+	}
+
+	// Check if too many args were provided, unless trailing args are allowed
+	if !allowsTrailingArgs && len(parsedArgs.Variables) > len(expectedArgs) {
+		return fmt.Errorf("too many arguments provided. Expected max %d, got %d", len(expectedArgs), len(parsedArgs.Variables))
+	}
+
+	// 2. Check required flags
+	for _, flagDef := range expectedFlags {
+		if flagDef.Required {
+			_, longExists := parsedArgs.Flags[flagDef.Name]
+			_, shortExists := parsedArgs.Flags[flagDef.ShortName]
+			_, longBoolExists := parsedArgs.BoolFlags[flagDef.Name]
+			_, shortBoolExists := parsedArgs.BoolFlags[flagDef.ShortName]
+
+			found := longExists || (flagDef.ShortName != "" && shortExists) || longBoolExists || (flagDef.ShortName != "" && shortBoolExists)
+
+			if !found {
+				flagName := "--" + flagDef.Name
+				if flagDef.ShortName != "" {
+					flagName += "/-" + flagDef.ShortName
+				}
+				return fmt.Errorf("missing required flag: %s", flagName)
+			}
+		}
+	}
+
+	// 3. Check for unexpected flags (optional, but good for strict CLIs)
+	// Iterate through parsed flags and check if they exist in expectedFlags
+	// ... (Implementation Skipped for brevity, can be added later) ...
+
+	return nil // Validation passed
 }

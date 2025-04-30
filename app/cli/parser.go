@@ -5,9 +5,32 @@ import (
 	"strings"
 )
 
+// CommandRegistryChecker defines an interface for checking if a command name exists.
+// This avoids a direct dependency cycle between cli and commands packages.
+type CommandRegistryChecker interface {
+	CommandExists(name string) bool
+}
+
+// ArgDef defines the structure for an expected positional argument.
+type ArgDef struct {
+	Name        string // e.g., "filename", "count"
+	Description string // Help text for the argument
+	Required    bool   // Whether the argument is mandatory
+}
+
+// FlagDef defines the structure for an expected flag.
+type FlagDef struct {
+	Name        string // Long name (e.g., "output")
+	ShortName   string // Short name (e.g., "o"), empty if none
+	Description string // Help text for the flag
+	HasValue    bool   // Whether the flag expects a value (true for --flag=v, false for --flag)
+	Required    bool   // Whether the flag is mandatory
+}
+
 // CommandArgs holds structured information parsed from command-line arguments.
 type CommandArgs struct {
-	CommandName      string            // The command specified (e.g., "add-page", "clipboard-paste")
+	RawArgs          []string          // Keep the original args for potential re-parsing or complex scenarios
+	CommandName      string            // The command specified (e.g., "add-page", "config set")
 	Variables        []string          // Positional arguments provided after the command name
 	Flags            map[string]string // Flags provided (e.g., --output=./path -> map["output"]="./path")
 	BoolFlags        map[string]bool   // Boolean flags (e.g., --force -> map["force"]=true)
@@ -16,81 +39,108 @@ type CommandArgs struct {
 	Errors           []error           // Any parsing errors encountered
 }
 
-// ParseCommandLineArgs processes the raw command-line arguments (excluding the program name itself)
-// and extracts the command name, variables, and flags. It performs basic validation.
-func ParseCommandLineArgs(args []string) CommandArgs {
+// ParseCommandLineArgs processes the raw command-line arguments using a command registry checker.
+func ParseCommandLineArgs(rawArgs []string, registry CommandRegistryChecker) CommandArgs {
 	parsed := CommandArgs{
+		RawArgs:   rawArgs,
 		Variables: make([]string, 0),
 		Flags:     make(map[string]string),
 		BoolFlags: make(map[string]bool),
 		Errors:    make([]error, 0),
 	}
 
-	if len(args) == 0 {
-		// No command or flags provided. The main app might default to interactive mode.
-		return parsed
-	}
+	args := make([]string, len(rawArgs)) // Work on a copy
+	copy(args, rawArgs)
 
-	// --- Stage 1: Initial Scan for Special Flags & Command Name ---
-	potentialCommandIndex := -1
-	for i, arg := range args {
+	// --- Stage 0: Scan *raw* args for global flags first ---
+	// This ensures intent is captured regardless of position
+	for _, arg := range rawArgs {
 		if arg == "--help" || arg == "-h" {
 			parsed.HelpRequested = true
-			// If help is requested, we might not need to parse further, depending on desired behavior.
-			// For now, we'll parse everything anyway.
 		} else if arg == "--version" {
 			parsed.VersionRequested = true
-			// Similar to help, often execution stops here.
-		}
-		if potentialCommandIndex == -1 && !strings.HasPrefix(arg, "-") {
-			potentialCommandIndex = i
 		}
 	}
 
-	// If help or version requested, maybe return early?
-	// if parsed.HelpRequested || parsed.VersionRequested {
-	// 	 return parsed
-	// }
+	// --- Stage 1: Find Potential Command Name(s) ---
+	firstPotentialCommandIndex := -1
+	secondPotentialCommandIndex := -1
+	for i, arg := range args { // Use the copy `args` here
+		if !strings.HasPrefix(arg, "-") {
+			if firstPotentialCommandIndex == -1 {
+				firstPotentialCommandIndex = i
+			} else if secondPotentialCommandIndex == -1 {
+				secondPotentialCommandIndex = i
+				break
+			}
+		}
+	}
 
-	// Extract command name if found
-	if potentialCommandIndex != -1 {
-		parsed.CommandName = args[potentialCommandIndex]
-		// Remove command name from args for further processing
-		args = append(args[:potentialCommandIndex], args[potentialCommandIndex+1:]...)
+	// Determine Command Name and remaining args for flag parsing
+	argsToParseFlagsFrom := args
+	if firstPotentialCommandIndex != -1 {
+		// Check if first two non-flag args form a valid multi-word command
+		if secondPotentialCommandIndex != -1 {
+			potentialCommandName := args[firstPotentialCommandIndex] + " " + args[secondPotentialCommandIndex]
+			if registry.CommandExists(potentialCommandName) {
+				parsed.CommandName = potentialCommandName
+				// Rebuild the list of args for flag/variable parsing, excluding the command parts
+				tempArgs := []string{}
+				for i, arg := range args {
+					if i != firstPotentialCommandIndex && i != secondPotentialCommandIndex {
+						tempArgs = append(tempArgs, arg)
+					}
+				}
+				argsToParseFlagsFrom = tempArgs
+			} else {
+				// Check if the first non-flag arg is a valid single-word command
+				if registry.CommandExists(args[firstPotentialCommandIndex]) {
+					parsed.CommandName = args[firstPotentialCommandIndex]
+					argsToParseFlagsFrom = append(args[:firstPotentialCommandIndex], args[firstPotentialCommandIndex+1:]...)
+				} else {
+					// Treat first non-flag arg as a variable if not a command
+					// Keep all args for flag/var parsing, CommandName remains empty
+					argsToParseFlagsFrom = args
+				}
+			}
+		} else {
+			// Only one potential command word found
+			if registry.CommandExists(args[firstPotentialCommandIndex]) {
+				parsed.CommandName = args[firstPotentialCommandIndex]
+				argsToParseFlagsFrom = append(args[:firstPotentialCommandIndex], args[firstPotentialCommandIndex+1:]...)
+			} else {
+				// Treat single non-flag arg as a variable
+				argsToParseFlagsFrom = args
+			}
+		}
 	} else {
-		// No command name found (only flags or empty args after filtering special flags)
-		// The main app will need to handle this (e.g., show default help or error)
+		// No command name found (e.g., only flags like `ng --help`)
+		argsToParseFlagsFrom = args
 	}
 
-	// --- Stage 2: Parse Remaining Args into Flags and Variables ---
-	i := 0
-	for i < len(args) {
-		arg := args[i]
+	// --- Stage 2: Parse Flags and Variables from the determined args list ---
+	for i := 0; i < len(argsToParseFlagsFrom); i++ {
+		arg := argsToParseFlagsFrom[i]
 
-		// Skip special flags we already scanned for (could optimize by removing them earlier)
-		if arg == "--help" || arg == "-h" || arg == "--version" {
-			i++
+		// Skip only the global --version flag here
+		if arg == "--version" {
 			continue
 		}
 
+		// Parse --help / -h like any other flag in this stage
 		if strings.HasPrefix(arg, "--") {
 			flagPart := strings.TrimPrefix(arg, "--")
 			flagName := flagPart
-			flagValue := "" // Explicit value required unless assigned later
+			flagValue := ""
 			hasExplicitValue := false
 
-			// Check for --flag=value format
 			if strings.Contains(flagPart, "=") {
 				parts := strings.SplitN(flagPart, "=", 2)
 				flagName = parts[0]
 				flagValue = parts[1]
 				hasExplicitValue = true
-			} else if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
-				// Check for --flag value format
-				// Note: This is ambiguous. Is `value` the flag's value or a positional arg?
-				// Many libraries require `=` for values to avoid this.
-				// Let's assume for now: if the next arg isn't a flag, it's the value.
-				flagValue = args[i+1]
+			} else if i+1 < len(argsToParseFlagsFrom) && !strings.HasPrefix(argsToParseFlagsFrom[i+1], "-") {
+				flagValue = argsToParseFlagsFrom[i+1]
 				hasExplicitValue = true
 				i++ // Consume the value argument
 			}
@@ -101,43 +151,35 @@ func ParseCommandLineArgs(args []string) CommandArgs {
 				}
 				parsed.Flags[flagName] = flagValue
 			} else {
-				// Boolean flag (--flag)
 				if _, exists := parsed.BoolFlags[flagName]; exists {
 					parsed.Errors = append(parsed.Errors, fmt.Errorf("boolean flag provided more than once: --%s", flagName))
 				}
 				parsed.BoolFlags[flagName] = true
 			}
 		} else if strings.HasPrefix(arg, "-") {
-			// Handle short flags (-f, potentially combined like -abc)
 			flagChars := strings.TrimPrefix(arg, "-")
 
 			if len(flagChars) == 0 {
 				parsed.Errors = append(parsed.Errors, fmt.Errorf("invalid flag format: %s", arg))
-				i++
 				continue
 			}
 
-			// Check if the next argument could be a value for the *last* short flag
 			potentialValue := ""
 			valueConsumed := false
-			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
-				potentialValue = args[i+1]
+			if i+1 < len(argsToParseFlagsFrom) && !strings.HasPrefix(argsToParseFlagsFrom[i+1], "-") {
+				potentialValue = argsToParseFlagsFrom[i+1]
 			}
 
-			// Iterate through combined chars (e.g., "abc" in -abc)
 			for j, flagChar := range flagChars {
 				flagName := string(flagChar)
 
-				// Is this the last char and is there a potential value?
 				if j == len(flagChars)-1 && potentialValue != "" {
-					// Assume value belongs to the last flag
 					if _, exists := parsed.Flags[flagName]; exists {
 						parsed.Errors = append(parsed.Errors, fmt.Errorf("flag provided more than once: -%s", flagName))
 					}
 					parsed.Flags[flagName] = potentialValue
 					valueConsumed = true
 				} else {
-					// Treat as boolean flag
 					if _, exists := parsed.BoolFlags[flagName]; exists {
 						parsed.Errors = append(parsed.Errors, fmt.Errorf("boolean flag provided more than once: -%s", flagName))
 					}
@@ -145,24 +187,13 @@ func ParseCommandLineArgs(args []string) CommandArgs {
 				}
 			}
 
-			// Consume the value argument if used
 			if valueConsumed {
 				i++
 			}
 		} else {
-			// Argument is not a flag, treat it as a variable
 			parsed.Variables = append(parsed.Variables, arg)
 		}
-		i++
 	}
-
-	// Basic Validation (Example: Check if required flags for a known command are missing - needs command spec)
-	// This level of validation is often better handled *after* parsing, based on the specific command.
-	// if parsed.CommandName == "some-command" {
-	// 	if _, ok := parsed.Flags["required-flag"]; !ok {
-	// 		 parsed.Errors = append(parsed.Errors, fmt.Errorf("missing required flag --required-flag for command %s", parsed.CommandName))
-	// 	 }
-	// }
 
 	return parsed
 }

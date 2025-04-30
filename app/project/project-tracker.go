@@ -37,6 +37,7 @@ type ProjectRegistry struct {
 	LastUsedPath            string                          `json:"lastUsedPath"`
 	GlobalUsages            int                             `json:"globalUsages"`
 	ClipboardCommands       map[string]ClipboardCommandSpec `json:"clipboardCommands"`
+	NativeCommands          map[string]string               `json:"nativeCommands"`
 	FavoriteNativeCommands  map[string]bool                 `json:"favoriteNativeCommands"`
 	FavoriteProjectCommands map[string]bool                 `json:"favoriteProjectCommands"`
 	RegistryPath            string                          `json:"-"`
@@ -71,6 +72,7 @@ func LoadProjectRegistry() (*ProjectRegistry, error) {
 	registry := &ProjectRegistry{
 		Projects:                make(map[string]ProjectInfo),
 		ClipboardCommands:       make(map[string]ClipboardCommandSpec),
+		NativeCommands:          make(map[string]string),
 		FavoriteNativeCommands:  make(map[string]bool),
 		FavoriteProjectCommands: make(map[string]bool),
 		LastUsedPath:            "",
@@ -114,6 +116,9 @@ func LoadProjectRegistry() (*ProjectRegistry, error) {
 	}
 	if registry.FavoriteProjectCommands == nil {
 		registry.FavoriteProjectCommands = make(map[string]bool)
+	}
+	if registry.NativeCommands == nil {
+		registry.NativeCommands = make(map[string]string)
 	}
 
 	// --- Ensure CommandHistory is initialized for each loaded project ---

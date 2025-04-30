@@ -3,18 +3,35 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"encoding/json"
+	"os/exec"
+	"runtime"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/cli"
+	commands "github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands/args"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens"
 	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	// Import the template commands package for helpers
+	"time" // Add for history recording
+
+	template_cmds "github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/utils" // Import utils for file tree
+
+	// Use alias for args package
+	args_pkg "github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands/args"
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.56"
+var Version = "v1.0.57"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -24,6 +41,57 @@ type ProgramModel struct {
 	M                app.Model
 	ProjectRegistry  *project.ProjectRegistry // Track the project registry in the model
 	InitialDetection bool                     // Track if initial project detection was performed
+}
+
+// commandRegistryCheckerBridge implements cli.CommandRegistryChecker using the commands package.
+// This avoids a direct import cycle.
+type commandRegistryCheckerBridge struct{}
+
+func (b commandRegistryCheckerBridge) CommandExists(name string) bool {
+	// Check args registry
+	if args_pkg.CommandExists(name) {
+		return true
+	}
+	// Check built-in template command list
+	if _, found := template_cmds.TemplatePathFor(name); found {
+		return true
+	}
+
+	// --- Load registry to check other types (inefficient, but necessary for now) ---
+	// A better approach might involve passing the loaded registry to the parser
+	// or having a more unified command lookup mechanism.
+	registry, err := project.LoadProjectRegistry() // Load registry here
+	if err == nil {                                // Only proceed if registry loaded successfully
+		// Check user-saved Native Commands
+		if registry.NativeCommands != nil {
+			if _, nativeFound := registry.NativeCommands[name]; nativeFound {
+				return true
+			}
+		}
+		// Check Clipboard Commands
+		if registry.ClipboardCommands != nil {
+			if _, clipboardFound := registry.ClipboardCommands[name]; clipboardFound {
+				return true
+			}
+		}
+	} else {
+		// Log warning if registry fails to load during check?
+		fmt.Printf("DEBUG [CommandExists]: Could not load registry to check command '%s': %v\n", name, err)
+	}
+
+	// --- Check Project Commands (.nextgen/local-commands) ---
+	projectPath, err := os.Getwd()
+	if err == nil { // Only proceed if we can get the current directory
+		localCmdDir := filepath.Join(projectPath, ".nextgen", "local-commands")
+		kebabName := template_cmds.ToKebabCase(name) // Assume command name needs conversion
+		cmdFilePath := filepath.Join(localCmdDir, kebabName+".json")
+		if _, statErr := os.Stat(cmdFilePath); statErr == nil {
+			// File exists, so the command is considered valid
+			return true
+		}
+	}
+
+	return false // Not found in any known location
 }
 
 // Init returns the Cmd that loads project info from screens.InitProjectCmd.
@@ -199,6 +267,7 @@ func (pm ProgramModel) View() string {
 }
 
 func main() {
+	fmt.Println("DEBUG: main() function started.")
 	args := os.Args[1:] // Get arguments excluding program name
 
 	// --- Load Project Registry ---
@@ -218,9 +287,13 @@ func main() {
 			projectRegistry.RegistryPath, len(projectRegistry.Projects), projectRegistry.GlobalUsages)
 	}
 
+	// Create the registry checker bridge
+	registryChecker := commandRegistryCheckerBridge{}
+
 	// --- Direct Command Execution Handling ---
 	if len(args) > 0 {
-		parsedArgs := cli.ParseCommandLineArgs(args)
+		// Pass the registry checker to the parser
+		parsedArgs := cli.ParseCommandLineArgs(args, registryChecker)
 
 		// Handle parsing errors
 		if len(parsedArgs.Errors) > 0 {
@@ -231,85 +304,49 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Handle --version flag
+		// Handle --version flag first, as it takes precedence
 		if parsedArgs.VersionRequested {
 			fmt.Printf("NextGen Go CLI %s\n", Version)
 			os.Exit(0)
 		}
 
-		// Handle --help flag (basic version)
-		if parsedArgs.HelpRequested {
-			if parsedArgs.CommandName != "" {
-				// TODO: Implement help text generation for specific commands
-				fmt.Printf("Help requested for command: %s\n", parsedArgs.CommandName)
-				fmt.Println("Usage: ng [command] [variables...] [--flags...]")
-				fmt.Println("Detailed command help not yet implemented.")
-			} else {
-				// TODO: Implement general help text generation (list commands)
-				fmt.Println("NextGen Go CLI - Help")
-				fmt.Println("Usage: ng [command] [variables...] [--flags...]")
-				fmt.Println("Run without arguments to enter interactive mode.")
-				fmt.Println("Available commands: (listing not yet implemented)")
-				fmt.Println("Flags: --help, -h, --version")
-			}
-			os.Exit(0)
-		}
-
-		// Get current directory for project detection
-		fmt.Println("DEBUG: Attempting to get current working directory...")
-		currentDir, err := os.Getwd()
-		if err != nil {
-			fmt.Printf("DEBUG: Error getting working directory: %v\n", err)
-			fmt.Printf("Warning: Could not determine current directory: %v\n", err)
-			currentDir = "" // Default to empty if unable to determine
-		} else {
-			fmt.Printf("DEBUG: Current working directory: %s\n", currentDir)
-		}
-
-		// Detect project if we have a current directory
-		if currentDir != "" {
-			if projectInfo, found := project.DetectProject(currentDir); found {
-				// Update project registry with usage
-				projectRegistry.AddOrUpdateProject(projectInfo)
-				// Save changes
-				if err := projectRegistry.Save(); err != nil {
-					fmt.Printf("Warning: Could not save project registry: %v\n", err)
-				}
+		// Check for help *before* deciding whether to execute or show general help
+		var isHelpIntent bool
+		for _, arg := range parsedArgs.RawArgs { // Check raw args for --help or -h
+			if arg == "--help" || arg == "-h" {
+				isHelpIntent = true
+				break
 			}
 		}
 
-		// Attempt Direct Command Execution if a command name was parsed
+		// Now, route based on command name and help intent
 		if parsedArgs.CommandName != "" {
-			fmt.Printf("Attempting direct execution for command: %s\n", parsedArgs.CommandName)
-			fmt.Printf("Variables: %v\n", parsedArgs.Variables)
-			fmt.Printf("Flags: %v\n", parsedArgs.Flags)
-			fmt.Printf("BoolFlags: %v\n", parsedArgs.BoolFlags)
-
-			// --- TODO: Task #6 Integration Point ---
-			// 1. Resolve the command spec based on parsedArgs.CommandName
-			// 2. Map parsedArgs.Variables and parsedArgs.Flags to the command spec's expected variables
-			// 3. Execute the command directly using the core execution logic
-			// 4. Display results (e.g., file tree, success/error message)
-			// Example placeholder:
-			err := executeDirectCommand(parsedArgs)
-			if err != nil {
-				fmt.Printf("Error executing command directly: %v\n", err)
+			if isHelpIntent {
+				// Command-specific help requested
+				displayCommandHelp(parsedArgs.CommandName)
+				os.Exit(0)
+			} else {
+				// Execute the command
+				fmt.Printf("DEBUG: Command name '%s' recognized, proceeding to executeAndExit...\n", parsedArgs.CommandName)
+				executeAndExit(parsedArgs, projectRegistry)
+			}
+		} else {
+			fmt.Println("DEBUG: Command name NOT recognized by parser.")
+			if isHelpIntent {
+				// General help requested
+				displayGeneralHelp()
+				os.Exit(0)
+			} else {
+				// No command, no help, no version - invalid usage
+				fmt.Println("Error: Invalid arguments or flags provided without a command name.")
+				fmt.Println("Run `ng --help` for usage.")
 				os.Exit(1)
 			}
-			fmt.Println("Direct command execution successful (placeholder).")
-			// --- End TODO ---
-			os.Exit(0) // Exit after successful direct execution
-		} else {
-			// No command name provided, but flags were given (e.g., just `ng --someflag`)
-			// Decide how to handle this - show error? Show help? Enter interactive?
-			fmt.Println("Error: Flags provided without a command name.")
-			fmt.Println("Run `ng --help` for usage.")
-			os.Exit(1)
 		}
 	}
 
 	// --- Interactive Mode Fallback ---
-	// If no args were provided (or handled above), start the TUI
+	// If no args were provided (or version/help/command handled above), start the TUI
 	fmt.Println("No command-line arguments provided, starting interactive mode...")
 
 	// Get current directory for project detection
@@ -397,7 +434,366 @@ func main() {
 	}
 }
 
-func executeDirectCommand(args cli.CommandArgs) error {
-	// TODO: Implement direct command execution logic
-	return nil
+// displayGeneralHelp prints the top-level help message.
+func displayGeneralHelp() {
+	fmt.Println("NextGen Go CLI - Help")
+	fmt.Println("Usage: ng [command] [variables...] [--flags...]")
+	fmt.Println("Run without arguments to enter interactive mode.")
+
+	allCmds := commands.GetAllCommands()
+	if len(allCmds) > 0 {
+		fmt.Println("\nAvailable Commands:")
+		sort.Slice(allCmds, func(i, j int) bool {
+			return allCmds[i].Name() < allCmds[j].Name()
+		})
+		for _, cmd := range allCmds {
+			fmt.Printf("  %-15s %s\n", cmd.Name(), cmd.Description())
+		}
+		fmt.Println("\nRun 'ng [command] --help' for more information on a specific command.")
+	} else {
+		fmt.Println("\nNo commands registered yet.")
+	}
+	fmt.Println("\nGlobal Flags: --help, -h, --version")
+}
+
+// displayCommandHelp displays detailed help for a specific command.
+func displayCommandHelp(commandName string) {
+	cmd, found := commands.GetCommand(commandName)
+	if !found {
+		fmt.Printf("Error: Unknown command '%s'\n", commandName)
+		displayGeneralHelp() // Show general help as fallback
+		return
+	}
+
+	// Display detailed help for the command
+	fmt.Printf("Usage: ng %s %s\n\n", cmd.Name(), cmd.Usage())
+	fmt.Printf("  %s\n", cmd.Description())
+
+	args := cmd.ExpectedArgs()
+	if len(args) > 0 {
+		fmt.Println("\nArguments:")
+		for _, arg := range args {
+			required := ""
+			if arg.Required {
+				required = " (required)"
+			}
+			fmt.Printf("  %-15s %s%s\n", arg.Name, arg.Description, required)
+		}
+	}
+
+	flags := cmd.ExpectedFlags()
+	if len(flags) > 0 {
+		fmt.Println("\nFlags:")
+		for _, flag := range flags {
+			if flag.Name == "help" || flag.ShortName == "h" {
+				continue // Skip global help flags
+			}
+			flagUsage := "--" + flag.Name
+			if flag.ShortName != "" {
+				flagUsage += ", -" + flag.ShortName
+			}
+			if flag.HasValue {
+				flagUsage += " <value>"
+			}
+			required := ""
+			if flag.Required {
+				required = " (required)"
+			}
+			fmt.Printf("  %-15s %s%s\n", flagUsage, flag.Description, required)
+		}
+	}
+	fmt.Println("\nGlobal Flags: --help, -h, --version") // Also mention global flags here
+}
+
+// executeAndExit attempts to execute a command based on parsed args and exits.
+func executeAndExit(parsedArgs cli.CommandArgs, registry *project.ProjectRegistry) {
+	// Get current directory (needed for project context during execution)
+	fmt.Println("DEBUG: Attempting to get current working directory for execution...")
+	currentDir, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("Warning: Could not determine current directory for command execution: %v\n", err)
+		// Decide if commands can run without project context or exit
+		// currentDir = ""
+	}
+	fmt.Printf("DEBUG: Current working directory for execution: %s\n", currentDir)
+
+	// TODO: Potentially load project config based on currentDir for the command
+
+	fmt.Printf("Attempting direct execution for command: %s\n", parsedArgs.CommandName)
+	fmt.Printf("Variables: %v\n", parsedArgs.Variables)
+	fmt.Printf("Flags: %v\n", parsedArgs.Flags)
+	fmt.Printf("BoolFlags: %v\n", parsedArgs.BoolFlags)
+
+	err = executeDirectCommand(parsedArgs, registry) // Pass registry
+	if err != nil {
+		fmt.Printf("Error executing command '%s': %v\n", parsedArgs.CommandName, err)
+		os.Exit(1)
+	}
+	// fmt.Println("Direct command execution successful (placeholder).") // Removed misleading message
+	os.Exit(0) // Exit after successful direct execution
+}
+
+// executeDirectCommand handles the core command execution.
+func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistry) error {
+	commandName := args.CommandName
+	commandArgs := args.Variables // Positional args after command name
+
+	// --- Define projectPath early so it's available in all blocks ---
+	projectPath, pathErr := os.Getwd()
+	if pathErr != nil {
+		fmt.Printf("Warning: Could not get current directory: %v. Using '.' as fallback.\n", pathErr)
+		projectPath = "."
+	}
+	// ------------------------------------------------------------------
+
+	// 1. Try executing as an Arg-based command first
+	cmd, found := args_pkg.GetCommand(commandName)
+	if found {
+		fmt.Printf("DEBUG: Executing command '%s' via args package...\n", commandName)
+		err := cmd.Execute(args)
+		fmt.Printf("DEBUG: Args command '%s' finished. Error: %v\n", commandName, err)
+		if err != nil {
+			return fmt.Errorf("execution failed: %w", err)
+		}
+		return nil // Success
+	}
+
+	// 2. Try executing as a User-Saved Native Command
+	if registry != nil && registry.NativeCommands != nil {
+		if commandString, nativeFound := registry.NativeCommands[commandName]; nativeFound {
+			fmt.Printf("DEBUG: Executing command '%s' as user-saved native command...\n", commandName)
+			fmt.Printf("  Command: %s\n  Args: %v\n", commandString, commandArgs)
+			return runShellCommand(commandString, commandArgs, projectPath)
+		}
+	}
+
+	// 3. Try executing as a Clipboard Command
+	if registry != nil && registry.ClipboardCommands != nil {
+		// DEBUG PRINT: List available clipboard keys
+		clipboardKeys := make([]string, 0, len(registry.ClipboardCommands))
+		for k := range registry.ClipboardCommands {
+			clipboardKeys = append(clipboardKeys, k)
+		}
+		fmt.Printf("DEBUG: Available clipboard keys: %v\n", clipboardKeys)
+
+		fmt.Printf("DEBUG: Checking clipboard commands map for key: '%s'\n", commandName) // DEBUG PRINT 1
+		if clipboardSpec, clipboardFound := registry.ClipboardCommands[commandName]; clipboardFound {
+			fmt.Printf("DEBUG: Clipboard command '%s' FOUND in map.\n", commandName) // DEBUG PRINT 2
+			fmt.Printf("DEBUG: Executing command '%s' as clipboard command...\n", commandName)
+			templateString := clipboardSpec.Template
+			if templateString == "" {
+				return fmt.Errorf("clipboard command '%s' has empty template content", commandName)
+			}
+			templateBytes := []byte(templateString)
+			keys := template_cmds.InferVariableKeys(string(templateBytes))
+			if len(keys) != len(commandArgs) {
+				return fmt.Errorf("clipboard command '%s' requires %d argument(s) (%s), but %d provided",
+					commandName, len(keys), strings.Join(keys, ", "), len(commandArgs))
+			}
+			varsMap := make(map[string]string)
+			for i, key := range keys {
+				varsMap[key] = commandArgs[i]
+			}
+			placeholders := template_cmds.BuildPlaceholders(varsMap)
+			fmt.Printf("DEBUG: Running clipboard template with placeholders: %+v\n", placeholders)
+			template_cmds.CreatedFiles = []string{}
+			template_cmds.EditedIndexers = make(map[string]bool)
+			execErr := template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
+			// --- Record History ---
+			fmt.Printf("DEBUG: Clipboard template executed. Generated: %v, Edited Indexers: %v\n", template_cmds.CreatedFiles, template_cmds.EditedIndexers)
+			if registry != nil && projectPath != "." {
+				if projectInfo, found := registry.GetProject(projectPath); found {
+					historicCmd := project.HistoricCommand{
+						Name:           commandName,
+						Variables:      placeholders,
+						Timestamp:      time.Now().Unix(),
+						GeneratedFiles: append([]string{}, template_cmds.CreatedFiles...),
+					}
+					if projectInfo.CommandHistory == nil {
+						projectInfo.CommandHistory = []project.HistoricCommand{}
+					}
+					projectInfo.CommandHistory = append(projectInfo.CommandHistory, historicCmd)
+					if len(projectInfo.CommandHistory) > 20 {
+						projectInfo.CommandHistory = projectInfo.CommandHistory[len(projectInfo.CommandHistory)-20:]
+					}
+					registry.AddOrUpdateProject(projectInfo)
+					if saveErr := registry.Save(); saveErr != nil {
+						fmt.Printf("Warning: Failed to save project registry after executing clipboard command '%s': %v\n", commandName, saveErr)
+					}
+				} else {
+					fmt.Printf("Warning: Project '%s' not found in registry, cannot record history for clipboard command.\n", projectPath)
+				}
+			}
+			// ----------------------
+			if execErr != nil {
+				return fmt.Errorf("clipboard template execution failed: %w", execErr)
+			}
+			// --- Print File Tree on Success ---
+			if len(template_cmds.CreatedFiles) > 0 {
+				fmt.Println("\n--- Files Created --- ")
+				relPaths := make([]string, len(template_cmds.CreatedFiles))
+				for i, p := range template_cmds.CreatedFiles {
+					if rel, err := filepath.Rel(projectPath, filepath.Join(projectPath, p)); err == nil {
+						relPaths[i] = rel
+					} else {
+						relPaths[i] = p
+					}
+				}
+				treeRoot := utils.BuildFileTree(relPaths)
+				// Render without icons or special markers for CLI output
+				treeString := utils.RenderFileTree(treeRoot, "", false, false, nil)
+				fmt.Println(treeString)
+			}
+			// ---------------------------------
+			return nil // Success for clipboard command
+		} else {
+			fmt.Printf("DEBUG: Clipboard command '%s' NOT FOUND in map.\n", commandName) // DEBUG PRINT 3
+		}
+	} else {
+		fmt.Println("DEBUG: Registry or ClipboardCommands map is nil, skipping check.") // DEBUG PRINT 4
+	}
+
+	// 4. Try executing as a Project Command
+	localCmdDir := filepath.Join(projectPath, ".nextgen", "local-commands")
+	kebabName := template_cmds.ToKebabCase(commandName)
+	cmdFilePath := filepath.Join(localCmdDir, kebabName+".json")
+	if _, err := os.Stat(cmdFilePath); err == nil {
+		// File exists, try to read and execute
+		jsonData, readErr := os.ReadFile(cmdFilePath)
+		if readErr != nil {
+			return fmt.Errorf("failed to read project command file '%s': %w", cmdFilePath, readErr)
+		}
+
+		// Reuse struct from args/project_cmd_add.go
+		type ProjectCommandFile struct {
+			Command string `json:"command"`
+		}
+		var cmdData ProjectCommandFile
+		if jsonErr := json.Unmarshal(jsonData, &cmdData); jsonErr != nil {
+			return fmt.Errorf("failed to parse project command file '%s': %w", cmdFilePath, jsonErr)
+		}
+
+		commandString := cmdData.Command
+		if commandString == "" {
+			return fmt.Errorf("command string is empty in project command file '%s'", cmdFilePath)
+		}
+
+		fmt.Printf("DEBUG: Executing command '%s' as project command...\n", commandName)
+		fmt.Printf("  Command: %s\n  Args: %v\n", commandString, commandArgs)
+		return runShellCommand(commandString, commandArgs, projectPath)
+	}
+
+	// 5. Try executing as a Built-in Template Command
+	spec := template_cmds.GetCommandSpec(commandName)
+	if spec.TemplatePath != "" {
+		fmt.Printf("DEBUG: Executing command '%s' as built-in template command...\n", commandName)
+		// Load template bytes
+		templateBytes, loadErr := template_cmds.LoadCommandTemplate(spec.TemplatePath)
+		if loadErr != nil {
+			return fmt.Errorf("failed to load template %s: %w", spec.TemplatePath, loadErr)
+		}
+
+		// Infer variable keys from template
+		keys := template_cmds.InferVariableKeys(string(templateBytes))
+
+		// --- Map Args to Placeholders (Simplified Approach) ---
+		// Assumption: For direct execution, we map positional args to inferred keys in order.
+		// We require the number of args to match the number of inferred keys.
+		if len(keys) != len(commandArgs) {
+			return fmt.Errorf("command '%s' requires %d argument(s) (%s), but %d provided",
+				commandName, len(keys), strings.Join(keys, ", "), len(commandArgs))
+		}
+		varsMap := make(map[string]string)
+		for i, key := range keys {
+			varsMap[key] = commandArgs[i]
+		}
+		placeholders := template_cmds.BuildPlaceholders(varsMap)
+		// ---------------------------------------------------------
+
+		fmt.Printf("DEBUG: Running template with placeholders: %+v\n", placeholders)
+
+		// Reset global trackers in template_cmds (important!)
+		template_cmds.CreatedFiles = []string{}
+		template_cmds.EditedIndexers = make(map[string]bool)
+
+		// Execute the template logic
+		execErr := template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
+
+		// --- Record History (adapted from template_cmds.RunCommand) ---
+		fmt.Printf("DEBUG: Template executed. Generated: %v, Edited Indexers: %v\n", template_cmds.CreatedFiles, template_cmds.EditedIndexers)
+		if registry != nil && projectPath != "." { // Ensure we have registry and a valid project path
+			if projectInfo, found := registry.GetProject(projectPath); found {
+				historicCmd := project.HistoricCommand{
+					Name:           commandName,
+					Variables:      placeholders,
+					Timestamp:      time.Now().Unix(),
+					GeneratedFiles: append([]string{}, template_cmds.CreatedFiles...), // Copy slice
+				}
+				if projectInfo.CommandHistory == nil {
+					projectInfo.CommandHistory = []project.HistoricCommand{}
+				}
+				projectInfo.CommandHistory = append(projectInfo.CommandHistory, historicCmd)
+				if len(projectInfo.CommandHistory) > 20 { // Limit history
+					projectInfo.CommandHistory = projectInfo.CommandHistory[len(projectInfo.CommandHistory)-20:]
+				}
+				registry.AddOrUpdateProject(projectInfo) // Updates usage count too
+				if saveErr := registry.Save(); saveErr != nil {
+					fmt.Printf("Warning: Failed to save project registry after executing template command '%s': %v\n", commandName, saveErr)
+				}
+			} else {
+				fmt.Printf("Warning: Project '%s' not found in registry, cannot record history for template command.\n", projectPath)
+			}
+		}
+		// -----------------------------------------------------------
+
+		if execErr != nil {
+			return fmt.Errorf("template execution failed: %w", execErr) // Return execution error after attempting history save
+		}
+		// --- Print File Tree on Success ---
+		if len(template_cmds.CreatedFiles) > 0 {
+			fmt.Println("\n--- Files Created --- ")
+			relPaths := make([]string, len(template_cmds.CreatedFiles))
+			for i, p := range template_cmds.CreatedFiles {
+				if rel, err := filepath.Rel(projectPath, filepath.Join(projectPath, p)); err == nil { // Ensure relative to project path
+					relPaths[i] = rel
+				} else {
+					relPaths[i] = p // Fallback to original if Rel fails
+				}
+			}
+			treeRoot := utils.BuildFileTree(relPaths)
+			// Render without icons or special markers for CLI output
+			treeString := utils.RenderFileTree(treeRoot, "", false, false, nil)
+			fmt.Println(treeString)
+		}
+		// ---------------------------------
+		return nil // Success
+	}
+
+	// If not found in any category
+	return fmt.Errorf("unknown or unsupported command for direct execution: %s", commandName)
+}
+
+// Helper function to run a shell command
+func runShellCommand(commandString string, commandArgs []string, workingDir string) error {
+	var sysCmd *exec.Cmd
+	fullCmdString := commandString
+	if len(commandArgs) > 0 {
+		fullCmdString += " " + strings.Join(commandArgs, " ")
+	}
+
+	if runtime.GOOS == "windows" {
+		sysCmd = exec.Command("cmd", "/C", fullCmdString)
+	} else {
+		sysCmd = exec.Command("sh", "-c", fullCmdString)
+	}
+
+	sysCmd.Stdout = os.Stdout
+	sysCmd.Stderr = os.Stderr
+	sysCmd.Dir = workingDir // Set working directory
+
+	if err := sysCmd.Run(); err != nil {
+		// Return a more specific error including the command that failed
+		return fmt.Errorf("shell command [%s] failed: %w", strings.Split(fullCmdString, " ")[0], err)
+	}
+	return nil // Success
 }
