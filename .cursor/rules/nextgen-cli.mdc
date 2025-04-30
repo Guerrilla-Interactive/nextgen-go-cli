@@ -1,0 +1,36 @@
+---
+description: How to use the Nextgen CLI
+globs: **/*
+alwaysApply: false
+---
+# Nextgen CLI Usage Guide
+
+This guide covers basic usage of the Nextgen CLI for listing and running commands directly from your terminal.
+
+## Listing Available Commands
+
+*   **Command:** `ng list-all`
+*   **Description:** Displays a prioritized list of all commands currently recognized and executable directly via the CLI. This includes built-in template commands, args-based commands, user-saved native commands, clipboard commands, and project-specific commands.
+*   **Usage:**
+    ```bash
+    ng list-all
+    ```
+
+## Running Commands (Especially Template-Based)
+
+*   **Syntax:** `ng <command-name> [variables...] [--flags...]`
+*   **`<command-name>`:** The name of the command to execute (e.g., `add page`, `"Add Nextgen Pagebuilder Block"`). Use quotes if the name contains spaces.
+*   **`[variables...]`:** Positional arguments required by template commands. These map to the template's placeholders (like `{{.ComponentName}}`) in order.
+    *   Example: `ng "add hello" MyNewComponent`
+    *   Check the template source or `list-all` output for clues on required variables.
+*   **`[--flags...]`:** Optional flags (less common for template commands, more for args-based ones like `config set`).
+
+## Getting Help
+
+*   **General Help:**
+    *   **Command:** `ng --help` or `ng -h`
+    *   **Description:** Shows general usage and global flags. Does *not* list all commands.
+*   **Command-Specific Help (for args-based commands):**
+    *   **Command:** `ng <command-name> --help`
+    *   **Description:** Shows detailed help only for commands defined in `app/commands/args` (e.g., `config`, `native-cmd`, `clipboard-paste`).
+    *   **Example:** `ng native-cmd run --help`
