@@ -424,63 +424,11 @@ func BuildAutoPlaceholders(vars map[string]string) map[string]string {
 }
 
 // ----------------------------------------------------------------------------
-// New helper functions to infer variable keys automatically from the JSON
-// template. They scan for placeholders of the form:
-//   {{.PascalCaseVariable}}, {{.CamelCaseVariable}}, etc.
+// File Tree Preview Generation
 // ----------------------------------------------------------------------------
 
-// InferVariableKeys scans the input content and returns a slice of unique
-// variable names (ignoring transformation prefixes).
-func InferVariableKeys(content string) []string {
-	// This regex matches patterns like {{.PascalCaseComponentName}},
-	// {{.CamelCaseComponentName}}, etc. It now also includes "UpperCase".
-	regex := regexp.MustCompile(`{{\.(?:PascalCase|CamelCase|KebabCase|LowerCase|UpperCase)?([A-Za-z0-9_]+)}}`)
-	matches := regex.FindAllStringSubmatch(content, -1)
-	keysSet := make(map[string]struct{})
-	for _, match := range matches {
-		if len(match) > 1 {
-			keysSet[match[1]] = struct{}{}
-		}
-	}
-	var keys []string
-	for key := range keysSet {
-		keys = append(keys, key)
-	}
-	return keys
-}
-
-// GetTemplateVariableKeys loads the JSON template for the given command spec
-// and returns the inferred variable keys.
-func GetTemplateVariableKeys(spec CommandSpec) ([]string, error) {
-	if spec.TemplatePath == "" {
-		// For commands like "paste from clipboard", we don't have an embedded template.
-		// So, try to read the clipboard and infer variable keys from its content.
-		if strings.ToLower(spec.Name) == "paste from clipboard" {
-			clipboardContent, err := clipboard.ReadAll()
-			if err != nil {
-				// Fallback if reading the clipboard fails.
-				return []string{"Filename"}, nil
-			}
-			keys := InferVariableKeys(clipboardContent)
-			if len(keys) == 0 {
-				// If no keys found, return a default key.
-				return []string{"Filename"}, nil
-			}
-			return keys, nil
-		}
-		return nil, nil
-	}
-	data, err := LoadCommandTemplate(spec.TemplatePath)
-	if err != nil {
-		return nil, err
-	}
-	keys := InferVariableKeys(string(data))
-	return keys, nil
-}
-
-// GeneratePreviewFileTree generates a file tree preview (as a string) for the given command.
-// It loads the command's JSON template, applies the provided placeholders, parses the JSON,
-// simulates the file creation (without writing to disk), and then returns a tree view.
+// GeneratePreviewFileTree generates a string representation of the file tree
+// that *would* be created by a given command, without actually writing files.
 func GeneratePreviewFileTree(cmdName string, placeholders map[string]string, projectPath string) (string, error) {
 	// Load command spec.
 	spec := GetCommandSpec(cmdName)

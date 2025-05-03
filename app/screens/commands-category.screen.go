@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project" // Need registry access
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -100,10 +101,10 @@ func ViewScreenCommandsCategory(m app.Model, registry *project.ProjectRegistry) 
 		previewContent = pb.String()
 	case 1: // Native Commands Preview
 		var pb strings.Builder
-		pb.WriteString(app.SubtitleStyle.Render("Native App Commands") + "\n\n")
-		nativeCmdNames := getSortedNativeCommandNames() // Use helper
+		pb.WriteString(app.SubtitleStyle.Render("Built-in Commands") + "\n\n")
+		nativeCmdNames := commands.AllCommandNames()
 		if len(nativeCmdNames) == 0 {
-			pb.WriteString(app.ChoiceStyle.Render("  (No native commands found)"))
+			pb.WriteString(app.ChoiceStyle.Render("  (No built-in commands found)"))
 		} else {
 			limit := 7
 			for i, name := range nativeCmdNames {

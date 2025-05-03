@@ -65,103 +65,48 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 			if value == "" {
 				return m, nil
 			}
-			// Store the given input for the current variable.
 			currentKey := m.VariableKeys[m.CurrentVariableIndex]
 			m.Variables[currentKey] = value
-
-			// Reset TempFilename for the next input.
 			m.TempFilename = ""
 			m.CurrentVariableIndex++
 
-			// Check if all variables have been collected.
 			if m.CurrentVariableIndex >= len(m.VariableKeys) {
-				// Use the first variable as "Main" and the rest as extra variables.
 				mainValue := m.Variables[m.VariableKeys[0]]
 				extraVars := make(map[string]string)
-
-				// Add all variables to extraVars, not just from index 1
 				for i := 0; i < len(m.VariableKeys); i++ {
 					key := m.VariableKeys[i]
 					extraVars[key] = m.Variables[key]
 				}
-
-				// Build placeholders using both main value and all variables
 				placeholders := commands.BuildMultiPlaceholders(mainValue, extraVars)
 
-				// Log placeholders
-				fmt.Printf("DEBUG: Multi-variable placeholderMap for RunCommand: %+v\n", placeholders)
-
-				// Update the current screen to avoid later index-out-of-range in the view.
+				// Set status and screen before returning command
+				m.HistorySaveStatus = fmt.Sprintf("Running command: %s...", m.PendingCommand)
 				m.CurrentScreen = app.ScreenInstallDetails
 
-				// Run the command with the built placeholders.
-				return m, func() tea.Msg {
-					err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholders, registry)
-					return CommandFinishedMsg{Err: err}
-				}
+				// Get the command to run
+				runCmd := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholders, registry)
+				return m, runCmd
+			} else {
+				// Still more variables to collect, update preview for next prompt
+				m = UpdateFilenamePromptPreview(m, registry)
+				return m, cursor.Blink // Return blink for the next input field
 			}
-			// Update live preview for multi-variable mode.
-			{
-				// Copy all current variables
-				tempVars := make(map[string]string)
-				for k, v := range m.Variables {
-					tempVars[k] = v
-				}
-
-				// Add placeholder for current variable being entered
-				if m.CurrentVariableIndex < len(m.VariableKeys) {
-					currentKey := m.VariableKeys[m.CurrentVariableIndex]
-					if strings.TrimSpace(m.TempFilename) == "" {
-						tempVars[currentKey] = currentKey // Use variable name as placeholder
-					} else {
-						tempVars[currentKey] = m.TempFilename
-					}
-				}
-
-				// Create both a main placeholder and extra vars
-				var mainValue string
-				if len(m.VariableKeys) > 0 {
-					if val, ok := tempVars[m.VariableKeys[0]]; ok {
-						mainValue = val
-					} else {
-						mainValue = "Main"
-					}
-				}
-
-				// Build placeholders with all variables
-				placeholders := commands.BuildMultiPlaceholders(mainValue, tempVars)
-
-				// Generate preview
-				if strings.ToLower(m.PendingCommand) == "paste from clipboard" {
-					if preview, err := commands.GeneratePreviewFileTreeFromClipboard(placeholders, m.ProjectPath); err == nil {
-						m.FileTreePreview = preview
-						m.CurrentPreviewType = "file-tree"
-					} else {
-						m.FileTreePreview = fmt.Sprintf("Preview unavailable: %v", err)
-						m.CurrentPreviewType = "none"
-					}
-				} else {
-					if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholders, m.ProjectPath); err == nil {
-						m.FileTreePreview = preview
-						m.CurrentPreviewType = "file-tree"
-					} else {
-						m.FileTreePreview = fmt.Sprintf("Preview unavailable: %v", err)
-						m.CurrentPreviewType = "none"
-					}
-				}
-			}
-			return m, nil
 		case "backspace":
 			if len(m.TempFilename) > 0 {
 				m.TempFilename = m.TempFilename[:len(m.TempFilename)-1]
 			}
+			// Update preview immediately after backspace
+			m = UpdateFilenamePromptPreview(m, registry)
+			return m, cursor.Blink
 		default:
 			// Append single character inputs.
 			if len(keyMsg.String()) == 1 {
 				m.TempFilename += keyMsg.String()
 			}
+			// Update preview immediately after character input
+			m = UpdateFilenamePromptPreview(m, registry)
+			return m, cursor.Blink
 		}
-		return m, nil
 	}
 	// Single variable mode.
 	switch keyMsg.String() {
@@ -182,8 +127,7 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 		}
 
 		// Determine the placeholder map.
-		spec := commands.GetCommandSpec(m.PendingCommand)
-		keys, err := commands.GetTemplateVariableKeys(spec)
+		keys, err := commands.GetCommandVariableKeys(m.PendingCommand, m.ProjectPath, registry)
 		var placeholderMap map[string]string
 		if err == nil && len(keys) > 0 {
 			placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: filename})
@@ -195,84 +139,65 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 			}
 		}
 
-		fmt.Printf("DEBUG: Single variable placeholderMap for RunCommand: %+v\n", placeholderMap)
-
-		// Update live preview using the appropriate helper.
-		if strings.ToLower(m.PendingCommand) == "paste from clipboard" {
-			if preview, err := commands.GeneratePreviewFileTreeFromClipboard(placeholderMap, m.ProjectPath); err == nil {
-				m.FileTreePreview = preview
-				m.CurrentPreviewType = "file-tree"
-			} else {
-				m.FileTreePreview = fmt.Sprintf("Preview unavailable: %v", err)
-				m.CurrentPreviewType = "none"
-			}
-		} else {
-			if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholderMap, m.ProjectPath); err == nil {
-				m.FileTreePreview = preview
-				m.CurrentPreviewType = "file-tree"
-			} else {
-				m.FileTreePreview = fmt.Sprintf("Preview unavailable: %v", err)
-				m.CurrentPreviewType = "none"
-			}
-		}
-
-		// Run the command with the built placeholders.
-		return m, func() tea.Msg {
-			// --- Add/Modify Clipboard Saving Logic Here (Single Var) ---
-			if strings.ToLower(m.PendingCommand) == "paste from clipboard" && filename != "" {
-				if registry != nil {
-					// --- Determine Command Name to Save ---
-					commandNameToSave := filename // Default to user input
-					clipboardContent, readErr := clipboard.ReadAll()
-					if readErr == nil {
-						// --- Corrected JSON Parsing for Title ---
-						type cmdMeta struct {
-							Type  string `json:"_type"` // Expecting "command"
-							Title string `json:"title"`
-						}
-						var extractedMeta cmdMeta
-						if json.Unmarshal([]byte(clipboardContent), &extractedMeta) == nil && extractedMeta.Type == "command" && extractedMeta.Title != "" {
-							commandNameToSave = extractedMeta.Title
-							fmt.Printf("DEBUG: Using title '%s' from clipboard JSON as command name.\n", commandNameToSave)
-						} else {
-							fmt.Printf("DEBUG: Could not extract title (or _type!=command) from clipboard JSON, using user input '%s' as command name.\n", filename)
-						}
-						// --- End Corrected JSON Parsing ---
-					} else {
-						fmt.Printf("Warning: Could not read clipboard to extract title: %v\n", readErr)
+		// --- Handle Clipboard Saving Separately (Before Running Command) ---
+		if strings.ToLower(m.PendingCommand) == "paste from clipboard" && filename != "" {
+			if registry != nil {
+				commandNameToSave := filename // Default
+				clipboardContent, readErr := clipboard.ReadAll()
+				if readErr == nil {
+					type cmdMeta struct {
+						Title string `json:"title"`
+						Type  string `json:"_type"`
 					}
-					// --- End Determine Command Name ---
-
-					if _, exists := registry.ClipboardCommands[commandNameToSave]; !exists {
-						// Ensure we have the clipboard content again (in case reading failed above)
-						if clipboardContent == "" && readErr != nil {
-							clipboardContent, readErr = clipboard.ReadAll()
-						}
-
-						if readErr == nil { // Proceed only if we have content
-							newCmd := project.ClipboardCommandSpec{
-								Name:       commandNameToSave, // Use determined name
-								Template:   clipboardContent,
-								IsFavorite: false,
-								Timestamp:  time.Now().Unix(),
-							}
-							if registry.ClipboardCommands == nil {
-								registry.ClipboardCommands = make(map[string]project.ClipboardCommandSpec)
-							}
-							registry.ClipboardCommands[commandNameToSave] = newCmd // Use determined name as key
-							if saveErr := registry.Save(); saveErr != nil {
-								fmt.Printf("Warning: Failed to save registry after adding clipboard command: %v\n", saveErr)
-							}
-						}
+					var meta cmdMeta
+					if json.Unmarshal([]byte(clipboardContent), &meta) == nil && meta.Type == "command" && meta.Title != "" {
+						commandNameToSave = meta.Title
 					}
 				}
-			}
-			// --- End Clipboard Saving Logic ---
 
-			// Run command using original placeholderMap (based on user input `filename`)
-			err := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholderMap, registry)
-			return CommandFinishedMsg{Err: err}
+				if _, exists := registry.ClipboardCommands[commandNameToSave]; !exists {
+					clipboardContentToSave := clipboardContent // Use content read above if possible
+					if clipboardContentToSave == "" && readErr != nil {
+						clipboardContentToSave, _ = clipboard.ReadAll() // Try reading again
+					}
+					if clipboardContentToSave != "" {
+						newSpec := project.ClipboardCommandSpec{
+							Name:      commandNameToSave,
+							Template:  string(clipboardContentToSave),
+							Timestamp: time.Now().Unix(),
+						}
+						if registry.ClipboardCommands == nil {
+							registry.ClipboardCommands = make(map[string]project.ClipboardCommandSpec)
+						}
+						registry.ClipboardCommands[commandNameToSave] = newSpec
+						if saveErr := registry.Save(); saveErr != nil {
+							// Don't return error yet, proceed to run command, maybe set status
+							m.HistorySaveStatus = fmt.Sprintf("Warning: Failed to save clipboard command: %v", saveErr)
+						} else {
+							// Set status, but proceed to run
+							m.HistorySaveStatus = fmt.Sprintf("Saved clipboard as command: %s", commandNameToSave)
+						}
+					} else {
+						// Failed to read clipboard for saving
+						m.HistorySaveStatus = "Warning: Could not read clipboard to save command."
+					}
+				} else {
+					// Command name already exists
+					m.HistorySaveStatus = fmt.Sprintf("Warning: Command '%s' already exists in clipboard, not saved.", commandNameToSave)
+				}
+			}
 		}
+		// --- End Clipboard Saving ---
+
+		// Set status and screen before returning command
+		if m.HistorySaveStatus == "" { // Don't overwrite clipboard save status unless empty
+			m.HistorySaveStatus = fmt.Sprintf("Running command: %s...", m.PendingCommand)
+		}
+		m.CurrentScreen = app.ScreenInstallDetails
+
+		// Get the command to run
+		runCmd := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholderMap, registry)
+		return m, runCmd
 	}
 	// If the key is a single character (and not one of our reserved navigation keys),
 	// then append it to the input. This lets you use letters (or digits, etc.) for the input.
@@ -282,25 +207,14 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 		m.TempFilename = m.TempFilename[:len(m.TempFilename)-1]
 	}
 
-	// --- Regenerate preview after input change ---
-	// Generate preview or update if needed.
-	if !m.MultipleVariables {
-		// Regenerate preview only if it's currently empty or stale, or input changed
-		// (We'll call it on every relevant keypress for simplicity here)
-		m = updateFilenamePromptPreview(m)
-	} else if m.MultipleVariables {
-		// Regenerate preview only if it's currently empty or stale, or input changed
-		// (We'll call it on every relevant keypress for simplicity here)
-		m = updateFilenamePromptPreview(m)
-	}
-	// --- End Preview Update ---
+	// Regenerate preview after input change in single-var mode
+	m = UpdateFilenamePromptPreview(m, registry)
 
-	// Return model, no specific command needed here as View handles blink
-	return m, nil
+	return m, cursor.Blink // Return blink for single-var mode input
 }
 
 // ViewFilenamePrompt displays the proper prompt based on the current mode.
-func ViewFilenamePrompt(m app.Model) string {
+func ViewFilenamePrompt(m app.Model, registry *project.ProjectRegistry) string {
 	// Define a cursor style and determine whether to show the input cursor
 	cursorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	inputCursor := ""
@@ -358,8 +272,7 @@ func ViewFilenamePrompt(m app.Model) string {
 		// Default input (used when no input is provided)
 		input := "Filename"
 		// Retrieve the command spec and variable keys.
-		spec := commands.GetCommandSpec(m.PendingCommand)
-		keys, err := commands.GetTemplateVariableKeys(spec)
+		keys, err := commands.GetCommandVariableKeys(m.PendingCommand, m.ProjectPath, registry)
 		var placeholderMap map[string]string
 		if err == nil && len(keys) > 0 {
 			placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: input})
@@ -397,13 +310,25 @@ func ViewFilenamePrompt(m app.Model) string {
 	)
 }
 
-// updateFilenamePromptPreview generates the file tree preview for the filename prompt screen.
-func updateFilenamePromptPreview(m app.Model) app.Model {
+// UpdateFilenamePromptPreview generates the file tree preview for the filename prompt screen.
+func UpdateFilenamePromptPreview(m app.Model, registry *project.ProjectRegistry) app.Model {
 	var placeholderMap map[string]string
+
+	// Determine the correct keys first using the new function
+	// We need registry here, so add it to function signature
+	keys, err := commands.GetCommandVariableKeys(m.PendingCommand, m.ProjectPath, registry)
+	if err != nil {
+		// Handle error getting keys, maybe set preview to error message?
+		m.FileTreePreview = fmt.Sprintf("Error getting keys for preview: %v", err)
+		m.CurrentPreviewType = "none"
+		return m
+	}
+
 	if m.MultipleVariables {
 		// Build placeholders from the current state of variables
 		placeholders := make(map[string]string)
-		for i, key := range m.VariableKeys {
+		// Use the 'keys' obtained from GetCommandVariableKeys
+		for i, key := range keys {
 			if val, ok := m.Variables[key]; ok && val != "" {
 				placeholders[key] = val
 			} else if i == m.CurrentVariableIndex && m.TempFilename != "" {
@@ -415,10 +340,9 @@ func updateFilenamePromptPreview(m app.Model) app.Model {
 		placeholderMap = commands.BuildPlaceholders(placeholders)
 	} else {
 		// Single variable mode
-		variableName := "Value"
-		spec := commands.GetCommandSpec(m.PendingCommand)
-		keys, err := commands.GetTemplateVariableKeys(spec)
-		if err == nil && len(keys) > 0 {
+		variableName := "Value" // Default if no keys found
+		// Use the 'keys' obtained from GetCommandVariableKeys
+		if len(keys) > 0 {
 			variableName = keys[0]
 		}
 		placeholders := map[string]string{variableName: m.TempFilename}
@@ -430,21 +354,20 @@ func updateFilenamePromptPreview(m app.Model) app.Model {
 
 	// --- Generate preview using the correct function ---
 	var pv string
-	var err error
+	var previewErr error
 	if strings.ToLower(m.PendingCommand) == "paste from clipboard" {
-		pv, err = commands.GeneratePreviewFileTreeFromClipboard(placeholderMap, m.ProjectPath)
+		pv, previewErr = commands.GeneratePreviewFileTreeFromClipboard(placeholderMap, m.ProjectPath)
 	} else {
-		pv, err = commands.GeneratePreviewFileTree(m.PendingCommand, placeholderMap, m.ProjectPath)
+		pv, previewErr = commands.GeneratePreviewFileTree(m.PendingCommand, placeholderMap, m.ProjectPath)
 	}
 	// --- End preview generation ---
 
-	if err == nil && strings.TrimSpace(pv) != "" {
+	if previewErr == nil && strings.TrimSpace(pv) != "" {
 		m.FileTreePreview = pv
 		m.CurrentPreviewType = "file-tree"
 	} else {
 		m.FileTreePreview = ""
 		m.CurrentPreviewType = "none"
-		// Optional: Log error if needed: fmt.Printf("Preview error: %v\n", err)
 	}
 
 	return m

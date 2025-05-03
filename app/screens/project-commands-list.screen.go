@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
@@ -15,20 +14,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
-
-// Helper function to append to a debug log file (Copied here for locality)
-func writeDebugLog(message string) {
-	f, err := os.OpenFile("debug_actions.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error opening debug log: %v\n", err)
-		return
-	}
-	defer f.Close()
-	timestamp := time.Now().Format(time.RFC3339)
-	if _, err := f.WriteString(fmt.Sprintf("%s - %s\n", timestamp, message)); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing to debug log: %v\n", err)
-	}
-}
 
 // Helper to get sorted project command names from the .nextgen/local-commands directory
 func getSortedProjectCommandNames(projectPath string) ([]string, error) {
@@ -179,16 +164,6 @@ func UpdateScreenProjectCommandsList(m app.Model, msg tea.KeyMsg, registry *proj
 			m.ProjectCommandsListIndex = 0
 			return m, nil
 		} else if realIndex < totalCmds { // Check against total commands
-			// --- Add Debug Logging Here (BEFORE potential crash) ---
-			writeDebugLog(fmt.Sprintf("Enter pressed on Project Command List. isBackSelected: %t, realIndex: %d, totalCmds: %d", isBackSelected, realIndex, totalCmds))
-			writeDebugLog(fmt.Sprintf("  projectCmdNames length: %d", len(projectCmdNames)))
-			if realIndex < len(projectCmdNames) {
-				writeDebugLog(fmt.Sprintf("  Attempting to access projectCmdNames[%d] = '%s'", realIndex, projectCmdNames[realIndex]))
-			} else {
-				writeDebugLog(fmt.Sprintf("  ERROR: realIndex %d is out of bounds for projectCmdNames (len %d)", realIndex, len(projectCmdNames)))
-			}
-			// --- End Debug Logging ---
-
 			cmdName := projectCmdNames[realIndex] // Potential crash point
 
 			m.SelectedProjectCommand = cmdName
@@ -209,17 +184,13 @@ func UpdateScreenProjectCommandsList(m app.Model, msg tea.KeyMsg, registry *proj
 
 // ViewScreenProjectCommandsList renders the list of locally saved project commands.
 func ViewScreenProjectCommandsList(m app.Model, registry *project.ProjectRegistry) string {
-	fmt.Printf("DEBUG: Entering ViewScreenProjectCommandsList for path: %s\n", m.ProjectPath)
 	header := app.TitleStyle.Render("Project Commands (.nextgen/local-commands)") + "\n"
 
 	projectCmdNames, err := getSortedProjectCommandNames(m.ProjectPath)
 	if err != nil {
-		fmt.Printf("DEBUG: Error getting project commands: %v\n", err) // Log error
 		finalView := lipgloss.JoinVertical(lipgloss.Left, header, app.ChoiceStyle.Render(fmt.Sprintf("Error reading commands: %v", err)))
-		fmt.Printf("DEBUG: Returning error view: %s\n", finalView)
 		return finalView
 	}
-	fmt.Printf("DEBUG: Found project commands: %v\n", projectCmdNames) // Log found commands
 	totalCmds := len(projectCmdNames)
 
 	// --- Get paginated items ---
@@ -296,6 +267,5 @@ func ViewScreenProjectCommandsList(m app.Model, registry *project.ProjectRegistr
 
 	// Combine list, paginator, footer
 	finalView := lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", paginatorView, "\n", footer)
-	fmt.Printf("DEBUG: Returning final view (length: %d)\n", len(finalView))
 	return finalView
 }

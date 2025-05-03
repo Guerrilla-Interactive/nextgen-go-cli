@@ -5,14 +5,19 @@ import (
 	"strings"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
+// Helper function executeNativeCommand is no longer needed for this screen's purpose
+// func executeNativeCommand(...) { ... }
+
 // UpdateScreenNativeActions handles navigation for the native command actions.
 func UpdateScreenNativeActions(m app.Model, msg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
-	actions := []string{"Toggle Favorite", "Back"} // Only Favorite and Back for native commands
+	actions := []string{"Run", "Back"} // Actions for built-in commands
 	numOptions := len(actions)
 
 	switch msg.String() {
@@ -26,30 +31,42 @@ func UpdateScreenNativeActions(m app.Model, msg tea.KeyMsg, registry *project.Pr
 		m.NativeActionIndex = (m.NativeActionIndex + 1) % numOptions
 
 	case "enter":
+		if m.NativeActionIndex < 0 || m.NativeActionIndex >= numOptions {
+			return m, nil
+		}
 		selectedAction := actions[m.NativeActionIndex]
-		cmdName := m.SelectedNativeCommand
+		cmdName := m.SelectedNativeCommand // This is a built-in command name
 
 		switch selectedAction {
-		case "Toggle Favorite":
-			if registry != nil {
-				if registry.FavoriteNativeCommands == nil {
-					registry.FavoriteNativeCommands = make(map[string]bool)
-				}
-				// Toggle the favorite status
-				if _, isFav := registry.FavoriteNativeCommands[cmdName]; isFav {
-					delete(registry.FavoriteNativeCommands, cmdName)
-				} else {
-					registry.FavoriteNativeCommands[cmdName] = true
-				}
-				// Save the registry
-				if err := registry.Save(); err != nil {
-					fmt.Printf("Warning: Failed to save registry after toggling native favorite: %v\n", err)
-				}
-				// Go back to the list immediately after toggling
-				m.CurrentScreen = app.ScreenNativeList
-				m.NativeActionIndex = 0 // Reset action index
+		case "Run":
+			// Check if the built-in command requires variables
+			keys, err := commands.GetCommandVariableKeys(cmdName, m.ProjectPath, registry)
+			if err != nil {
+				m.HistorySaveStatus = fmt.Sprintf("Error preparing command '%s': %v", cmdName, err)
 				return m, nil
 			}
+
+			if len(keys) > 0 {
+				// Command requires variables, go to prompt screen
+				m.PendingCommand = cmdName
+				m.MultipleVariables = len(keys) > 1
+				m.VariableKeys = keys
+				m.CurrentVariableIndex = 0
+				m.Variables = make(map[string]string)
+				m.TempFilename = ""
+				m.CurrentScreen = app.ScreenFilenamePrompt
+				m.PromptOptionFocused = false // Ensure input is focused
+				// Regenerate preview for the prompt screen
+				m = UpdateFilenamePromptPreview(m, registry) // Call exported function
+				return m, cursor.Blink                       // Start cursor blinking
+			} else {
+				// No variables needed, run directly using RunCommand
+				m.HistorySaveStatus = fmt.Sprintf("Attempting to run: %s", cmdName)
+				placeholders := make(map[string]string) // Empty placeholders
+				runCmd := commands.RunCommand(cmdName, m.ProjectPath, placeholders, registry)
+				return m, runCmd
+			}
+
 		case "Back":
 			m.CurrentScreen = app.ScreenNativeList
 			m.NativeActionIndex = 0
@@ -69,14 +86,8 @@ func UpdateScreenNativeActions(m app.Model, msg tea.KeyMsg, registry *project.Pr
 func ViewScreenNativeActions(m app.Model, registry *project.ProjectRegistry) string {
 	header := app.TitleStyle.Render(fmt.Sprintf("Actions for: %s", m.SelectedNativeCommand)) + "\n"
 
-	// Determine favorite status for display
-	favText := "Mark Favorite"
-	if registry != nil && registry.FavoriteNativeCommands != nil {
-		if _, isFav := registry.FavoriteNativeCommands[m.SelectedNativeCommand]; isFav {
-			favText = "Unmark Favorite"
-		}
-	}
-	actions := []string{favText, "Back"}
+	// Removed favorite logic
+	actions := []string{"Run", "Back"}
 
 	var listBuilder strings.Builder
 	listBuilder.WriteString(app.SubtitleStyle.Render("Select Action:") + "\n\n")
@@ -91,7 +102,13 @@ func ViewScreenNativeActions(m app.Model, registry *project.ProjectRegistry) str
 
 	listPanel := lipgloss.NewStyle().Padding(1, 2).Render(listBuilder.String())
 
+	// Show status message if any
+	status := ""
+	if m.HistorySaveStatus != "" {
+		status = app.ChoiceStyle.Render(m.HistorySaveStatus)
+	}
+
 	footer := app.HelpStyle.Render("Use ↑/↓ to navigate, Enter to select, Esc/b to go back.")
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, listPanel, "\n", footer)
+	return lipgloss.JoinVertical(lipgloss.Left, header, listPanel, status, "\n", footer)
 }

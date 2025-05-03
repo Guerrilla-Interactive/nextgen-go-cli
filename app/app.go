@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/charmbracelet/bubbles/paginator"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -102,10 +103,22 @@ type Model struct {
 
 	// --- Data & Other State ---
 	SelectedClipboardCommand string
-	ClipboardRenameInput     string
+	ClipboardRenameInput     textinput.Model
 	SelectedNativeCommand    string
 	SelectedProjectCommand   string
 	ProjectCommandPreview    string
+}
+
+// --- Custom Message Types ---
+
+// ErrorMsg signals an error occurred, potentially during an external command.
+type ErrorMsg struct {
+	Err error
+}
+
+// SuccessMsg signals a successful operation, potentially from an external command.
+type SuccessMsg struct {
+	Message string
 }
 
 // Example styles (keep or remove as you prefer).

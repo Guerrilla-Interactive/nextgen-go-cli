@@ -6,15 +6,17 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Guerrilla-Interactive/nextgen-go-cli/app" // For ToKebabCase
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"          // For ToKebabCase
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands" // Import commands package
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // UpdateScreenProjectCommandActions handles navigation for the project command actions.
 func UpdateScreenProjectCommandActions(m app.Model, msg tea.Msg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
-	actions := []string{"Toggle Favorite", "Delete", "Back"}
+	actions := []string{"Run", "Toggle Favorite", "Delete", "Back"}
 	numOptions := len(actions)
 
 	switch msg := msg.(type) { // Use type switch on the message
@@ -40,6 +42,35 @@ func UpdateScreenProjectCommandActions(m app.Model, msg tea.Msg, registry *proje
 			cmdName := m.SelectedProjectCommand // This is the base name (e.g., hello-world)
 
 			switch selectedAction {
+			case "Run":
+				// Check if the command requires variables
+				keys, err := commands.GetCommandVariableKeys(cmdName, m.ProjectPath, registry)
+				if err != nil {
+					// Handle error checking keys
+					m.HistorySaveStatus = fmt.Sprintf("Error preparing command '%s': %v", cmdName, err)
+					return m, nil
+				}
+
+				if len(keys) > 0 {
+					// Command requires variables, go to prompt screen
+					m.PendingCommand = cmdName
+					m.MultipleVariables = len(keys) > 1
+					m.VariableKeys = keys
+					m.CurrentVariableIndex = 0
+					m.Variables = make(map[string]string)
+					m.TempFilename = ""
+					m.CurrentScreen = app.ScreenFilenamePrompt
+					m.PromptOptionFocused = false // Ensure input is focused
+					// Regenerate preview for the prompt screen
+					m = UpdateFilenamePromptPreview(m, registry) // Remove screens. prefix
+					return m, cursor.Blink                       // Start cursor blinking
+				} else {
+					// No variables needed, run directly
+					m.HistorySaveStatus = fmt.Sprintf("Attempting to run project command: %s", cmdName)
+					placeholders := make(map[string]string) // Empty placeholders
+					runCmd := commands.RunCommand(cmdName, m.ProjectPath, placeholders, registry)
+					return m, runCmd
+				}
 			case "Toggle Favorite":
 				if registry != nil {
 					if registry.FavoriteProjectCommands == nil {
@@ -51,7 +82,7 @@ func UpdateScreenProjectCommandActions(m app.Model, msg tea.Msg, registry *proje
 						registry.FavoriteProjectCommands[cmdName] = true
 					}
 					if err := registry.Save(); err != nil {
-						fmt.Printf("Warning: Failed to save registry after toggling project favorite: %v\n", err)
+						m.HistorySaveStatus = fmt.Sprintf("Warning: Failed to save registry: %v", err)
 					}
 					m.CurrentScreen = app.ScreenProjectCommandsList
 					m.ProjectCommandActionIndex = 0
@@ -110,7 +141,7 @@ func ViewScreenProjectCommandActions(m app.Model, registry *project.ProjectRegis
 			favText = "Unmark Favorite"
 		}
 	}
-	actions := []string{favText, "Delete", "Back"}
+	actions := []string{"Run", favText, "Delete", "Back"}
 
 	var listBuilder strings.Builder
 	listBuilder.WriteString(app.SubtitleStyle.Render("Select Action:") + "\n\n")
@@ -125,7 +156,13 @@ func ViewScreenProjectCommandActions(m app.Model, registry *project.ProjectRegis
 
 	listPanel := lipgloss.NewStyle().Padding(1, 2).Render(listBuilder.String())
 
+	// Show status message if any
+	status := ""
+	if m.HistorySaveStatus != "" {
+		status = app.ChoiceStyle.Render(m.HistorySaveStatus)
+	}
+
 	footer := app.HelpStyle.Render("Use ↑/↓ to navigate, Enter to select, Esc/b to go back.")
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, listPanel, "\n", footer)
+	return lipgloss.JoinVertical(lipgloss.Left, header, listPanel, status, "\n", footer)
 }

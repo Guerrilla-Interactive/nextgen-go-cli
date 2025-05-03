@@ -2,15 +2,20 @@ package commands
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
 	"github.com/atotto/clipboard"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Use *.json to embed JSON files in the same directory (non-recursively).
@@ -22,6 +27,10 @@ var commandFiles embed.FS
 
 // A registry to hold recognized JSON templates in memory
 var templateRegistry = map[string][]byte{}
+
+// Regex to find placeholders like {{.VarName}}, {{.PascalCaseVarName}}, etc.
+// Captures the full identifier after the dot.
+var placeholderRegex = regexp.MustCompile(`{{\s*\.\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*}}`)
 
 func init() {
 	// Walk the embedded FS and store each .json file in our registry map
@@ -155,96 +164,258 @@ func TemplatePathFor(cmdName string) (string, bool) {
 	return "", false
 }
 
-// RunCommand executes the command defined by the JSON template or clipboard.
-func RunCommand(cmdName, projectPath string, placeholders map[string]string, registry *project.ProjectRegistry) error {
-	// Reset CreatedFiles and EditedIndexers for this run.
-	CreatedFiles = []string{}
-	EditedIndexers = make(map[string]bool)
+// InferVariableKeys scans content for placeholders like {{.VarName}}
+// and returns a unique, sorted list of the base variable names found.
+func InferVariableKeys(content string) []string {
+	matches := placeholderRegex.FindAllStringSubmatch(content, -1)
+	keys := make(map[string]bool)
 
-	var jsonBytes []byte
-	var err error
-	var executionSource string // To know if it came from clipboard or file
+	// Known prefixes to strip
+	prefixes := []string{"PascalCase", "CamelCase", "KebabCase", "LowerCase", "UpperCase"}
 
-	// --- Handle Clipboard Paste FIRST ---
-	if strings.ToLower(cmdName) == "paste from clipboard" {
-		clipboardContent, readErr := clipboard.ReadAll()
-		if readErr != nil {
-			return fmt.Errorf("failed to read clipboard: %w", readErr)
-		}
-		// Apply placeholders to the clipboard content *before* trying to execute
-		templateData := replacePlaceholders(string(clipboardContent), placeholders)
-		jsonBytes = []byte(templateData)
-		executionSource = "clipboard"
-	} else {
-		// --- Handle Regular Commands ---
-		spec := GetCommandSpec(cmdName)
-		if spec.TemplatePath == "" {
-			// Allow saving clipboard under a name even if template path is technically empty
-			// But return error if trying to run a non-clipboard command without a path
-			return fmt.Errorf("command '%s' not found or has no template path", cmdName)
-		}
-		// Read the template content from embedded FS.
-		jsonBytes, err = commandFiles.ReadFile(spec.TemplatePath)
-		if err != nil {
-			return fmt.Errorf("error reading embedded template %s: %w", spec.TemplatePath, err)
-		}
-		executionSource = fmt.Sprintf("template %s", spec.TemplatePath)
-	}
-
-	// Execute the template logic (creates/modifies files).
-	err = ExecuteJSONTemplateFromMemory(jsonBytes, projectPath, placeholders)
-	if err != nil {
-		// Record history even on execution error
-	}
-
-	// --- Record Command History (Common Logic) ---
-	fmt.Printf("DEBUG: RunCommand executed (%s), received placeholders: %+v\n", executionSource, placeholders)
-	if registry != nil && projectPath != "" {
-		if projectInfo, found := registry.GetProject(projectPath); found {
-			// Use the original cmdName for history, not "paste from clipboard"
-			// If it was clipboard, the *user-provided name* is stored in placeholders
-			recordName := cmdName
-			if strings.ToLower(cmdName) == "paste from clipboard" {
-				// Attempt to find the user-given name from placeholders
-				// This relies on the prompt screen sending the name correctly
-				if name, ok := placeholders["{{.Name}}"]; ok {
-					recordName = name
-				} else if name, ok := placeholders["{{.Filename}}"]; ok { // Fallback for single var clipboard
-					recordName = name
+	for _, match := range matches {
+		if len(match) > 1 {
+			fullIdentifier := match[1]
+			baseName := fullIdentifier
+			// Attempt to strip known prefixes
+			for _, prefix := range prefixes {
+				if strings.HasPrefix(baseName, prefix) {
+					// Ensure the part after the prefix starts with an uppercase letter
+					// or that the prefix matches the whole identifier (e.g. {{.Name}} vs {{.PascalCaseName}})
+					suffix := baseName[len(prefix):]
+					if len(suffix) > 0 && (suffix[0] >= 'A' && suffix[0] <= 'Z') {
+						baseName = suffix
+						break // Found prefix, stop checking
+					} else if len(suffix) == 0 { // Handle cases like {{.PascalCase}} where prefix IS the name
+						// Keep baseName as the prefix itself in this case
+						break
+					}
 				}
 			}
+			keys[baseName] = true // Add the derived base name
+		}
+	}
 
-			historicCmd := project.HistoricCommand{
-				Name:           recordName, // Use original or user-provided name
-				Variables:      placeholders,
-				Timestamp:      time.Now().Unix(),
-				GeneratedFiles: append([]string{}, CreatedFiles...), // Copy slice
+	var uniqueKeys []string
+	for k := range keys {
+		uniqueKeys = append(uniqueKeys, k)
+	}
+	return uniqueKeys
+}
+
+// getTemplateVariableKeysFromBytes parses template bytes and infers variable keys.
+func getTemplateVariableKeysFromBytes(templateBytes []byte) ([]string, error) {
+	var genericData interface{}
+	if err := json.Unmarshal(templateBytes, &genericData); err != nil {
+		return nil, fmt.Errorf("failed to parse generic template JSON: %w", err)
+	}
+
+	allKeys := make(map[string]bool)
+
+	// Recursive function to traverse the parsed JSON data
+	var traverse func(data interface{})
+	traverse = func(data interface{}) {
+		switch value := data.(type) {
+		case map[string]interface{}:
+			// If it's a map, iterate through its key-value pairs
+			for key, v := range value {
+				// If the key is "name" or "code" and the value is a string, infer keys
+				if key == "name" || key == "code" {
+					if strVal, ok := v.(string); ok {
+						for _, inferredKey := range InferVariableKeys(strVal) {
+							allKeys[inferredKey] = true
+						}
+					}
+				}
+				// Recursively traverse the value
+				traverse(v)
 			}
-			if projectInfo.CommandHistory == nil {
-				projectInfo.CommandHistory = []project.HistoricCommand{}
+		case []interface{}:
+			// If it's a slice, iterate through its elements and traverse recursively
+			for _, item := range value {
+				traverse(item)
 			}
-			projectInfo.CommandHistory = append(projectInfo.CommandHistory, historicCmd)
-			// Limit history size
-			if len(projectInfo.CommandHistory) > 20 { // Use a constant later?
-				projectInfo.CommandHistory = projectInfo.CommandHistory[len(projectInfo.CommandHistory)-20:]
+			// Ignore other types (string, number, bool, nil)
+		}
+	}
+
+	// Start traversal from the root of the parsed data
+	traverse(genericData)
+
+	// Convert map keys to slice
+	finalKeys := make([]string, 0, len(allKeys))
+	for k := range allKeys {
+		finalKeys = append(finalKeys, k)
+	}
+	return finalKeys, nil
+}
+
+// GetCommandVariableKeys checks command sources and returns required variable keys.
+func GetCommandVariableKeys(cmdName, projectPath string, registry *project.ProjectRegistry) ([]string, error) {
+	var jsonBytes []byte
+	lowerCmdName := strings.ToLower(cmdName)
+
+	if lowerCmdName == "paste from clipboard" {
+		clipboardContent, readErr := clipboard.ReadAll()
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to read clipboard: %w", readErr)
+		}
+		jsonBytes = []byte(clipboardContent)
+	} else if registry != nil && registry.ClipboardCommands != nil {
+		if cmdSpec, found := registry.ClipboardCommands[cmdName]; found {
+			jsonBytes = []byte(cmdSpec.Template)
+		}
+	}
+
+	if jsonBytes == nil && projectPath != "" {
+		localCmdPath := filepath.Join(projectPath, ".nextgen", "local-commands", cmdName+".json")
+		if _, statErr := os.Stat(localCmdPath); statErr == nil {
+			fileBytes, readErr := os.ReadFile(localCmdPath)
+			if readErr != nil {
+				return nil, fmt.Errorf("error reading project command file %s: %w", localCmdPath, readErr)
 			}
-			registry.AddOrUpdateProject(projectInfo) // Update registry (also updates usage count)
-			if saveErr := registry.Save(); saveErr != nil {
-				// Log non-fatal error
-				fmt.Printf("Warning: Failed to save project registry after executing command '%s': %v\n", cmdName, saveErr)
+			jsonBytes = fileBytes
+		} else if !os.IsNotExist(statErr) {
+			return nil, fmt.Errorf("error checking project command file %s: %w", localCmdPath, statErr)
+		}
+	}
+
+	if jsonBytes == nil {
+		spec := GetCommandSpec(cmdName)
+		if spec.TemplatePath != "" {
+			embeddedBytes, readErr := commandFiles.ReadFile(spec.TemplatePath)
+			if readErr != nil {
+				return nil, fmt.Errorf("error reading embedded template %s: %w", spec.TemplatePath, readErr)
+			}
+			jsonBytes = embeddedBytes
+		}
+	}
+
+	if jsonBytes == nil {
+		// If still no bytes, command doesn't exist or has no template
+		// For commands without templates (like native ones), return empty list, no error.
+		return []string{}, nil
+	}
+
+	// Now parse the found bytes
+	keys, err := getTemplateVariableKeysFromBytes(jsonBytes)
+	if err != nil {
+		return nil, err // Propagate parsing error
+	}
+
+	return keys, nil
+}
+
+// RunCommand prepares a tea.Cmd to execute the command defined by a template.
+// It looks for the command source in Clipboard -> Project Files -> Built-in.
+// TODO: Add mechanism to detect required variables and prompt the user.
+func RunCommand(cmdName, projectPath string, placeholders map[string]string, registry *project.ProjectRegistry) tea.Cmd {
+	// Return a function that encapsulates the command execution logic.
+	return func() tea.Msg {
+		// Reset CreatedFiles and EditedIndexers for this run.
+		CreatedFiles = []string{}
+		EditedIndexers = make(map[string]bool)
+
+		var jsonBytes []byte
+		var executionSource string // To know if it came from clipboard or file
+
+		// --- Determine Command Source and Load Template ---
+		lowerCmdName := strings.ToLower(cmdName)
+
+		if lowerCmdName == "paste from clipboard" {
+			clipboardContent, readErr := clipboard.ReadAll()
+			if readErr != nil {
+				return app.ErrorMsg{Err: fmt.Errorf("failed to read clipboard: %w", readErr)}
+			}
+			templateData := replacePlaceholders(string(clipboardContent), placeholders)
+			jsonBytes = []byte(templateData)
+			executionSource = "clipboard"
+		} else if registry != nil && registry.ClipboardCommands != nil {
+			// 1. Check Clipboard Registry
+			if cmdSpec, found := registry.ClipboardCommands[cmdName]; found {
+				jsonBytes = []byte(cmdSpec.Template)
+				executionSource = fmt.Sprintf("clipboard command '%s'", cmdName)
+			}
+		}
+
+		// 2. Check Local Project Commands (if not found in clipboard)
+		if jsonBytes == nil && projectPath != "" {
+			localCmdPath := filepath.Join(projectPath, ".nextgen", "local-commands", cmdName+".json")
+			if _, statErr := os.Stat(localCmdPath); statErr == nil {
+				// File exists, try to read it
+				fileBytes, readErr := os.ReadFile(localCmdPath)
+				if readErr == nil {
+					jsonBytes = fileBytes
+					executionSource = fmt.Sprintf("project command file %s", cmdName+".json")
+				} else {
+					// File exists but couldn't read
+					return app.ErrorMsg{Err: fmt.Errorf("error reading project command file %s: %w", localCmdPath, readErr)}
+				}
+			} else if !os.IsNotExist(statErr) {
+				// Error checking file existence (other than not existing)
+				return app.ErrorMsg{Err: fmt.Errorf("error checking project command file %s: %w", localCmdPath, statErr)}
+			}
+		}
+
+		// 3. Check Built-in Commands (if not found elsewhere)
+		if jsonBytes == nil {
+			spec := GetCommandSpec(cmdName)
+			if spec.TemplatePath != "" {
+				embeddedBytes, readErr := commandFiles.ReadFile(spec.TemplatePath)
+				if readErr == nil {
+					jsonBytes = embeddedBytes
+					executionSource = fmt.Sprintf("built-in template %s", spec.TemplatePath)
+				} else {
+					return app.ErrorMsg{Err: fmt.Errorf("error reading embedded template %s: %w", spec.TemplatePath, readErr)}
+				}
+			}
+		}
+
+		// Check if template was loaded
+		if jsonBytes == nil {
+			return app.ErrorMsg{Err: fmt.Errorf("command '%s' not found or template unavailable", cmdName)}
+		}
+
+		// --- Execute Template Logic ---
+		execErr := ExecuteJSONTemplateFromMemory(jsonBytes, projectPath, placeholders)
+		// Record history regardless of execution error
+
+		// --- Record Command History (Common Logic) ---
+		if registry != nil && projectPath != "" {
+			if projectInfo, found := registry.GetProject(projectPath); found {
+				// Use the original cmdName for history
+				historicCmd := project.HistoricCommand{
+					Name:           cmdName,
+					Variables:      placeholders,
+					Timestamp:      time.Now().Unix(),
+					GeneratedFiles: append([]string{}, CreatedFiles...),
+				}
+				if projectInfo.CommandHistory == nil {
+					projectInfo.CommandHistory = []project.HistoricCommand{}
+				}
+				projectInfo.CommandHistory = append(projectInfo.CommandHistory, historicCmd)
+				// Limit history size
+				if len(projectInfo.CommandHistory) > 20 {
+					projectInfo.CommandHistory = projectInfo.CommandHistory[len(projectInfo.CommandHistory)-20:]
+				}
+				registry.AddOrUpdateProject(projectInfo)
+				if saveErr := registry.Save(); saveErr != nil {
+					fmt.Printf("Warning: Failed to save project registry after executing command '%s': %v\n", cmdName, saveErr)
+				}
+			} else {
+				fmt.Printf("Warning: Project '%s' not found in registry, cannot record history.\n", projectPath)
 			}
 		} else {
-			fmt.Printf("Warning: Project '%s' not found in registry, cannot record history.\n", projectPath)
+			fmt.Println("Warning: Registry or ProjectPath unavailable, cannot record history.")
 		}
-	} else {
-		fmt.Println("Warning: Registry or ProjectPath unavailable, cannot record history.")
-	}
-	// --- End History Recording ---
+		// --- End History Recording ---
 
-	// Return the original execution error, if any
-	if err != nil {
-		return fmt.Errorf("error executing template for command '%s' from %s: %w", cmdName, executionSource, err)
-	}
+		// Return result message
+		if execErr != nil {
+			return app.ErrorMsg{Err: fmt.Errorf("error executing template for command '%s' from %s: %w", cmdName, executionSource, execErr)}
+		}
 
-	return nil
+		// Success!
+		return app.SuccessMsg{Message: fmt.Sprintf("Command '%s' executed successfully from %s.", cmdName, executionSource)}
+	}
 }

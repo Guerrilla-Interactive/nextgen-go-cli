@@ -8,6 +8,7 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -225,7 +226,7 @@ func renderItemList(items []string, m app.Model, offset int) string {
 
 // requiresMultipleVars checks whether the command requires multiple variable inputs.
 // It loads the command's JSON template and infers variable keys automatically.
-func requiresMultipleVars(cmdName string) bool {
+func requiresMultipleVars(cmdName, projectPath string, registry *project.ProjectRegistry) bool {
 	// Special handling for clipboard paste command
 	if strings.ToLower(cmdName) == "paste from clipboard" {
 		keys, err := commands.ExtractVariablesFromClipboard()
@@ -235,12 +236,8 @@ func requiresMultipleVars(cmdName string) bool {
 		return len(keys) > 1
 	}
 
-	// Regular template handling (existing code)
-	spec := commands.GetCommandSpec(cmdName)
-	if spec.TemplatePath == "" {
-		return false
-	}
-	keys, err := commands.GetTemplateVariableKeys(spec)
+	// Use new function to get keys
+	keys, err := commands.GetCommandVariableKeys(cmdName, projectPath, registry)
 	if err != nil {
 		// On error we assume no extra variables are required.
 		return false
@@ -250,7 +247,7 @@ func requiresMultipleVars(cmdName string) bool {
 }
 
 // extractVariableKeys returns the list of variable keys inferred from the command's JSON template.
-func extractVariableKeys(cmdName string) []string {
+func extractVariableKeys(cmdName, projectPath string, registry *project.ProjectRegistry) []string {
 	// Special handling for clipboard paste command
 	if strings.ToLower(cmdName) == "paste from clipboard" {
 		keys, err := commands.ExtractVariablesFromClipboard()
@@ -260,63 +257,70 @@ func extractVariableKeys(cmdName string) []string {
 		return keys
 	}
 
-	// Regular template handling (existing code)
-	spec := commands.GetCommandSpec(cmdName)
-	if spec.TemplatePath == "" {
-		return nil
-	}
-	keys, err := commands.GetTemplateVariableKeys(spec)
+	// Use new function to get keys
+	keys, err := commands.GetCommandVariableKeys(cmdName, projectPath, registry)
 	if err != nil {
-		return nil
+		return nil // Return nil on error
 	}
 	return keys
 }
 
 // HandleCommandSelection centralizes what happens when a command is selected.
 // It now accepts the registry to record history.
-func HandleCommandSelection(m *app.Model, registry *project.ProjectRegistry, itemName string) *app.Model {
+func HandleCommandSelection(m *app.Model, registry *project.ProjectRegistry, itemName string) (*app.Model, tea.Cmd) {
 	// Always record the command so it appears at the top of RecentUsed:
 	recordCommand(m, itemName)
 
 	if strings.ToLower(itemName) == "view project stats" {
 		m.CurrentScreen = app.ScreenProjectStats
-		return m
+		return m, nil
 	}
 
 	if itemName == commands.NextSteps[0] {
 		m.CurrentScreen = app.ScreenAll
 		m.AllCmdsIndex = 0
 		m.AllCmdsTotal = len(commands.AllCommandNames()) + 1
-		return m
+		return m, nil
 	}
 
-	// Check if the command requires multiple variable inputs by inferring keys from its JSON.
-	if requiresMultipleVars(itemName) {
+	// Check if the command requires variables using the updated function
+	if requiresMultipleVars(itemName, m.ProjectPath, registry) {
 		m.PendingCommand = itemName
 		m.MultipleVariables = true
-		// Infer keys from the template (will now include any property variables, e.g. "Property: String")
-		m.VariableKeys = extractVariableKeys(itemName)
-		// Log the detected template variable keys.
+		// Get keys using the updated function
+		m.VariableKeys = extractVariableKeys(itemName, m.ProjectPath, registry)
 		fmt.Printf("Detected template variable keys: %v\n", m.VariableKeys)
 		m.CurrentVariableIndex = 0
 		m.Variables = make(map[string]string)
 		m.CurrentScreen = app.ScreenFilenamePrompt
-		return m
+		// Update preview for the prompt screen
+		*m = UpdateFilenamePromptPreview(*m, registry)
+		return m, cursor.Blink // Return blink command
 	}
 
-	// For all "add" commands (case-insensitive), use the filename prompt.
-	if strings.HasPrefix(strings.ToLower(itemName), "add ") {
+	// Check for commands that require only a single variable (like most "add" commands)
+	// Use the new key check function here too.
+	keys, err := commands.GetCommandVariableKeys(itemName, m.ProjectPath, registry)
+	if err != nil {
+		m.HistorySaveStatus = fmt.Sprintf("Error checking command '%s': %v", itemName, err)
+		return m, nil
+	}
+	if len(keys) > 0 { // If *any* keys found, go to prompt (multi-var handled above)
 		m.PendingCommand = itemName
+		m.MultipleVariables = false // Explicitly set to false for single var mode
+		m.VariableKeys = keys       // Store the keys even for single var mode
 		m.CurrentScreen = app.ScreenFilenamePrompt
-		return m
+		// Update preview for the prompt screen
+		*m = UpdateFilenamePromptPreview(*m, registry)
+		return m, cursor.Blink // Return blink command
 	}
 
-	// Otherwise, run the command immediately.
-	// Pass registry to RunCommand
-	commands.RunCommand(itemName, m.ProjectPath, nil, registry)
-	// After running the command, show the installation details screen.
+	// Otherwise (no keys required), run the command immediately.
+	m.HistorySaveStatus = fmt.Sprintf("Running command: %s...", itemName)
+	runCmd := commands.RunCommand(itemName, m.ProjectPath, nil, registry)
+	// After starting the command, show the installation details screen (or a loading screen).
 	m.CurrentScreen = app.ScreenInstallDetails
-	return m
+	return m, runCmd // Return the command to execute
 }
 
 // -----------------------------------------------------------------------------

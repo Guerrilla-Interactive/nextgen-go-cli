@@ -31,7 +31,7 @@ import (
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.59"
+var Version = "v1.0.60"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -233,7 +233,7 @@ func (pm ProgramModel) View() string {
 	case app.ScreenMain:
 		return screens.ViewMainScreen(pm.M, pm.ProjectRegistry)
 	case app.ScreenFilenamePrompt:
-		return screens.ViewFilenamePrompt(pm.M)
+		return screens.ViewFilenamePrompt(pm.M, pm.ProjectRegistry)
 	case app.ScreenInstallDetails:
 		return screens.ViewInstallDetailsScreen(pm.M)
 	case app.ScreenProjectStats:
