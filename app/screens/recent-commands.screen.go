@@ -10,6 +10,7 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -59,17 +60,21 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 			return m, tea.Quit
 
 		case "left", "h":
+			// Only paginate if list has focus and not on first page
 			if m.MainScreenFocus == "list" && totalCmds > 0 && p.Page > 0 {
 				*p, paginatorCmd = p.Update(keyMsg) // Update paginator here
 			} else if m.MainScreenFocus == "action" {
+				// Move focus within action bar
 				m.ActionIndex = (m.ActionIndex + len(actionRow) - 1) % len(actionRow)
 				m = updatePreview(m, registry, actionRow[m.ActionIndex])
 			}
 
 		case "right", "l":
+			// Only paginate if list has focus and not on last page
 			if m.MainScreenFocus == "list" && totalCmds > 0 && !p.OnLastPage() {
 				*p, paginatorCmd = p.Update(keyMsg) // Update paginator here
 			} else if m.MainScreenFocus == "action" {
+				// Move focus within action bar
 				m.ActionIndex = (m.ActionIndex + 1) % len(actionRow)
 				m = updatePreview(m, registry, actionRow[m.ActionIndex])
 			}
@@ -117,28 +122,53 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 						return m, nil
 					} else if strings.ToLower(itemName) == "paste from clipboard" {
 						m.PendingCommand = itemName
-						if requiresMultipleVars(itemName) { /* ... multi-var setup ... */
+						// Pass projectPath and registry to requiresMultipleVars
+						if requiresMultipleVars(itemName, m.ProjectPath, registry) {
+							// Set up for multi-variable prompt
+							m.MultipleVariables = true
+							m.VariableKeys = extractVariableKeys(itemName, m.ProjectPath, registry)
+							m.CurrentVariableIndex = 0
+							m.Variables = make(map[string]string)
+						} else {
+							// Set up for single-variable prompt (Filename)
+							m.MultipleVariables = false
+							m.VariableKeys = []string{"Filename"} // Default for clipboard paste
 						}
 						m.CurrentScreen = app.ScreenFilenamePrompt
 						m.TempFilename = ""
-						return m, nil
+						// Update preview for prompt screen
+						m = UpdateFilenamePromptPreview(m, registry)
+						return m, cursor.Blink
 					}
 					// TODO: Handle undo/redo if implemented
 				}
 			} else { // Focus is "list"
 				if realIndex < totalCmds { // Ensure index is valid
 					itemName := fullCommandList[realIndex]
-					// Use HandleCommandSelection (excluding view stats which is action bar only now)
-					m = *HandleCommandSelection(&m, registry, itemName)
-					m.CurrentPreviewType = "none"
+					// Use HandleCommandSelection and capture both model and command
+					var selectCmd tea.Cmd
+					var updatedModel *app.Model // Temporary variable for the model pointer
+					updatedModel, selectCmd = HandleCommandSelection(&m, registry, itemName)
+					m = *updatedModel             // Assign the dereferenced model back to m
+					m.CurrentPreviewType = "none" // Clear preview after selection
 					m.FileTreePreview = ""
 					m.StatsPreview = ""
+					// We need to combine the selection command with any paginator command
+					// Check if paginatorCmd is nil before batching
+					if paginatorCmd != nil {
+						return m, tea.Batch(paginatorCmd, selectCmd)
+					} else {
+						return m, selectCmd
+					}
 				}
 			}
 		}
 	}
 
-	// --- Update Preview ---
+	// --- Update Preview (moved down to ensure paginatorCmd is potentially set) ---
+	// Check if paginator needs update even if no key press triggered it (e.g. WindowSizeMsg)
+	// We only update the paginator model variable, the actual cmd is returned at the end.
+
 	// We need to recalculate realIndex AFTER potential paginator updates
 	start, _ = p.GetSliceBounds(totalCmds) // Recalculate start index
 	realIndex = start + m.SelectedIndex    // Recalculate real index
@@ -192,18 +222,19 @@ func updatePreview(m app.Model, registry *project.ProjectRegistry, selectedCmdNa
 		}
 	default:
 		// Attempt to generate file tree preview for other commands
-		spec := commands.GetCommandSpec(selectedCmdName)
-		keys, err := commands.GetTemplateVariableKeys(spec)
+		// Use the new function to get keys
+		keys, err := commands.GetCommandVariableKeys(selectedCmdName, m.ProjectPath, registry)
 		var placeholderMap map[string]string
 		if err == nil && len(keys) > 0 {
-			// Use the first key as the primary placeholder
+			// Use the first key as the primary placeholder for preview
 			placeholders := map[string]string{keys[0]: "<" + keys[0] + ">"}
 			placeholderMap = commands.BuildPlaceholders(placeholders)
 		} else {
-			// Fallback if no keys found or error
+			// Fallback if no keys found or error getting keys
 			placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Filename>"})
 		}
 
+		// Pass the potentially updated selectedCmdName if it was clipboard paste
 		pv, err2 := commands.GeneratePreviewFileTree(selectedCmdName, placeholderMap, m.ProjectPath)
 		if err2 == nil && strings.TrimSpace(pv) != "" {
 			m.FileTreePreview = pv
