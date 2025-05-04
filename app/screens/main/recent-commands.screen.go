@@ -313,7 +313,7 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 	leftPanelStyle := lipgloss.NewStyle().Padding(0, 1) // Just padding
 	// Calculate width dynamically based on longest item? For now, maybe fixed is ok?
 	// Let's try a slightly smaller fixed width for commands again.
-	leftPanelWidth := 40 // Keep it smaller
+	leftPanelWidth := 50 // Keep left panel fixed width
 	// Left panel rendering moved after height calculation
 
 	// --- Define Footer Content First (Without Paginator) ---
@@ -370,34 +370,31 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 	folderName := filepath.Base(m.ProjectPath)
 	previewHeader := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
 	previewContentWithHeader := previewHeader + "\n\n" + previewContent
-	// Render with consistent padding, no border, and explicit height
-	rightPanelWidth := m.TerminalWidth - leftPanelWidth - 1 // Adjust width based on terminal size
-	if rightPanelWidth < 10 {
-		rightPanelWidth = 10
-	}
+
+	// Define right panel style WITHOUT explicit width
 	rightPanelStyle := lipgloss.NewStyle().
-		Padding(1, 1).                   // Consistent padding
-		Height(availableHeightForPanes). // Set explicit height
-		Width(rightPanelWidth)           // Set explicit width
+		Padding(1, 1).                  // Consistent padding
+		Height(availableHeightForPanes) // Set explicit height
+	// REMOVED: Width(rightPanelWidth) // Let Lipgloss determine width
 	rightPanel := rightPanelStyle.Render(previewContentWithHeader)
 
 	// --- Render Left Panel ---
-	// Now render the left panel with the combined content and calculated height
+
 	leftPanel := leftPanelStyle.
-		Width(leftPanelWidth).
+		Width(leftPanelWidth).           // Set fixed width for left panel
 		Height(availableHeightForPanes). // Set explicit height to match right panel
 		Render(leftContentCombined)
 
 	// --- Combine Panes ---
-	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, " ", rightPanel) // Use minimal space between
+	// Lipgloss JoinHorizontal will distribute remaining space to the right panel
+	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, " ", rightPanel)
 
 	// --- Footer ---
 	// Render the final footer using the content without the paginator
 	finalFooter := lipgloss.NewStyle().Render(footerContent)
 
 	// --- Final Layout ---
-	// HeaderSection is now part of combinedPanes (specifically leftPanel), so remove it from the final JoinVertical
-	return lipgloss.JoinVertical(lipgloss.Left, combinedPanes, "\n", finalFooter) // Use finalFooter here
+	return lipgloss.JoinVertical(lipgloss.Left, combinedPanes, "\n", finalFooter)
 }
 
 // renderStaticActionBar creates the interactive action bar.
@@ -446,74 +443,96 @@ func renderStaticActionBar(items []string, selectedIndex int, hasFocus bool) str
 
 // getPrioritizedCommandList retrieves and orders the list of commands for the main screen.
 func getPrioritizedCommandList(m *app.Model, registry *project.ProjectRegistry) []string {
-	// Start with recently used (maintained in-memory for the session)
-	recent := commands.RecentUsed
+	const maxRecent = 4 // Show top 4 recent commands
 
-	// Prepare maps for quick lookup
-	recentMap := make(map[string]bool)
-	for _, cmd := range recent {
-		recentMap[cmd] = true
+	// Maps to track added commands and avoid duplicates
+	added := make(map[string]bool)
+	resultList := []string{}
+
+	// --- 1. Top 4 Recent Commands ---
+	recentCount := 0
+	for _, cmd := range commands.RecentUsed {
+		if recentCount >= maxRecent {
+			break
+		}
+		lower := strings.ToLower(cmd)
+		if excluded[lower] { // Skip excluded actions like settings, paste, etc.
+			continue
+		}
+		if !added[cmd] {
+			resultList = append(resultList, cmd)
+			added[cmd] = true
+			recentCount++
+		}
 	}
-	excludedMap := excluded // Use the package-level excluded map
 
-	// Combine other command sources, excluding recent and explicitly excluded ones
-	otherCmds := []string{}
+	// --- Prepare lists for remaining commands ---
+	var allFavorites []string
+	var remainingNative []string
+	var remainingOthers []string // Clipboard + Project
 
-	// Add Clipboard Commands (Sorted)
+	// --- Categorize Clipboard Commands ---
 	if registry != nil && registry.ClipboardCommands != nil {
-		clipboardNames := make([]string, 0, len(registry.ClipboardCommands))
-		for name := range registry.ClipboardCommands {
-			clipboardNames = append(clipboardNames, name)
-		}
-		sort.Strings(clipboardNames)
-		for _, name := range clipboardNames {
-			if !recentMap[name] && !excludedMap[strings.ToLower(name)] {
-				otherCmds = append(otherCmds, name)
-			}
-		}
-	}
-
-	// Add Native Commands (Sorted)
-	nativeNames := commands.AllCommandNames() // Assuming this returns sorted names
-	for _, name := range nativeNames {
-		if !recentMap[name] && !excludedMap[strings.ToLower(name)] {
-			otherCmds = append(otherCmds, name)
-		}
-	}
-
-	// Add Project Commands (Sorted)
-	if registry != nil && m.ProjectPath != "" {
-		projectCmdNames, err := projectCmdScreen.GetSortedProjectCommandNames(m.ProjectPath)
-		if err == nil {
-			for _, name := range projectCmdNames {
-				if !recentMap[name] && !excludedMap[strings.ToLower(name)] {
-					otherCmds = append(otherCmds, name)
+		for name, spec := range registry.ClipboardCommands {
+			if !added[name] && !excluded[strings.ToLower(name)] {
+				if spec.IsFavorite {
+					allFavorites = append(allFavorites, name)
+				} else {
+					remainingOthers = append(remainingOthers, name)
 				}
 			}
 		}
 	}
 
-	// --- Sort other commands by priority (Favorites first) ---
-	sort.SliceStable(otherCmds, func(i, j int) bool {
-		nameI := otherCmds[i]
-		nameJ := otherCmds[j]
-		isFavI := isFavorite(nameI, registry)
-		isFavJ := isFavorite(nameJ, registry)
-
-		if isFavI && !isFavJ {
-			return true // Favorites come first
+	// --- Categorize Native Commands ---
+	nativeNames := commands.AllCommandNames()
+	for _, name := range nativeNames {
+		if !added[name] && !excluded[strings.ToLower(name)] {
+			if isFav, ok := registry.FavoriteNativeCommands[name]; ok && isFav {
+				allFavorites = append(allFavorites, name)
+			} else {
+				remainingNative = append(remainingNative, name)
+			}
 		}
-		if !isFavI && isFavJ {
-			return false
+	}
+
+	// --- Categorize Project Commands ---
+	if registry != nil && m.ProjectPath != "" {
+		projectCmdNames, err := projectCmdScreen.GetSortedProjectCommandNames(m.ProjectPath)
+		if err == nil {
+			for _, name := range projectCmdNames {
+				if !added[name] && !excluded[strings.ToLower(name)] {
+					if isFav, ok := registry.FavoriteProjectCommands[name]; ok && isFav {
+						allFavorites = append(allFavorites, name)
+					} else {
+						remainingOthers = append(remainingOthers, name)
+					}
+				}
+			}
 		}
-		// If both are favorite or both not, maintain alphabetical order (already sorted by type)
-		return nameI < nameJ // Fallback to alphabetical if same favorite status
-	})
+	}
 
-	// Combine recent (already ordered) with sorted others
-	fullList := append(recent, otherCmds...)
+	// --- Sort the categorized lists ---
+	sort.Strings(allFavorites)
+	sort.Strings(remainingNative)
+	sort.Strings(remainingOthers)
 
-	return fullList
+	// --- Append to the result list in the desired order ---
+	// Helper to append unique items
+	appendUnique := func(target *[]string, source []string) {
+		for _, cmd := range source {
+			if !added[cmd] {
+				*target = append(*target, cmd)
+				added[cmd] = true // Mark as added to final list
+			}
+		}
+	}
+
+	appendUnique(&resultList, allFavorites)
+	appendUnique(&resultList, remainingNative)
+	appendUnique(&resultList, remainingOthers)
+
+	return resultList
 }
 
 // isFavorite checks if a command is marked as favorite in any category.
