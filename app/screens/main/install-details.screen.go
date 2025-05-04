@@ -1,4 +1,4 @@
-package screens
+package mainScreen
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -183,7 +184,7 @@ func ViewInstallDetailsScreen(m app.Model) string {
 	// Combine header, file tree and options; then append the help notice.
 	msg := header + "\n" + pathLine + "\n" + treeContainer + "\n\n" + options + "\n\n" +
 		app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)")
-	return baseContainer(msg)
+	return sharedScreens.BaseContainer(msg)
 }
 
 // UpdateInstallDetailsScreen handles key input for the Install Details screen.

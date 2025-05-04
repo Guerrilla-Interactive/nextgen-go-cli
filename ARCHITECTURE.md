@@ -2,358 +2,128 @@
 
 ## Project Overview
 
-NextGen Go CLI is a terminal-based user interface application built with the [Bubble Tea](https://github.com/charmbracelet/bubbletea) framework. It provides an interactive command-line interface for developers to execute various commands with a beautiful TUI (Terminal User Interface).
+NextGen Go CLI is a terminal-based user interface application built with the [Bubble Tea](https://github.com/charmbracelet/bubbletea) framework. It provides an interactive command-line interface for developers to execute various template-based commands with a TUI (Terminal User Interface).
 
-The application detects project frameworks (like React, Next.js, Tailwind CSS, etc.) and offers a command palette tailored to the project context. It uses an MVC-like architecture where screens represent different views, and commands are executed based on user input.
+The application detects project frameworks and offers a command palette tailored to the project context. It uses an MVC-like architecture where screens represent different views, and commands are executed based on user input.
 
 ## Core Architecture
 
-### Directory Structure
+### Directory Structure (Simplified)
 
 ```
 nextgen-go-cli/
 ├── app/
-│   ├── commands/                    # Command execution logic
-│   │   ├── command-helpers.go       # Helper functions for command execution
-│   │   ├── command-registry.go      # Command definitions and registry
-│   │   └── *.json                   # JSON template files (embedded)
-│   ├── screens/                     # UI screens for different parts of the application
-│   │   ├── all-commands.screen.go   # "All Commands" screen implementation
-│   │   ├── filename-prompt.screen.go # Input prompts for filenames/variables
-│   │   ├── install-details.screen.go # Command execution results screen
-│   │   ├── intro.screen.go          # Introductory/welcome screen
-│   │   ├── recent-commands.screen.go # Main screen with recent commands
-│   │   ├── screen-helpers.go        # Shared UI helper functions
-│   │   └── screen-init.go           # Initialization functions for screens
-│   ├── utils/                      # Utility functions
-│   │   └── filetree.go             # File tree visualization utilities
-│   ├── app.go                      # Core application model definitions
-│   └── projectstats.go             # Project statistics detection and formatting
-└── main.go                         # Application entry point
+│   ├── app.go                      # Core application model, screen enum, messages
+│   ├── cli/                        # CLI argument parsing logic
+│   ├── commands/                   # Command template definition, execution, helpers
+│   │   ├── args/                   # Arg-based CLI command implementations
+│   │   ├── command-helpers.go
+│   │   ├── command-registry.go
+│   │   └── native-commands/        # Embedded JSON template files
+│   ├── project/                    # Project detection & persistent registry
+│   │   ├── project-detector.go
+│   │   └── project-tracker.go
+│   ├── screens/                    # UI screens (Feature-based subdirs planned)
+│   │   ├── main/                   # (Planned)
+│   │   ├── settings/               # Settings screen logic
+│   │   │   └── settings.screen.go
+│   │   └── ... (other screen files)
+│   │   └── shared/                 # (Planned)
+│   │       ├── screen-helpers.go
+│   │       └── screen-init.go
+│   └── utils/                      # Utility functions (e.g., file tree)
+└── main.go                         # Application entry point (CLI & TUI)
 ```
 
 ### Key Files and Their Purposes
 
-#### Entry Point
-- **`main.go`** - Application bootstrap, initializes the Bubble Tea program with the initial model state, sets up the core program loop, and handles global error conditions.
-
-#### Application Core
-- **`app/app.go`** - Defines the central `Model` struct that holds all application state, screen type enum, and core styling constants used throughout the app.
-- **`app/projectstats.go`** - Contains functions for detecting, grouping, and displaying project framework information.
-
-#### Screen Implementations
-- **`app/screens/recent-commands.screen.go`** - Implements the main screen showing recent commands and action row.
-- **`app/screens/all-commands.screen.go`** - Implements the screen that displays all available commands in a grid.
-- **`app/screens/filename-prompt.screen.go`** - Handles the input prompts for collecting variables from the user.
-- **`app/screens/install-details.screen.go`** - Shows the results of command execution with a file tree.
-- **`app/screens/intro.screen.go`** - Implements the welcome/introduction screen (though often skipped).
-- **`app/screens/screen-helpers.go`** - Contains shared helper functions used across multiple screens.
-- **`app/screens/screen-init.go`** - Provides initialization functions for project detection and screen setup.
-
-#### Command System
-- **`app/commands/command-registry.go`** - Defines available commands, manages the command registry, and implements command execution.
-- **`app/commands/command-helpers.go`** - Contains helper functions for template processing, placeholder substitution, and file operations.
-
-#### Utilities
-- **`app/utils/filetree.go`** - Implements file tree visualization using Unicode box-drawing characters and icons.
-
-### Dependencies (go.mod)
-The application relies on several key packages:
-- `github.com/charmbracelet/bubbletea` - Core TUI framework
-- `github.com/charmbracelet/lipgloss` - Terminal styling library
-- `github.com/charmbracelet/bubbles` - UI components for Bubble Tea
-- `github.com/atotto/clipboard` - Clipboard interaction
+*   **`main.go`**: Application bootstrap, handles CLI argument parsing and direct execution, or starts the TUI (Bubble Tea program). Contains the main `Update` and `View` logic loop.
+*   **`app/app.go`**: Defines the central `app.Model` struct (application state), the `Screen` enum for navigation, custom message types (`app.CommandFinishedMsg`), and global Lipgloss styles.
+*   **`app/commands/command-registry.go`**: Defines built-in command specifications (`CommandSpec`), loads embedded native command templates (`*.json`), provides helpers like `GetCommandSpec`.
+*   **`app/commands/command-helpers.go`**: Contains core logic for executing JSON templates (`ExecuteJSONTemplateFromMemory`), placeholder substitution (`BuildPlaceholders`, etc.), snippet merging (`smartMerge`), file tree preview generation (`GeneratePreviewFileTree`), and the TUI command runner (`RunCommand`).
+*   **`app/commands/args/`**: Contains implementations for commands executed directly via the CLI using flags and arguments.
+*   **`app/project/project-detector.go`**: Logic to detect project type and technologies based on files like `package.json`.
+*   **`app/project/project-tracker.go`**: Manages the persistent `ProjectRegistry` (saved in `~/.config/nextgen-cli/projects.json`), tracks project usage, command history, clipboard commands, native commands, and favorites.
+*   **`app/screens/`**: Contains individual Go files for each UI screen or feature area. Each typically has an `Update*` function (handling input/state changes) and a `View*` function (rendering the UI).
+    *   **`settings/settings.screen.go`**: Example of a feature-specific screen package.
+    *   **`screen-helpers.go`**: Shared helper functions used across multiple screens (e.g., `HandleCommandSelection`).
+    *   **`screen-init.go`**: Initialization logic, like detecting the initial project.
+*   **`app/utils/`**: General utility functions, like file tree rendering.
+*   **`app/cli/`**: Logic specifically for parsing command-line arguments.
 
 ## Detailed Concepts and Their Implementations
 
 ### 1. The Bubble Tea TEA Pattern
 
-The application uses The Elm Architecture (TEA) pattern through the Bubble Tea framework, which is implemented across multiple files:
-
-- **Implementation Location**: `main.go` (core loop) and all screen files
-- **Key Components**:
-  - **Init** - Defined in `main.go:ProgramModel.Init()`
-  - **Update** - Implemented in `main.go:ProgramModel.Update()` and screen-specific functions like `screens/recent-commands.screen.go:UpdateScreenMain()`
-  - **View** - Implemented in `main.go:ProgramModel.View()` and screen-specific functions like `screens/recent-commands.screen.go:ViewMainScreen()`
-
-**Example from `main.go`**:
-```go
-func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-    switch typedMsg := msg.(type) {
-    case app.Model:
-        pm.M = typedMsg
-        return pm, nil
-    case tea.KeyMsg:
-        switch pm.M.CurrentScreen {
-        case app.ScreenMain:
-            updatedM, cmd := screens.UpdateScreenMain(pm.M, typedMsg)
-            pm.M = updatedM
-            return pm, cmd
-        // ... other screen handlers
-        }
-    }
-    return pm, nil
-}
-```
+*   **Implementation**: `main.go` (root `ProgramModel` wrapping `app.Model`), screen files (`Update*`, `View*` functions).
+*   **Model**: `app.Model` defined in `app/app.go` holds all shared state.
+*   **Update**: `main.go:ProgramModel.Update` is the central message handler. It delegates to screen-specific `Update*` functions based on `m.CurrentScreen`.
+*   **View**: `main.go:ProgramModel.View` calls the appropriate screen-specific `View*` function.
+*   **Messages**: Custom message types like `app.CommandFinishedMsg` (defined in `app/app.go`) are used for communication, especially for async operations.
 
 ### 2. Screen Navigation System
 
-The screen navigation system controls transitions between different views:
+*   **Definition**: `Screen` enum in `app/app.go`.
+*   **Implementation**: Screen transitions are managed by setting `m.CurrentScreen` in the various `Update*` functions (e.g., in `app/screens/screen-helpers.go:HandleCommandSelection`, or in screen-specific handlers for actions like "Back").
 
-- **Definition Location**: `app/app.go:Screen` (enum type)
-- **Implementation Location**: 
-  - All screen update functions (e.g., `screens/recent-commands.screen.go:UpdateScreenMain()`)
-  - Transition logic in `screens/screen-helpers.go:HandleCommandSelection()`
+### 3. Command Execution (TUI vs CLI)
 
-**Example from `screen-helpers.go`**:
-```go
-func HandleCommandSelection(m *app.Model, itemName string) *app.Model {
-    recordCommand(m, itemName)
+*   **TUI Execution Flow**:
+    1.  User selects command in a screen UI.
+    2.  `HandleCommandSelection` (or similar screen logic) determines if variables are needed.
+    3.  If needed, transitions to `ScreenFilenamePrompt`.
+    4.  Once variables are collected (or if none were needed), the screen's `Update*` function calls `commands.RunCommand` (`command-helpers.go`).
+    5.  `RunCommand` determines the command source (clipboard, project, built-in), reads the appropriate template content, and returns an async `tea.Cmd`.
+    6.  The async function executes the template using `ExecuteJSONTemplateFromMemory`.
+    7.  Upon completion, it returns an `app.CommandFinishedMsg` containing results (error, files generated, etc.).
+    8.  `main.go:ProgramModel.Update` receives the message.
+    9.  If the command succeeded (`msg.Err == nil`), it calls `registry.RecordCommandHistory` (`project-tracker.go`).
+    10. Transitions to `ScreenInstallDetails`.
+*   **CLI Execution Flow**:
+    1.  `main.go` parses args using `app/cli/` logic.
+    2.  If a command is recognized, `executeDirectCommand` (`main.go`) is called.
+    3.  `executeDirectCommand` checks command type (args-based, native shell, clipboard, project, built-in template).
+    4.  It executes the command directly (using `cmd.Execute`, `runShellCommand`, or `ExecuteJSONTemplateFromMemory`).
+    5.  If successful, it calls `registry.RecordCommandHistory` directly.
+    6.  Exits the application.
 
-    if strings.ToLower(itemName) == "view project stats" {
-        m.CurrentScreen = app.ScreenProjectStats
-        return m
-    }
-    
-    // ... more transition logic
-    
-    m.CurrentScreen = app.ScreenFilenamePrompt
-    return m
-}
-```
+### 4. Persistent State (Project Registry)
 
-### 3. Model Definition and State Management
+*   **Implementation**: `app/project/project-tracker.go` (`ProjectRegistry` struct).
+*   **Storage**: JSON file (`~/.config/nextgen-cli/projects.json`).
+*   **Data Stored**: Known project paths, usage counts, last access times, command history per project, saved clipboard commands, saved native shell commands, favorites.
+*   **Loading**: `LoadProjectRegistry` called in `main.go`.
+*   **Saving**: `Save` method called explicitly after modifications (e.g., in `AddOrUpdateProject`, `RecordCommandHistory`, and when toggling favorites or managing clipboard/native commands).
 
-The central Model structure defines all application state:
+### 5. Command History
 
-- **Definition Location**: `app/app.go:Model` struct
-- **Usage Locations**: 
-  - `main.go` (initial state)
-  - All screen files (state updates)
-  - `screens/screen-helpers.go` (helper functions that modify state)
+*   **Structure**: `project.HistoricCommand` struct defined in `project/project-info.go` (or similar).
+*   **Storage**: Stored within the `ProjectInfo` struct for each project in the `ProjectRegistry`.
+*   **Recording**: Centralized in `project.ProjectRegistry.RecordCommandHistory`. Called from `main.go` for both TUI (`CommandFinishedMsg`) and CLI (`executeDirectCommand`) successful executions.
+*   **Viewing**: `app/screens/command-history.screen.go` displays the history for the current project.
 
-**Example from `app.go`**:
-```go
-type Model struct {
-    CurrentScreen Screen
-    IsLoggedIn    bool
-    SelectedIndex int
-    AllCmdsIndex  int
-    // ... many more fields
-}
-```
+### 6. JSON Template System & Snippet Merging
 
-### 4. Command Registry and Execution
+*   **Templates**: Defined in `.json` files (e.g., in `app/commands/native-commands/`).
+*   **Structure**: `JSONCommandTemplate`, `FilePathGroup`, `TreeNode` structs in `app/commands/command-helpers.go`.
+*   **Execution**: `ExecuteJSONTemplateFromMemory` processes the template structure.
+*   **File Handling**: `gatherNodes` handles directory creation and file writing/merging.
+*   **Snippet Merging**: `smartMerge` function looks for `// ADD SNIPPET_KEY ABOVE/BELOW` markers in existing files and inserts corresponding `// START OF SNIPPET_KEY ... // END OF SNIPPET_KEY` blocks from the template code.
 
-The command system defines available commands and handles their execution:
+### 7. File Tree Preview & Rendering
 
-- **Definition Location**: `app/commands/command-registry.go`
-- **Template Storage**: JSON files embedded in the binary via Go 1.16+ embed directive
-- **Execution Flow**: 
-  1. Command selection in UI (`screens/recent-commands.screen.go` or `screens/all-commands.screen.go`)
-  2. Parameter collection (`screens/filename-prompt.screen.go`)
-  3. Command execution (`app/commands/command-registry.go:RunCommand()`)
-  4. Result display (`screens/install-details.screen.go`)
+*   **Preview Generation**: `GeneratePreviewFileTree`, `GeneratePreviewFileTreeFromClipboard`, etc., in `app/commands/command-helpers.go` parse templates *without* writing files to determine the resulting structure.
+*   **Rendering**: `app/utils/filetree.go` takes a list of relative paths, builds a tree structure (`FileNode`), and renders it using `RenderFileTree`.
 
-**Example from `command-registry.go`**:
-```go
-//go:embed *.json
-var commandFiles embed.FS
+## File Interdependencies Map (Updated)
 
-// Commands is our single authoritative list of all possible commands.
-var Commands = []CommandSpec{
-    {Name: "add section"}, // no template (placeholder)
-    {Name: "remove section"},
-    {Name: "add page", TemplatePath: "page-and-archive.json"},
-    // ... more commands
-}
+1.  **`main.go`** -> `app` (Model, Msgs), `project` (Registry), `cli`, `screens/*` (Update/View delegates), `commands` (for CLI execution), `utils`.
+2.  **`app/screens/*`** -> `app` (Model, Screens, Styles), `commands` (RunCommand, GetKeys), `project` (Registry access), `utils`, other `screens` (for shared helpers or navigation).
+3.  **`app/commands/command-helpers.go`** -> `app` (Msg), `project` (Registry for RunCommand), `cli`, `utils`, `clipboard`.
+4.  **`app/project/project-tracker.go`** -> `app` (dependency on `HistoricCommand` if defined there, otherwise self-contained or depends on its own types).
+5.  **`app/app.go`** -> Defines core types, minimal external dependencies (Lipgloss, Bubbles).
 
-func RunCommand(cmdName, projectPath string, placeholders map[string]string) error {
-    // ... command execution logic
-}
-```
-
-### 5. Variable Collection System
-
-For commands that require input, the variable collection system handles user input:
-
-- **Definition Location**: Multi-variable support in `app/app.go:Model` (several fields)
-- **Implementation Location**: `screens/filename-prompt.screen.go`
-- **Variable Detection**: `screens/screen-helpers.go:requiresMultipleVars()` and `extractVariableKeys()`
-
-**Example from `filename-prompt.screen.go`**:
-```go
-func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg) (app.Model, tea.Cmd) {
-    // ... handle input
-
-    if m.MultipleVariables {
-        // Multi-variable mode
-        currentKey := m.VariableKeys[m.CurrentVariableIndex]
-        m.Variables[currentKey] = value
-        m.CurrentVariableIndex++
-        
-        // ... check if all variables collected
-    } else {
-        // Single variable mode
-        // ... process single input
-    }
-    
-    return m, nil
-}
-```
-
-### 6. UI Layout and Styling System
-
-The UI is built using Lipgloss styles and complex layout composition:
-
-- **Style Definitions**: `app/app.go` (global styles)
-- **Layout Components**: 
-  - `screens/screen-helpers.go:baseContainer()` and `sideContainer()`
-  - Screen-specific layout in view functions
-- **Panel System**: Used in screens to create multi-column layouts
-
-**Example from `recent-commands.screen.go`**:
-```go
-func ViewMainScreen(m app.Model) string {
-    // ... build content
-
-    leftPanel := baseContainer(body)
-    rightPanel := sideContainer(preview)
-
-    fixedLeftPanel := lipgloss.Place(
-        lipgloss.Width(leftPanel),
-        termHeight,
-        lipgloss.Left,
-        lipgloss.Bottom,
-        leftPanel,
-    )
-
-    return lipgloss.JoinHorizontal(lipgloss.Bottom, fixedLeftPanel, rightPanel)
-}
-```
-
-### 7. File Tree Visualization
-
-The file tree visualization system renders directory trees:
-
-- **Definition Location**: `app/utils/filetree.go`
-- **Tree Node Structure**: `app/utils/filetree.go:FileNode`
-- **Usage Location**: `screens/install-details.screen.go` (to show created files)
-
-**Example from `filetree.go`**:
-```go
-func RenderFileTree(node *FileNode, prefix string, isLast bool, skipSelf bool, isEdited IsEditedFunc) string {
-    // ... tree rendering logic with Unicode branch characters
-    branch := routeStyle.Render("┣")
-    if isLast {
-        branch = routeStyle.Render("┗")
-    }
-    // ... more rendering logic with recursion
-}
-```
-
-### 8. Project Framework Detection
-
-The project detection system identifies frameworks used in the project:
-
-- **Definition Location**: `app/projectstats.go`
-- **Implementation**: 
-  - Detection in `screens/screen-init.go:detectFrameworks()`
-  - Grouping in `app/projectstats.go:GroupRecognizedPackages()`
-  - Display in `app/projectstats.go:RenderPackagesHorizontally()`
-
-**Example from `screen-init.go`**:
-```go
-func detectFrameworks(projectPath string) []string {
-    knownPackages := map[string]string{
-        "next":              "Next.js",
-        "sanity":            "Sanity (CMS)",
-        "tailwindcss":       "Tailwind CSS",
-        // ... more package mappings
-    }
-    
-    // ... analyze package.json and return detected frameworks
-}
-```
-
-### 9. Command Preview System
-
-The command preview system shows a live preview of command results:
-
-- **Implementation Location**: `screens/filename-prompt.screen.go` (live preview during typing)
-- **Preview Generation**: `app/commands/command-helpers.go:GeneratePreviewFileTree()`
-
-**Example from `filename-prompt.screen.go`**:
-```go
-// In single variable mode, update live preview
-{
-    input := m.TempFilename
-    if strings.TrimSpace(input) == "" {
-        input = "Filename"
-    }
-    
-    // ... build placeholders
-    
-    if preview, err := commands.GeneratePreviewFileTree(m.PendingCommand, placeholderMap, m.ProjectPath); err == nil {
-        m.LivePreview = preview
-    } else {
-        m.LivePreview = fmt.Sprintf("Preview unavailable: %v", err)
-    }
-}
-```
-
-### 10. JSON Template System
-
-The application uses JSON templates to define what files should be created:
-
-- **Template Storage**: Embedded JSON files in `app/commands/*.json`
-- **Template Structure**: Defined in `app/commands/command-helpers.go:JSONCommandTemplate`
-- **Template Processing**: `app/commands/command-helpers.go:ExecuteJSONTemplate()`
-
-**Example from `command-helpers.go`**:
-```go
-type JSONCommandTemplate struct {
-    FilePaths []FilePathGroup `json:"filePaths"`
-}
-
-type FilePathGroup struct {
-    Key   string     `json:"_key"`
-    Type  string     `json:"_type"`
-    ID    string     `json:"id"`
-    Nodes []TreeNode `json:"nodes"`
-    Path  string     `json:"path"`
-}
-
-func ExecuteJSONTemplate(jsonFilePath, projectPath string, placeholders map[string]string) error {
-    // ... process JSON template and create/modify files
-}
-```
-
-## File Interdependencies Map
-
-Here's how the key files depend on each other:
-
-1. **Entry Point Chain**:
-   - `main.go` → initializes → `app.Model` (from `app/app.go`)
-   - `main.go` → calls → screen functions (from `app/screens/*.go`)
-
-2. **Screen Update Chain**:
-   - `main.go:ProgramModel.Update()` → calls → `screens/*:UpdateScreen*()` → updates → `app.Model`
-   - `screens/*:UpdateScreen*()` → calls → `screens/screen-helpers.go` functions (for shared functionality)
-
-3. **Command Execution Chain**:
-   - `screens/*:UpdateScreen*()` → calls → `commands/command-registry.go:RunCommand()`
-   - `commands/command-registry.go:RunCommand()` → calls → `commands/command-helpers.go:RunJsonTemplateBytes()`
-   - After execution, sends → `screens.CommandFinishedMsg` → back to → `main.go:ProgramModel.Update()`
-
-4. **View Rendering Chain**:
-   - `main.go:ProgramModel.View()` → calls → `screens/*:ViewScreen*()` → uses → `app.Model`
-   - `screens/*:ViewScreen*()` → calls → `screens/screen-helpers.go` functions (for UI components)
-   - `screens/install-details.screen.go` → uses → `app/utils/filetree.go` (for file tree rendering)
-
-5. **Project Detection Chain**:
-   - `screens/screen-init.go:InitProjectCmd()` → calls → `screens/screen-init.go:detectFrameworks()`
-   - `screens/*:ViewScreen*()` → uses → `app/projectstats.go` (for displaying detected frameworks)
+(Note: Careful management is needed to avoid import cycles, especially between `screens` and `commands`.)
 
 ## Coding Style and Component Integration
 
@@ -759,3 +529,35 @@ Helper functions are integrated through a consistent pattern:
    ```
 
 This architecture enables a clean, maintainable codebase with clear separation of concerns, consistent patterns, and predictable behavior across the application. 
+
+## Navigation Example: Viewing Settings (Updated)
+
+1.  **User selects "View Settings"** from the main command list (`ScreenMain`).
+2.  `screens.UpdateScreenMain` handles the `Enter` key press.
+3.  It identifies the selected item.
+4.  It updates the model: `m.CurrentScreen = app.ScreenSettings`.
+5.  The main `Update` loop in `main.go` receives the updated model.
+6.  The main `View` loop calls `settings.ViewSettingsScreen` (via `main.go:ProgramModel.View` switch).
+7.  `settings.ViewSettingsScreen` renders the settings categories and details.
+8.  User navigates within the Settings screen using `settings.UpdateScreenSettings`.
+9.  User selects "Back" or presses `Esc`.
+10. `settings.UpdateScreenSettings` sets `m.CurrentScreen = app.ScreenMain`.
+11. Control returns to the main screen.
+
+## TUI Command Execution Example (Updated)
+
+1.  User selects "add page" on `ScreenMain`.
+2.  `screens.HandleCommandSelection` determines variables are needed.
+3.  Transitions to `ScreenFilenamePrompt` (`m.CurrentScreen = app.ScreenFilenamePrompt`).
+4.  User enters "MyNewPage" and presses Enter.
+5.  `screens.UpdateScreenFilenamePrompt` builds placeholders (`{ "Filename": "MyNewPage", ... }`) and calls `commands.RunCommand("add page", path, placeholders, registry)`.
+6.  `commands.RunCommand` finds the built-in template for "add page", prepares an async function (`tea.Cmd`).
+7.  `main.go` receives the `tea.Cmd` and executes it.
+8.  The async function runs `ExecuteJSONTemplateFromMemory`, creating files.
+9.  It returns `app.CommandFinishedMsg{ Err: nil, CommandName: "add page", ..., GeneratedFiles: [...] }`.
+10. `main.go:ProgramModel.Update` receives the `CommandFinishedMsg`.
+11. Since `Err` is nil, it calls `registry.RecordCommandHistory` with the details from the message.
+12. Sets `m.CurrentScreen = app.ScreenInstallDetails`.
+13. `main.go:ProgramModel.View` calls `screens.ViewInstallDetailsScreen` to show results.
+
+This updated architecture document should better reflect the current state of the project. 

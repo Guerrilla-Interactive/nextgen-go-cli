@@ -1,4 +1,4 @@
-package screens
+package native
 
 import (
 	"fmt"

@@ -1,4 +1,4 @@
-package screens
+package projectCmd
 
 import (
 	"encoding/json"
@@ -15,8 +15,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Helper to get sorted project command names from the .nextgen/local-commands directory
-func getSortedProjectCommandNames(projectPath string) ([]string, error) {
+// GetSortedProjectCommandNames retrieves sorted project command names from the .nextgen/local-commands directory
+func GetSortedProjectCommandNames(projectPath string) ([]string, error) {
 	if projectPath == "" {
 		return []string{}, nil // No project path, no local commands
 	}
@@ -46,7 +46,7 @@ func getSortedProjectCommandNames(projectPath string) ([]string, error) {
 // updateProjectCommandPreview generates the file tree preview for the selected project command.
 func updateProjectCommandPreview(m app.Model) app.Model {
 	m.ProjectCommandPreview = "Loading preview..."
-	projectCmdNames, _ := getSortedProjectCommandNames(m.ProjectPath) // Ignore error for preview
+	projectCmdNames, _ := GetSortedProjectCommandNames(m.ProjectPath) // Ignore error for preview
 	totalCmds := len(projectCmdNames)
 	start, end := m.ProjectCommandsPaginator.GetSliceBounds(totalCmds)
 	numItemsOnPage := end - start // Calculate items on page consistently
@@ -109,7 +109,7 @@ func updateProjectCommandPreview(m app.Model) app.Model {
 
 // UpdateScreenProjectCommandsList handles navigation for locally saved project commands.
 func UpdateScreenProjectCommandsList(m app.Model, msg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
-	projectCmdNames, err := getSortedProjectCommandNames(m.ProjectPath)
+	projectCmdNames, err := GetSortedProjectCommandNames(m.ProjectPath)
 	if err != nil {
 		m.HistorySaveStatus = fmt.Sprintf("Error loading project commands: %v", err)
 		projectCmdNames = []string{}
@@ -186,7 +186,7 @@ func UpdateScreenProjectCommandsList(m app.Model, msg tea.KeyMsg, registry *proj
 func ViewScreenProjectCommandsList(m app.Model, registry *project.ProjectRegistry) string {
 	header := app.TitleStyle.Render("Project Commands (.nextgen/local-commands)") + "\n"
 
-	projectCmdNames, err := getSortedProjectCommandNames(m.ProjectPath)
+	projectCmdNames, err := GetSortedProjectCommandNames(m.ProjectPath)
 	if err != nil {
 		finalView := lipgloss.JoinVertical(lipgloss.Left, header, app.ChoiceStyle.Render(fmt.Sprintf("Error reading commands: %v", err)))
 		return finalView

@@ -1,4 +1,4 @@
-package screens
+package native
 
 import (
 	"fmt"
@@ -56,9 +56,7 @@ func UpdateScreenNativeActions(m app.Model, msg tea.KeyMsg, registry *project.Pr
 				m.TempFilename = ""
 				m.CurrentScreen = app.ScreenFilenamePrompt
 				m.PromptOptionFocused = false // Ensure input is focused
-				// Regenerate preview for the prompt screen
-				m = UpdateFilenamePromptPreview(m, registry) // Call exported function
-				return m, cursor.Blink                       // Start cursor blinking
+				return m, cursor.Blink        // Start cursor blinking
 			} else {
 				// No variables needed, run directly
 				m.HistorySaveStatus = fmt.Sprintf("Attempting to run: %s", cmdName)

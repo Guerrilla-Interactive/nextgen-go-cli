@@ -1,4 +1,4 @@
-package screens
+package shared
 
 import (
 	"fmt"
@@ -13,10 +13,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const maxCommandHistory = 20 // Limit project-specific history size
+const maxCommandHistory = 20 // Keep internal constant
 
-// summarizeProjectStats returns a string with project stats.
-func summarizeProjectStats(m app.Model) string {
+// SummarizeProjectStats - Exported for use in screens.
+func SummarizeProjectStats(m app.Model) string {
 	result := ""
 	if len(m.RecognizedPkgs) == 0 {
 		result += ""
@@ -24,15 +24,12 @@ func summarizeProjectStats(m app.Model) string {
 		// Group recognized packages for advanced display.
 		groupedPkgs := groupRecognizedPackages(m.RecognizedPkgs)
 		// Render grouped packages in up to 6 columns using Lipgloss.
-		result += renderPackagesHorizontally(groupedPkgs, 6)
+		result += RenderPackagesHorizontally(groupedPkgs, 6)
 	}
 	return result
 }
 
-// groupRecognizedPackages processes a list of package names, grouping React-based frameworks
-// and CSS frameworks. For example:
-//   - If "Next.js" (or Gatsby, etc.) is detected, only that candidate is kept (with a preference for Next.js).
-//   - If multiple CSS frameworks are detected, they are summarized as "N CSS Packages".
+// GroupRecognizedPackages - Keep internal for now.
 func groupRecognizedPackages(pkgs []string) []string {
 	// Define known react frameworks (all lower-case comparisons).
 	reactFrameworks := map[string]bool{
@@ -115,9 +112,8 @@ func groupRecognizedPackages(pkgs []string) []string {
 	return finalPkgs
 }
 
-// renderPackagesHorizontally displays items in a grid of up to maxCols columns,
-// without a fixed widt
-func renderPackagesHorizontally(items []string, maxCols int) string {
+// RenderPackagesHorizontally - Exported as it's called by SummarizeProjectStats.
+func RenderPackagesHorizontally(items []string, maxCols int) string {
 	if len(items) == 0 {
 		return ""
 	}
@@ -163,9 +159,8 @@ func renderPackagesHorizontally(items []string, maxCols int) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// recordCommand moves the chosen command to the front of RecentUsed (session memory).
-// Persistent history is now recorded after RunCommand.
-func recordCommand(m *app.Model, cmd string) {
+// RecordCommand updates in-memory RecentUsed list. Exported.
+func RecordCommand(m *app.Model, cmd string) {
 	// --- Reset HistorySaveStatus (no longer relevant here) ---
 	m.HistorySaveStatus = ""
 
@@ -210,8 +205,8 @@ func recordCommand(m *app.Model, cmd string) {
 	// (This logic is moved to be called after RunCommand)
 }
 
-// renderItemList is used for the NextSteps on the main screen.
-func renderItemList(items []string, m app.Model, offset int) string {
+// RenderItemList renders a list for UI. Exported.
+func RenderItemList(items []string, m app.Model, offset int) string {
 	var out string
 	for i, val := range items {
 		fullIndex := offset + i
@@ -224,9 +219,8 @@ func renderItemList(items []string, m app.Model, offset int) string {
 	return out
 }
 
-// requiresMultipleVars checks whether the command requires multiple variable inputs.
-// It loads the command's JSON template and infers variable keys automatically.
-func requiresMultipleVars(cmdName, projectPath string, registry *project.ProjectRegistry) bool {
+// RequiresMultipleVars checks if command needs multiple inputs. Exported.
+func RequiresMultipleVars(cmdName, projectPath string, registry *project.ProjectRegistry) bool {
 	// Special handling for clipboard paste command
 	if strings.ToLower(cmdName) == "paste from clipboard" {
 		keys, err := commands.ExtractVariablesFromClipboard()
@@ -246,8 +240,8 @@ func requiresMultipleVars(cmdName, projectPath string, registry *project.Project
 	return len(keys) > 1
 }
 
-// extractVariableKeys returns the list of variable keys inferred from the command's JSON template.
-func extractVariableKeys(cmdName, projectPath string, registry *project.ProjectRegistry) []string {
+// ExtractVariableKeys gets variable keys for a command. Exported.
+func ExtractVariableKeys(cmdName, projectPath string, registry *project.ProjectRegistry) []string {
 	// Special handling for clipboard paste command
 	if strings.ToLower(cmdName) == "paste from clipboard" {
 		keys, err := commands.ExtractVariablesFromClipboard()
@@ -265,11 +259,10 @@ func extractVariableKeys(cmdName, projectPath string, registry *project.ProjectR
 	return keys
 }
 
-// HandleCommandSelection centralizes what happens when a command is selected.
-// It now accepts the registry to record history.
+// HandleCommandSelection centralizes command selection logic. Exported.
 func HandleCommandSelection(m *app.Model, registry *project.ProjectRegistry, itemName string) (*app.Model, tea.Cmd) {
 	// Always record the command so it appears at the top of RecentUsed:
-	recordCommand(m, itemName)
+	RecordCommand(m, itemName)
 
 	if strings.ToLower(itemName) == "view settings" {
 		m.CurrentScreen = app.ScreenSettings
@@ -284,22 +277,20 @@ func HandleCommandSelection(m *app.Model, registry *project.ProjectRegistry, ite
 	}
 
 	// Check if the command requires variables using the updated function
-	if requiresMultipleVars(itemName, m.ProjectPath, registry) {
+	if RequiresMultipleVars(itemName, m.ProjectPath, registry) {
 		m.PendingCommand = itemName
 		m.MultipleVariables = true
 		// Get keys using the updated function
-		m.VariableKeys = extractVariableKeys(itemName, m.ProjectPath, registry)
+		m.VariableKeys = ExtractVariableKeys(itemName, m.ProjectPath, registry)
 		fmt.Printf("Detected template variable keys: %v\n", m.VariableKeys)
 		m.CurrentVariableIndex = 0
 		m.Variables = make(map[string]string)
 		m.CurrentScreen = app.ScreenFilenamePrompt
-		// Update preview for the prompt screen
-		*m = UpdateFilenamePromptPreview(*m, registry)
-		return m, cursor.Blink // Return blink command
+		// We don't call UpdateFilenamePromptPreview here; the prompt screen handles its own preview.
+		return m, cursor.Blink // Return blink command for the prompt
 	}
 
 	// Check for commands that require only a single variable (like most "add" commands)
-	// Use the new key check function here too.
 	keys, err := commands.GetCommandVariableKeys(itemName, m.ProjectPath, registry)
 	if err != nil {
 		m.HistorySaveStatus = fmt.Sprintf("Error checking command '%s': %v", itemName, err)
@@ -310,13 +301,13 @@ func HandleCommandSelection(m *app.Model, registry *project.ProjectRegistry, ite
 		m.MultipleVariables = false // Explicitly set to false for single var mode
 		m.VariableKeys = keys       // Store the keys even for single var mode
 		m.CurrentScreen = app.ScreenFilenamePrompt
-		// Update preview for the prompt screen
-		*m = UpdateFilenamePromptPreview(*m, registry)
-		return m, cursor.Blink // Return blink command
+		// We don't call UpdateFilenamePromptPreview here; the prompt screen handles its own preview.
+		return m, cursor.Blink // Return blink command for the prompt
 	}
 
 	// Otherwise (no keys required), run the command immediately.
 	m.HistorySaveStatus = fmt.Sprintf("Running command: %s...", itemName)
+	// Ensure registry is passed to RunCommand
 	runCmd := commands.RunCommand(itemName, m.ProjectPath, nil, registry)
 	// After starting the command, show the installation details screen (or a loading screen).
 	m.CurrentScreen = app.ScreenInstallDetails
@@ -342,14 +333,30 @@ func sideContainer(content string) string {
 	return containerStyle.Render(content)
 }
 
-// UpdateScreenInstallDetails handles input on the installation details screen.
-// On any key press it quits the application.
+// BaseContainer wraps content in a border. Exported.
+func BaseContainer(content string) string {
+	containerStyle := lipgloss.NewStyle().
+		Padding(1, 2).
+		Margin(1)
+	return containerStyle.Render(content)
+}
+
+// SideContainer wraps content without border. Exported.
+func SideContainer(content string) string {
+	containerStyle := lipgloss.NewStyle().
+		Padding(1, 2)
+
+	return containerStyle.Render(content)
+}
+
+// UpdateScreenInstallDetails handles input for install screen. Exported.
+// This function was previously commented out, now uncommented and Exported.
 func UpdateScreenInstallDetails(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-// NEW: renderProjectInfoSection formats the common project info details.
-func renderProjectInfoSection(m app.Model, registry *project.ProjectRegistry) string {
+// RenderProjectInfoSection formats project info. Exported.
+func RenderProjectInfoSection(m app.Model, registry *project.ProjectRegistry) string {
 	var infoBuilder strings.Builder
 
 	// --- Project Path --- (Keep this concise)
@@ -383,3 +390,10 @@ func renderProjectInfoSection(m app.Model, registry *project.ProjectRegistry) st
 	// No extra padding here, let the caller handle container padding
 	return infoBuilder.String()
 }
+
+// UpdateFilenamePromptPreview // MOVED to prompt package
+/*
+func UpdateFilenamePromptPreview(m app.Model, registry *project.ProjectRegistry) app.Model {
+    ...
+}
+*/

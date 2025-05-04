@@ -15,7 +15,6 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/cli"
 	commands "github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands/args"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
-	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens"
 	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -28,10 +27,37 @@ import (
 
 	// Use alias for args package
 	args_pkg "github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands/args"
+
+	// Alias for settings package
+	settingsScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/settings"
+
+	// NEW import for history
+	historyScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/history"
+
+	// NEW import for clipboard
+	clipboardScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/clipboard"
+
+	// NEW import for native
+	nativeScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/native"
+
+	// NEW import for project commands
+	projectCmdScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/project"
+
+	// NEW import for category
+	categoryScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/category"
+
+	// NEW import for prompt
+	promptScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/prompt"
+
+	// NEW import for shared screens
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
+
+	// NEW import for main
+	mainScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/main"
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.65"
+var Version = "v1.0.66"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -94,10 +120,10 @@ func (b commandRegistryCheckerBridge) CommandExists(name string) bool {
 	return false // Not found in any known location
 }
 
-// Init returns the Cmd that loads project info from screens.InitProjectCmd.
+// Init returns the Cmd that loads project info.
 func (pm ProgramModel) Init() tea.Cmd {
-	// This Cmd will eventually yield an Msg containing an updated app.Model (with ProjectPath set).
-	return screens.InitProjectCmd(pm.M)
+	// Call InitProjectCmd from the shared package
+	return sharedScreens.InitProjectCmd(pm.M)
 }
 
 // Update handles incoming Msgs (both from Init commands and user interaction).
@@ -184,60 +210,73 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch pm.M.CurrentScreen {
 		case app.ScreenSelect:
-			updatedM, cmd := screens.UpdateScreenSelect(pm.M, typedMsg)
+			// Use sharedScreens package
+			updatedM, cmd := sharedScreens.UpdateScreenSelect(pm.M, typedMsg)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenMain:
-			updatedM, cmd := screens.UpdateScreenMain(pm.M, typedMsg, pm.ProjectRegistry)
+			// Use mainScreen alias
+			updatedM, cmd := mainScreen.UpdateScreenMain(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenFilenamePrompt:
-			updatedM, cmd := screens.UpdateScreenFilenamePrompt(pm.M, typedMsg, pm.ProjectRegistry)
+			// Use promptScreen alias
+			updatedM, cmd := promptScreen.UpdateScreenFilenamePrompt(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenInstallDetails:
-			updatedM, cmd := screens.UpdateInstallDetailsScreen(pm.M, typedMsg)
+			// Use sharedScreens package for Update
+			updatedM, cmd := sharedScreens.UpdateScreenInstallDetails(pm.M, typedMsg)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenSettings:
-			updatedM, cmd := screens.UpdateScreenSettings(pm.M, typedMsg, pm.ProjectRegistry)
+			// Use the alias for settings package
+			updatedM, cmd := settingsScreen.UpdateScreenSettings(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenCommandHistory:
-			updatedM, cmd := screens.UpdateScreenCommandHistory(pm.M, typedMsg, pm.ProjectRegistry)
+			// Use the new alias for history package
+			updatedM, cmd := historyScreen.UpdateScreenCommandHistory(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenCommandsCategory:
-			updatedM, cmd := screens.UpdateScreenCommandsCategory(pm.M, typedMsg, pm.ProjectRegistry)
+			// Use categoryScreen alias
+			updatedM, cmd := categoryScreen.UpdateScreenCommandsCategory(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenClipboardList:
-			updatedM, cmd := screens.UpdateScreenClipboardList(pm.M, typedMsg, pm.ProjectRegistry)
+			// Use clipboardScreen alias
+			updatedM, cmd := clipboardScreen.UpdateScreenClipboardList(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenClipboardActions:
-			updatedM, cmd := screens.UpdateScreenClipboardActions(pm.M, typedMsg, pm.ProjectRegistry)
+			// Use clipboardScreen alias
+			updatedM, cmd := clipboardScreen.UpdateScreenClipboardActions(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenRenameClipboard:
-			updatedM, cmd := screens.UpdateScreenRenameClipboard(pm.M, typedMsg, pm.ProjectRegistry)
+			// Use clipboardScreen alias
+			updatedM, cmd := clipboardScreen.UpdateScreenRenameClipboard(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenNativeList:
-			// UpdateScreenNativeList *does* need the registry now (for consistency)
-			updatedM, cmd := screens.UpdateScreenNativeList(pm.M, typedMsg, pm.ProjectRegistry)
+			// Use nativeScreen alias
+			updatedM, cmd := nativeScreen.UpdateScreenNativeList(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenNativeActions:
-			updatedM, cmd := screens.UpdateScreenNativeActions(pm.M, typedMsg, pm.ProjectRegistry)
+			// Use nativeScreen alias
+			updatedM, cmd := nativeScreen.UpdateScreenNativeActions(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenProjectCommandsList:
-			updatedM, cmd := screens.UpdateScreenProjectCommandsList(pm.M, typedMsg, pm.ProjectRegistry)
+			// Use projectCmdScreen alias
+			updatedM, cmd := projectCmdScreen.UpdateScreenProjectCommandsList(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenProjectCommandActions:
-			updatedM, cmd := screens.UpdateScreenProjectCommandActions(pm.M, typedMsg, pm.ProjectRegistry)
+			// Use projectCmdScreen alias
+			updatedM, cmd := projectCmdScreen.UpdateScreenProjectCommandActions(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		default:
@@ -262,31 +301,43 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (pm ProgramModel) View() string {
 	switch pm.M.CurrentScreen {
 	case app.ScreenSelect:
-		return screens.ViewSelectScreen(pm.M)
+		// Use sharedScreens package
+		return sharedScreens.ViewSelectScreen(pm.M)
 	case app.ScreenMain:
-		return screens.ViewMainScreen(pm.M, pm.ProjectRegistry)
+		// Use mainScreen alias
+		return mainScreen.ViewMainScreen(pm.M, pm.ProjectRegistry)
 	case app.ScreenFilenamePrompt:
-		return screens.ViewFilenamePrompt(pm.M, pm.ProjectRegistry)
+		return promptScreen.ViewFilenamePrompt(pm.M, pm.ProjectRegistry)
 	case app.ScreenInstallDetails:
-		return screens.ViewInstallDetailsScreen(pm.M)
+		// Use mainScreen alias for View for now (as shared only has placeholder)
+		return mainScreen.ViewInstallDetailsScreen(pm.M)
 	case app.ScreenSettings:
-		return screens.ViewSettingsScreen(pm.M, pm.ProjectRegistry)
+		// Use the alias for settings package
+		return settingsScreen.ViewSettingsScreen(pm.M, pm.ProjectRegistry)
 	case app.ScreenCommandHistory:
-		return screens.ViewScreenCommandHistory(pm.M, pm.ProjectRegistry)
+		// Use the new alias for history package
+		return historyScreen.ViewScreenCommandHistory(pm.M, pm.ProjectRegistry)
 	case app.ScreenCommandsCategory:
-		return screens.ViewScreenCommandsCategory(pm.M, pm.ProjectRegistry)
+		// Use categoryScreen alias
+		return categoryScreen.ViewScreenCommandsCategory(pm.M, pm.ProjectRegistry)
 	case app.ScreenClipboardList:
-		return screens.ViewScreenClipboardList(pm.M, pm.ProjectRegistry)
+		// Use clipboardScreen alias
+		return clipboardScreen.ViewScreenClipboardList(pm.M, pm.ProjectRegistry)
 	case app.ScreenClipboardActions:
-		return screens.ViewScreenClipboardActions(pm.M, pm.ProjectRegistry)
+		// Use clipboardScreen alias
+		return clipboardScreen.ViewScreenClipboardActions(pm.M, pm.ProjectRegistry)
 	case app.ScreenRenameClipboard:
-		return screens.ViewScreenRenameClipboard(pm.M)
+		// Use clipboardScreen alias
+		return clipboardScreen.ViewScreenRenameClipboard(pm.M)
 	case app.ScreenNativeList:
-		return screens.ViewScreenNativeList(pm.M, pm.ProjectRegistry)
+		// Use nativeScreen alias
+		return nativeScreen.ViewScreenNativeList(pm.M, pm.ProjectRegistry)
 	case app.ScreenNativeActions:
-		return screens.ViewScreenNativeActions(pm.M, pm.ProjectRegistry)
+		// Use nativeScreen alias
+		return nativeScreen.ViewScreenNativeActions(pm.M, pm.ProjectRegistry)
 	case app.ScreenProjectCommandsList:
-		return screens.ViewScreenProjectCommandsList(pm.M, pm.ProjectRegistry)
+		// Use projectCmdScreen alias
+		return projectCmdScreen.ViewScreenProjectCommandsList(pm.M, pm.ProjectRegistry)
 	case app.ScreenProjectCommandActions:
 		// --- Add Debug Logging Here ---
 		fmt.Fprintf(os.Stderr, "DEBUG: Routing to ViewScreenProjectCommandActions\n")
@@ -294,7 +345,7 @@ func (pm ProgramModel) View() string {
 		registryIsNil := pm.ProjectRegistry == nil
 		fmt.Fprintf(os.Stderr, "DEBUG:   pm.ProjectRegistry == nil: %t\n", registryIsNil)
 		// --- End Debug Logging ---
-		return screens.ViewScreenProjectCommandActions(pm.M, pm.ProjectRegistry)
+		return projectCmdScreen.ViewScreenProjectCommandActions(pm.M, pm.ProjectRegistry)
 	}
 	return ""
 }

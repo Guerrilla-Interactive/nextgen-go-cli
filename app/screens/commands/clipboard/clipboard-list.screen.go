@@ -1,4 +1,4 @@
-package screens
+package clipboard
 
 import (
 	"fmt"
@@ -13,8 +13,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Helper to get sorted keys from the ClipboardCommands map
-func getSortedClipboardCommandNames(registry *project.ProjectRegistry) []string {
+// GetSortedClipboardCommandNames retrieves sorted clipboard command names from the registry.
+// Renamed to be exported.
+func GetSortedClipboardCommandNames(registry *project.ProjectRegistry) []string {
 	if registry == nil || registry.ClipboardCommands == nil {
 		return []string{}
 	}
@@ -29,7 +30,7 @@ func getSortedClipboardCommandNames(registry *project.ProjectRegistry) []string 
 // updateClipboardListPreview generates the file tree preview for the selected clipboard command.
 func updateClipboardListPreview(m app.Model, registry *project.ProjectRegistry) app.Model {
 	m.ClipboardListPreview = "Loading preview..."
-	clipboardCmdNames := getSortedClipboardCommandNames(registry)
+	clipboardCmdNames := GetSortedClipboardCommandNames(registry)
 	totalCmds := len(clipboardCmdNames)
 	start, _ := m.ClipboardPaginator.GetSliceBounds(totalCmds)
 	realIndex := start + m.ClipboardListIndex
@@ -65,7 +66,7 @@ func updateClipboardListPreview(m app.Model, registry *project.ProjectRegistry) 
 
 // UpdateScreenClipboardList handles navigation for the list of saved clipboard commands.
 func UpdateScreenClipboardList(m app.Model, msg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
-	clipboardCmdNames := getSortedClipboardCommandNames(registry)
+	clipboardCmdNames := GetSortedClipboardCommandNames(registry)
 	totalCmds := len(clipboardCmdNames)
 
 	// --- Paginator Setup ---
@@ -140,7 +141,7 @@ func UpdateScreenClipboardList(m app.Model, msg tea.KeyMsg, registry *project.Pr
 func ViewScreenClipboardList(m app.Model, registry *project.ProjectRegistry) string {
 	header := app.TitleStyle.Render("Saved Clipboard Commands") + "\n"
 
-	clipboardCmdNames := getSortedClipboardCommandNames(registry)
+	clipboardCmdNames := GetSortedClipboardCommandNames(registry)
 	totalCmds := len(clipboardCmdNames)
 
 	// --- Get paginated items ---

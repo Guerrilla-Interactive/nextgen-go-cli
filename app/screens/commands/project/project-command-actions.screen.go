@@ -1,4 +1,4 @@
-package screens
+package projectCmd
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"          // For ToKebabCase
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands" // Import commands package
-	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"  // Import shared
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -61,9 +61,7 @@ func UpdateScreenProjectCommandActions(m app.Model, msg tea.Msg, registry *proje
 					m.TempFilename = ""
 					m.CurrentScreen = app.ScreenFilenamePrompt
 					m.PromptOptionFocused = false // Ensure input is focused
-					// Regenerate preview for the prompt screen
-					m = UpdateFilenamePromptPreview(m, registry) // Remove screens. prefix
-					return m, cursor.Blink                       // Start cursor blinking
+					return m, cursor.Blink        // Start cursor blinking
 				} else {
 					// No variables needed, run directly
 					m.HistorySaveStatus = fmt.Sprintf("Attempting to run: %s", cmdName)

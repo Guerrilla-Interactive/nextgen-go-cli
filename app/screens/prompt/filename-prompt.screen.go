@@ -1,4 +1,4 @@
-package screens
+package prompt
 
 import (
 	"encoding/json"
@@ -11,6 +11,7 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
@@ -78,17 +79,16 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 					extraVars[key] = m.Variables[key]
 				}
 				placeholders := commands.BuildMultiPlaceholders(mainValue, extraVars)
-
-				// Set status and screen before returning command
+				// --- DEBUG ---
+				fmt.Printf("DEBUG [Multi-Var Enter]: Placeholders: %+v\n", placeholders)
+				// -------------
 				m.HistorySaveStatus = fmt.Sprintf("Running command: %s...", m.PendingCommand)
 				m.CurrentScreen = app.ScreenInstallDetails
-
-				// Get the command to run
 				runCmd := commands.RunCommand(m.PendingCommand, m.ProjectPath, placeholders, registry)
 				return m, runCmd
 			} else {
 				// Still more variables to collect, update preview for next prompt
-				m = UpdateFilenamePromptPreview(m, registry)
+				m = updateFilenamePromptPreview(m, registry)
 				return m, cursor.Blink // Return blink for the next input field
 			}
 		case "backspace":
@@ -96,7 +96,7 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 				m.TempFilename = m.TempFilename[:len(m.TempFilename)-1]
 			}
 			// Update preview immediately after backspace
-			m = UpdateFilenamePromptPreview(m, registry)
+			m = updateFilenamePromptPreview(m, registry)
 			return m, cursor.Blink
 		default:
 			// Append single character inputs.
@@ -104,7 +104,7 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 				m.TempFilename += keyMsg.String()
 			}
 			// Update preview immediately after character input
-			m = UpdateFilenamePromptPreview(m, registry)
+			m = updateFilenamePromptPreview(m, registry)
 			return m, cursor.Blink
 		}
 	}
@@ -138,6 +138,9 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 				placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": filename})
 			}
 		}
+		// --- DEBUG ---
+		fmt.Printf("DEBUG [Single-Var Enter]: Placeholders: %+v\n", placeholderMap)
+		// -------------
 
 		// --- Handle Clipboard Saving Separately (Before Running Command) ---
 		if strings.ToLower(m.PendingCommand) == "paste from clipboard" && filename != "" {
@@ -208,7 +211,7 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 	}
 
 	// Regenerate preview after input change in single-var mode
-	m = UpdateFilenamePromptPreview(m, registry)
+	m = updateFilenamePromptPreview(m, registry)
 
 	return m, cursor.Blink // Return blink for single-var mode input
 }
@@ -296,11 +299,11 @@ func ViewFilenamePrompt(m app.Model, registry *project.ProjectRegistry) string {
 
 	// Prepend header with package icon and current folder name.
 	folderName := filepath.Base(m.ProjectPath)
-	header := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("�� %s", folderName))
+	header := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
 	preview = header + "\n\n" + preview
 
 	// Build the right panel (the file tree preview) using the updated preview.
-	rightPanel := sideContainer(preview)
+	rightPanel := shared.SideContainer(preview)
 
 	// Join the anchored left panel and the right panel horizontally with bottom alignment,
 	// then append the help notice.
@@ -310,12 +313,12 @@ func ViewFilenamePrompt(m app.Model, registry *project.ProjectRegistry) string {
 	)
 }
 
-// UpdateFilenamePromptPreview generates the file tree preview for the filename prompt screen.
-func UpdateFilenamePromptPreview(m app.Model, registry *project.ProjectRegistry) app.Model {
+// updateFilenamePromptPreview generates the file tree preview for the filename prompt screen.
+// Moved here from shared/screen-helpers.go and made internal.
+func updateFilenamePromptPreview(m app.Model, registry *project.ProjectRegistry) app.Model {
 	var placeholderMap map[string]string
 
 	// Determine the correct keys first using the new function
-	// We need registry here, so add it to function signature
 	keys, err := commands.GetCommandVariableKeys(m.PendingCommand, m.ProjectPath, registry)
 	if err != nil {
 		// Handle error getting keys, maybe set preview to error message?

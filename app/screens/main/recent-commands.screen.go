@@ -1,4 +1,4 @@
-package screens
+package mainScreen
 
 import (
 	"fmt"
@@ -9,6 +9,8 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	projectCmdScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/project"
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -121,11 +123,11 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 						return m, nil
 					} else if strings.ToLower(itemName) == "paste from clipboard" {
 						m.PendingCommand = itemName
-						// Pass projectPath and registry to requiresMultipleVars
-						if requiresMultipleVars(itemName, m.ProjectPath, registry) {
+						// Pass projectPath and registry to sharedScreens.RequiresMultipleVars
+						if sharedScreens.RequiresMultipleVars(itemName, m.ProjectPath, registry) {
 							// Set up for multi-variable prompt
 							m.MultipleVariables = true
-							m.VariableKeys = extractVariableKeys(itemName, m.ProjectPath, registry)
+							m.VariableKeys = sharedScreens.ExtractVariableKeys(itemName, m.ProjectPath, registry)
 							m.CurrentVariableIndex = 0
 							m.Variables = make(map[string]string)
 						} else {
@@ -136,7 +138,6 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 						m.CurrentScreen = app.ScreenFilenamePrompt
 						m.TempFilename = ""
 						// Update preview for prompt screen
-						m = UpdateFilenamePromptPreview(m, registry)
 						return m, cursor.Blink
 					}
 					// TODO: Handle undo/redo if implemented
@@ -144,10 +145,10 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 			} else { // Focus is "list"
 				if realIndex < totalCmds { // Ensure index is valid
 					itemName := fullCommandList[realIndex]
-					// Use HandleCommandSelection and capture both model and command
+					// Use sharedScreens.HandleCommandSelection and capture both model and command
 					var selectCmd tea.Cmd
 					var updatedModel *app.Model // Temporary variable for the model pointer
-					updatedModel, selectCmd = HandleCommandSelection(&m, registry, itemName)
+					updatedModel, selectCmd = sharedScreens.HandleCommandSelection(&m, registry, itemName)
 					m = *updatedModel             // Assign the dereferenced model back to m
 					m.CurrentPreviewType = "none" // Clear preview after selection
 					m.FileTreePreview = ""
@@ -198,9 +199,9 @@ func updatePreview(m app.Model, registry *project.ProjectRegistry, selectedCmdNa
 
 	switch lowerCmd {
 	case "view settings": // Renamed
-		// No complex preview needed for settings, maybe just text?
-		m.FileTreePreview = "Navigate to application settings."
-		m.CurrentPreviewType = "file-tree" // Use file-tree for simple text preview
+		// Use sharedScreens.RenderProjectInfoSection
+		m.StatsPreview = sharedScreens.RenderProjectInfoSection(m, registry)
+		m.CurrentPreviewType = "stats"
 	case "undo", "redo":
 		// No preview for these actions
 		m.CurrentPreviewType = "none"
@@ -482,7 +483,7 @@ func getPrioritizedCommandList(m *app.Model, registry *project.ProjectRegistry) 
 
 	// Add Project Commands (Sorted)
 	if registry != nil && m.ProjectPath != "" {
-		projectCmdNames, err := getSortedProjectCommandNames(m.ProjectPath)
+		projectCmdNames, err := projectCmdScreen.GetSortedProjectCommandNames(m.ProjectPath)
 		if err == nil {
 			for _, name := range projectCmdNames {
 				if !recentMap[name] && !excludedMap[strings.ToLower(name)] {

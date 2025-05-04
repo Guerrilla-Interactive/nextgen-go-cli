@@ -1,9 +1,10 @@
-package screens
+package mainScreen
 
 import (
 	"os"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -31,7 +32,7 @@ func ViewSelectScreen(m app.Model) string {
 	body := title + "\n" + pathLine + "\n\n"
 
 	// Optionally also show recognized packages or other info:
-	body += summarizeProjectStats(m) + "\n"
+	body += sharedScreens.SummarizeProjectStats(m) + "\n"
 
 	var loginOpt, offlineOpt string
 	if m.IsLoggedIn {
@@ -47,5 +48,5 @@ func ViewSelectScreen(m app.Model) string {
 	body += app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)")
 
 	// Wrap the select screen content with a base container.
-	return baseContainer(body)
+	return sharedScreens.BaseContainer(body)
 }

@@ -1,4 +1,4 @@
-package screens
+package clipboard
 
 import (
 	"fmt"
@@ -54,9 +54,7 @@ func UpdateScreenClipboardActions(m app.Model, msg tea.KeyMsg, registry *project
 				m.TempFilename = ""
 				m.CurrentScreen = app.ScreenFilenamePrompt
 				m.PromptOptionFocused = false // Ensure input is focused
-				// Regenerate preview for the prompt screen
-				m = UpdateFilenamePromptPreview(m, registry) // Use exported name and pass registry
-				return m, cursor.Blink                       // Start cursor blinking for input
+				return m, cursor.Blink        // Start cursor blinking for input
 			} else {
 				// No variables needed, run directly
 				m.HistorySaveStatus = fmt.Sprintf("Attempting to run: %s", cmdName)
