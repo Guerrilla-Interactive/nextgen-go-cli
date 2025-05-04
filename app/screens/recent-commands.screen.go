@@ -276,6 +276,9 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 	// --- Left Pane: Paginated Command List ---
 	var listBuilder strings.Builder
 
+	// Ensure paginator knows total pages before rendering its view
+	p.SetTotalPages(totalCmds)
+
 	if totalCmds == 0 {
 		listBuilder.WriteString(" (No commands available)")
 	} else {
@@ -301,7 +304,7 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 		}
 	}
 	// --- Combine Left Pane Content (Header + Action Bar + List) ---
-	// Calculate paginator view *before* defining left content
+	// Calculate paginator view *after* ensuring total pages is set
 	paginatorView := ""
 	if totalCmds > p.PerPage {
 		paginatorView = p.View()
