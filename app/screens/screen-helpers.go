@@ -174,7 +174,7 @@ func recordCommand(m *app.Model, cmd string) {
 		"undo":                     true,
 		"redo":                     true,
 		"show all my commands":     true,
-		"view project stats":       true,
+		"view settings":            true,
 		"logoutorloginplaceholder": true,
 		"paste from clipboard":     true,
 	}
@@ -271,8 +271,8 @@ func HandleCommandSelection(m *app.Model, registry *project.ProjectRegistry, ite
 	// Always record the command so it appears at the top of RecentUsed:
 	recordCommand(m, itemName)
 
-	if strings.ToLower(itemName) == "view project stats" {
-		m.CurrentScreen = app.ScreenProjectStats
+	if strings.ToLower(itemName) == "view settings" {
+		m.CurrentScreen = app.ScreenSettings
 		return m, nil
 	}
 
@@ -346,11 +346,6 @@ func sideContainer(content string) string {
 // On any key press it quits the application.
 func UpdateScreenInstallDetails(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 	return m, tea.Quit
-}
-
-// CommandFinishedMsg is sent when an asynchronous command execution has completed.
-type CommandFinishedMsg struct {
-	Err error
 }
 
 // NEW: renderProjectInfoSection formats the common project info details.
