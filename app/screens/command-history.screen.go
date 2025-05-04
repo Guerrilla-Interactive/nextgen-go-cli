@@ -92,9 +92,9 @@ func UpdateScreenCommandHistory(m app.Model, msg tea.KeyMsg, registry *project.P
 		}
 
 	case "enter":
-		// If "Back" is selected (index == historyLen), go back to Project Stats
+		// If "Back" is selected (index == historyLen), go back to Settings
 		if m.HistoryScreenIndex == historyLen {
-			m.CurrentScreen = app.ScreenProjectStats
+			m.CurrentScreen = app.ScreenSettings
 			// Reset index for next time
 			m.HistoryScreenIndex = 0
 			m.HistoryFileTreePreview = ""
@@ -102,8 +102,8 @@ func UpdateScreenCommandHistory(m app.Model, msg tea.KeyMsg, registry *project.P
 		}
 		// Enter on history items currently does nothing
 
-	case "esc", "b": // Go back to Project Stats
-		m.CurrentScreen = app.ScreenProjectStats
+	case "esc", "b": // Go back to Settings
+		m.CurrentScreen = app.ScreenSettings
 		// Reset index for next time
 		m.HistoryScreenIndex = 0
 		m.HistoryFileTreePreview = ""

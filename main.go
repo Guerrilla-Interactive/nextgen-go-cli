@@ -31,7 +31,7 @@ import (
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.63"
+var Version = "v1.0.64"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -133,13 +133,46 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return pm, nil
 
 	// 2) Handle the asynchronous command finished message.
-	case screens.CommandFinishedMsg:
-		if typedMsg.Err != nil {
+	case app.CommandFinishedMsg:
+		if typedMsg.Err == nil {
+			// --- Command Succeeded: Record History ---
+			if pm.ProjectRegistry != nil && typedMsg.ProjectPath != "" && typedMsg.ProjectPath != "." {
+				historicCmd := project.HistoricCommand{
+					Name:           typedMsg.CommandName,
+					Variables:      typedMsg.Placeholders,
+					Timestamp:      time.Now().Unix(),
+					GeneratedFiles: typedMsg.GeneratedFiles,
+				}
+				if err := pm.ProjectRegistry.RecordCommandHistory(typedMsg.ProjectPath, historicCmd); err != nil {
+					// Log error, but don't block UI
+					pm.M.HistorySaveStatus = fmt.Sprintf("Error saving history: %v", err) // Update status message
+					fmt.Printf("Warning: Failed to record command history for '%s': %v\n", typedMsg.CommandName, err)
+				} else {
+					pm.M.HistorySaveStatus = fmt.Sprintf("History saved for: %s", typedMsg.CommandName)
+				}
+			} else {
+				// Cannot record history (no registry or invalid path)
+				pm.M.HistorySaveStatus = "Could not save history (no registry or invalid path)"
+			}
+			// -------------------------------------------
+			// Update to installation details screen on success
+			pm.M.CurrentScreen = app.ScreenInstallDetails
+		} else {
+			// --- Command Failed ---
 			// Optionally log or display the error.
+			pm.M.HistorySaveStatus = fmt.Sprintf("Command '%s' failed: %v", typedMsg.CommandName, typedMsg.Err)
 			fmt.Println("Command finished with error:", typedMsg.Err)
+			// Optionally, stay on the current screen or go to an error screen instead of InstallDetails?
+			// For now, still go to InstallDetails to show the error (it quits on key press)
+			pm.M.CurrentScreen = app.ScreenInstallDetails
 		}
-		// Update to installation details screen.
-		pm.M.CurrentScreen = app.ScreenInstallDetails
+		// Clear pending command info regardless of success/failure
+		pm.M.PendingCommand = ""
+		pm.M.Variables = nil
+		pm.M.VariableKeys = nil
+		pm.M.TempFilename = ""
+		// No command needed from here, just update the model state
+		return pm, nil
 
 	// 3) Handle window size message
 	case tea.WindowSizeMsg:
@@ -546,231 +579,138 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 	}
 	// ------------------------------------------------------------------
 
+	// Initialize execution error variable
+	var execErr error
+	// Keep track of placeholders if applicable (for history)
+	var placeholders map[string]string
+
 	// 1. Try executing as an Arg-based command first
 	cmd, found := args_pkg.GetCommand(commandName)
 	if found {
 		fmt.Printf("DEBUG: Executing command '%s' via args package...\n", commandName)
-		err := cmd.Execute(args)
-		fmt.Printf("DEBUG: Args command '%s' finished. Error: %v\n", commandName, err)
-		if err != nil {
-			return fmt.Errorf("execution failed: %w", err)
-		}
-		return nil // Success
-	}
-
-	// 2. Try executing as a User-Saved Native Command
-	if registry != nil && registry.NativeCommands != nil {
-		if commandString, nativeFound := registry.NativeCommands[commandName]; nativeFound {
-			fmt.Printf("DEBUG: Executing command '%s' as user-saved native command...\n", commandName)
-			fmt.Printf("  Command: %s\n  Args: %v\n", commandString, commandArgs)
-			return runShellCommand(commandString, commandArgs, projectPath)
-		}
-	}
-
-	// 3. Try executing as a Clipboard Command
-	if registry != nil && registry.ClipboardCommands != nil {
-		// DEBUG PRINT: List available clipboard keys
-		clipboardKeys := make([]string, 0, len(registry.ClipboardCommands))
-		for k := range registry.ClipboardCommands {
-			clipboardKeys = append(clipboardKeys, k)
-		}
-		fmt.Printf("DEBUG: Available clipboard keys: %v\n", clipboardKeys)
-
-		fmt.Printf("DEBUG: Checking clipboard commands map for key: '%s'\n", commandName) // DEBUG PRINT 1
-		if clipboardSpec, clipboardFound := registry.ClipboardCommands[commandName]; clipboardFound {
-			fmt.Printf("DEBUG: Clipboard command '%s' FOUND in map.\n", commandName) // DEBUG PRINT 2
-			fmt.Printf("DEBUG: Executing command '%s' as clipboard command...\n", commandName)
-			templateString := clipboardSpec.Template
-			if templateString == "" {
-				return fmt.Errorf("clipboard command '%s' has empty template content", commandName)
-			}
-			templateBytes := []byte(templateString)
-			keys := template_cmds.InferVariableKeys(string(templateBytes))
-			if len(keys) != len(commandArgs) {
-				return fmt.Errorf("clipboard command '%s' requires %d argument(s) (%s), but %d provided",
-					commandName, len(keys), strings.Join(keys, ", "), len(commandArgs))
-			}
+		execErr = cmd.Execute(args)
+		fmt.Printf("DEBUG: Args command '%s' finished. Error: %v\n", commandName, execErr)
+		// Placeholders are not directly available from args commands for history
+	} else if registry != nil && registry.NativeCommands != nil && registry.NativeCommands[commandName] != "" {
+		// 2. Try executing as a User-Saved Native Command
+		commandString := registry.NativeCommands[commandName]
+		fmt.Printf("DEBUG: Executing command '%s' as user-saved native command...\n", commandName)
+		fmt.Printf("  Command: %s\n  Args: %v\n", commandString, commandArgs)
+		execErr = runShellCommand(commandString, commandArgs, projectPath)
+		// Placeholders are not applicable to shell commands for history
+	} else if registry != nil && registry.ClipboardCommands != nil && registry.ClipboardCommands[commandName].Template != "" {
+		// 3. Try executing as a Clipboard Command
+		clipboardSpec := registry.ClipboardCommands[commandName]
+		fmt.Printf("DEBUG: Executing command '%s' as clipboard command...\n", commandName)
+		templateBytes := []byte(clipboardSpec.Template)
+		keys := template_cmds.InferVariableKeys(string(templateBytes))
+		if len(keys) != len(commandArgs) {
+			execErr = fmt.Errorf("clipboard command '%s' requires %d argument(s) (%s), but %d provided",
+				commandName, len(keys), strings.Join(keys, ", "), len(commandArgs))
+		} else {
 			varsMap := make(map[string]string)
 			for i, key := range keys {
 				varsMap[key] = commandArgs[i]
 			}
-			placeholders := template_cmds.BuildPlaceholders(varsMap)
+			placeholders = template_cmds.BuildPlaceholders(varsMap) // Store placeholders
 			fmt.Printf("DEBUG: Running clipboard template with placeholders: %+v\n", placeholders)
 			template_cmds.CreatedFiles = []string{}
 			template_cmds.EditedIndexers = make(map[string]bool)
-			execErr := template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
-			// --- Record History ---
-			fmt.Printf("DEBUG: Clipboard template executed. Generated: %v, Edited Indexers: %v\n", template_cmds.CreatedFiles, template_cmds.EditedIndexers)
-			if registry != nil && projectPath != "." {
-				if projectInfo, found := registry.GetProject(projectPath); found {
-					historicCmd := project.HistoricCommand{
-						Name:           commandName,
-						Variables:      placeholders,
-						Timestamp:      time.Now().Unix(),
-						GeneratedFiles: append([]string{}, template_cmds.CreatedFiles...),
-					}
-					if projectInfo.CommandHistory == nil {
-						projectInfo.CommandHistory = []project.HistoricCommand{}
-					}
-					projectInfo.CommandHistory = append(projectInfo.CommandHistory, historicCmd)
-					if len(projectInfo.CommandHistory) > 20 {
-						projectInfo.CommandHistory = projectInfo.CommandHistory[len(projectInfo.CommandHistory)-20:]
-					}
-					registry.AddOrUpdateProject(projectInfo)
-					if saveErr := registry.Save(); saveErr != nil {
-						fmt.Printf("Warning: Failed to save project registry after executing clipboard command '%s': %v\n", commandName, saveErr)
-					}
+			execErr = template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
+		}
+	} else if projectPath != "." { // Check project command only if we have a valid path
+		// 4. Try executing as a Project Command
+		localCmdDir := filepath.Join(projectPath, ".nextgen", "local-commands")
+		kebabName := template_cmds.ToKebabCase(commandName)
+		cmdFilePath := filepath.Join(localCmdDir, kebabName+".json")
+		if _, err := os.Stat(cmdFilePath); err == nil {
+			jsonData, readErr := os.ReadFile(cmdFilePath)
+			if readErr != nil {
+				execErr = fmt.Errorf("failed to read project command file '%s': %w", cmdFilePath, readErr)
+			} else {
+				type ProjectCommandFile struct {
+					Command string `json:"command"`
+				}
+				var cmdData ProjectCommandFile
+				if jsonErr := json.Unmarshal(jsonData, &cmdData); jsonErr != nil {
+					execErr = fmt.Errorf("failed to parse project command file '%s': %w", cmdFilePath, jsonErr)
 				} else {
-					fmt.Printf("Warning: Project '%s' not found in registry, cannot record history for clipboard command.\n", projectPath)
-				}
-			}
-			// ----------------------
-			if execErr != nil {
-				return fmt.Errorf("clipboard template execution failed: %w", execErr)
-			}
-			// --- Print File Tree on Success ---
-			if len(template_cmds.CreatedFiles) > 0 {
-				fmt.Println("\n--- Files Created --- ")
-				relPaths := make([]string, len(template_cmds.CreatedFiles))
-				for i, p := range template_cmds.CreatedFiles {
-					if rel, err := filepath.Rel(projectPath, filepath.Join(projectPath, p)); err == nil {
-						relPaths[i] = rel
+					commandString := cmdData.Command
+					if commandString == "" {
+						execErr = fmt.Errorf("command string is empty in project command file '%s'", cmdFilePath)
 					} else {
-						relPaths[i] = p
+						fmt.Printf("DEBUG: Executing command '%s' as project command...\n", commandName)
+						fmt.Printf("  Command: %s\n  Args: %v\n", commandString, commandArgs)
+						execErr = runShellCommand(commandString, commandArgs, projectPath)
+						// Placeholders not applicable
 					}
 				}
-				treeRoot := utils.BuildFileTree(relPaths)
-				// Render without icons or special markers for CLI output
-				treeString := utils.RenderFileTree(treeRoot, "", false, false, nil)
-				fmt.Println(treeString)
 			}
-			// ---------------------------------
-			return nil // Success for clipboard command
-		} else {
-			fmt.Printf("DEBUG: Clipboard command '%s' NOT FOUND in map.\n", commandName) // DEBUG PRINT 3
 		}
 	} else {
-		fmt.Println("DEBUG: Registry or ClipboardCommands map is nil, skipping check.") // DEBUG PRINT 4
-	}
-
-	// 4. Try executing as a Project Command
-	localCmdDir := filepath.Join(projectPath, ".nextgen", "local-commands")
-	kebabName := template_cmds.ToKebabCase(commandName)
-	cmdFilePath := filepath.Join(localCmdDir, kebabName+".json")
-	if _, err := os.Stat(cmdFilePath); err == nil {
-		// File exists, try to read and execute
-		jsonData, readErr := os.ReadFile(cmdFilePath)
-		if readErr != nil {
-			return fmt.Errorf("failed to read project command file '%s': %w", cmdFilePath, readErr)
-		}
-
-		// Reuse struct from args/project_cmd_add.go
-		type ProjectCommandFile struct {
-			Command string `json:"command"`
-		}
-		var cmdData ProjectCommandFile
-		if jsonErr := json.Unmarshal(jsonData, &cmdData); jsonErr != nil {
-			return fmt.Errorf("failed to parse project command file '%s': %w", cmdFilePath, jsonErr)
-		}
-
-		commandString := cmdData.Command
-		if commandString == "" {
-			return fmt.Errorf("command string is empty in project command file '%s'", cmdFilePath)
-		}
-
-		fmt.Printf("DEBUG: Executing command '%s' as project command...\n", commandName)
-		fmt.Printf("  Command: %s\n  Args: %v\n", commandString, commandArgs)
-		return runShellCommand(commandString, commandArgs, projectPath)
-	}
-
-	// 5. Try executing as a Built-in Template Command
-	spec := template_cmds.GetCommandSpec(commandName)
-	if spec.TemplatePath != "" {
-		fmt.Printf("DEBUG: Executing command '%s' as built-in template command...\n", commandName)
-		// Load template bytes
-		templateBytes, loadErr := template_cmds.LoadCommandTemplate(spec.TemplatePath)
-		if loadErr != nil {
-			return fmt.Errorf("failed to load template %s: %w", spec.TemplatePath, loadErr)
-		}
-
-		// Infer variable keys from template
-		keys := template_cmds.InferVariableKeys(string(templateBytes))
-
-		// --- Map Args to Placeholders (Simplified Approach) ---
-		// Assumption: For direct execution, we map positional args to inferred keys in order.
-		// We require the number of args to match the number of inferred keys.
-		if len(keys) != len(commandArgs) {
-			return fmt.Errorf("command '%s' requires %d argument(s) (%s), but %d provided",
-				commandName, len(keys), strings.Join(keys, ", "), len(commandArgs))
-		}
-		varsMap := make(map[string]string)
-		for i, key := range keys {
-			varsMap[key] = commandArgs[i]
-		}
-		placeholders := template_cmds.BuildPlaceholders(varsMap)
-		// ---------------------------------------------------------
-
-		fmt.Printf("DEBUG: Running template with placeholders: %+v\n", placeholders)
-
-		// Reset global trackers in template_cmds (important!)
-		template_cmds.CreatedFiles = []string{}
-		template_cmds.EditedIndexers = make(map[string]bool)
-
-		// Execute the template logic
-		execErr := template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
-
-		// --- Record History (adapted from template_cmds.RunCommand) ---
-		fmt.Printf("DEBUG: Template executed. Generated: %v, Edited Indexers: %v\n", template_cmds.CreatedFiles, template_cmds.EditedIndexers)
-		if registry != nil && projectPath != "." { // Ensure we have registry and a valid project path
-			if projectInfo, found := registry.GetProject(projectPath); found {
-				historicCmd := project.HistoricCommand{
-					Name:           commandName,
-					Variables:      placeholders,
-					Timestamp:      time.Now().Unix(),
-					GeneratedFiles: append([]string{}, template_cmds.CreatedFiles...), // Copy slice
-				}
-				if projectInfo.CommandHistory == nil {
-					projectInfo.CommandHistory = []project.HistoricCommand{}
-				}
-				projectInfo.CommandHistory = append(projectInfo.CommandHistory, historicCmd)
-				if len(projectInfo.CommandHistory) > 20 { // Limit history
-					projectInfo.CommandHistory = projectInfo.CommandHistory[len(projectInfo.CommandHistory)-20:]
-				}
-				registry.AddOrUpdateProject(projectInfo) // Updates usage count too
-				if saveErr := registry.Save(); saveErr != nil {
-					fmt.Printf("Warning: Failed to save project registry after executing template command '%s': %v\n", commandName, saveErr)
-				}
+		// 5. Try executing as a Built-in Template Command (Only if not found above)
+		spec := template_cmds.GetCommandSpec(commandName)
+		if spec.TemplatePath != "" {
+			fmt.Printf("DEBUG: Executing command '%s' as built-in template command...\n", commandName)
+			templateBytes, loadErr := template_cmds.LoadCommandTemplate(spec.TemplatePath)
+			if loadErr != nil {
+				execErr = fmt.Errorf("failed to load template %s: %w", spec.TemplatePath, loadErr)
 			} else {
-				fmt.Printf("Warning: Project '%s' not found in registry, cannot record history for template command.\n", projectPath)
-			}
-		}
-		// -----------------------------------------------------------
-
-		if execErr != nil {
-			return fmt.Errorf("template execution failed: %w", execErr) // Return execution error after attempting history save
-		}
-		// --- Print File Tree on Success ---
-		if len(template_cmds.CreatedFiles) > 0 {
-			fmt.Println("\n--- Files Created --- ")
-			relPaths := make([]string, len(template_cmds.CreatedFiles))
-			for i, p := range template_cmds.CreatedFiles {
-				if rel, err := filepath.Rel(projectPath, filepath.Join(projectPath, p)); err == nil { // Ensure relative to project path
-					relPaths[i] = rel
+				keys := template_cmds.InferVariableKeys(string(templateBytes))
+				if len(keys) != len(commandArgs) {
+					execErr = fmt.Errorf("command '%s' requires %d argument(s) (%s), but %d provided",
+						commandName, len(keys), strings.Join(keys, ", "), len(commandArgs))
 				} else {
-					relPaths[i] = p // Fallback to original if Rel fails
+					varsMap := make(map[string]string)
+					for i, key := range keys {
+						varsMap[key] = commandArgs[i]
+					}
+					placeholders = template_cmds.BuildPlaceholders(varsMap) // Store placeholders
+					fmt.Printf("DEBUG: Running template with placeholders: %+v\n", placeholders)
+					template_cmds.CreatedFiles = []string{}
+					template_cmds.EditedIndexers = make(map[string]bool)
+					execErr = template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
 				}
 			}
-			treeRoot := utils.BuildFileTree(relPaths)
-			// Render without icons or special markers for CLI output
-			treeString := utils.RenderFileTree(treeRoot, "", false, false, nil)
-			fmt.Println(treeString)
+		} else {
+			// If not found in any category
+			return fmt.Errorf("unknown or unsupported command for direct execution: %s", commandName)
 		}
-		// ---------------------------------
-		return nil // Success
 	}
 
-	// If not found in any category
-	return fmt.Errorf("unknown or unsupported command for direct execution: %s", commandName)
+	// --- Record History (Centralized Logic) ---
+	if execErr == nil { // Only record history if execution was successful
+		historicCmd := project.HistoricCommand{
+			Name:           commandName,
+			Variables:      placeholders, // Will be nil for non-template commands, which is fine
+			Timestamp:      time.Now().Unix(),
+			GeneratedFiles: append([]string{}, template_cmds.CreatedFiles...), // Copy generated files (relevant for templates)
+		}
+		if err := registry.RecordCommandHistory(projectPath, historicCmd); err != nil {
+			fmt.Printf("Warning: Failed to record command history for '%s': %v\n", commandName, err)
+			// Don't return this error, as the command itself succeeded
+		}
+	} else {
+		return execErr // Return the original execution error
+	}
+
+	// --- Print File Tree on Success (Only for Template Commands) ---
+	if len(template_cmds.CreatedFiles) > 0 { // Check if files were generated
+		fmt.Println("\n--- Files Created --- ")
+		relPaths := make([]string, len(template_cmds.CreatedFiles))
+		for i, p := range template_cmds.CreatedFiles {
+			if rel, err := filepath.Rel(projectPath, filepath.Join(projectPath, p)); err == nil {
+				relPaths[i] = rel
+			} else {
+				relPaths[i] = p
+			}
+		}
+		treeRoot := utils.BuildFileTree(relPaths)
+		treeString := utils.RenderFileTree(treeRoot, "", false, false, nil)
+		fmt.Println(treeString)
+	}
+
+	return nil // Overall success
 }
 
 // Helper function to run a shell command

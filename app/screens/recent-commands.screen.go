@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
@@ -16,14 +15,14 @@ import (
 )
 
 // actionRow defines the dedicated Action Row commands.
-var actionRow = []string{"undo", "redo", "paste from clipboard", "view project stats"}
+var actionRow = []string{"undo", "redo", "paste from clipboard", "View Settings"}
 
 // excluded commands for history/listing purposes
 var excluded = map[string]bool{
 	"undo":                     true,
 	"redo":                     true,
 	"show all my commands":     true, // Assuming this is a navigation command
-	"view project stats":       true,
+	"view settings":            true, // Renamed
 	"logoutorloginplaceholder": true, // Assuming this is navigation/action
 	"paste from clipboard":     true, // Special handling, not listed directly
 }
@@ -116,9 +115,9 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 			if m.MainScreenFocus == "action" {
 				if m.ActionIndex >= 0 && m.ActionIndex < len(actionRow) {
 					itemName := actionRow[m.ActionIndex]
-					// Handle actions (view stats, paste)
-					if strings.ToLower(itemName) == "view project stats" {
-						m.CurrentScreen = app.ScreenProjectStats
+					// Handle actions (view settings, paste)
+					if strings.ToLower(itemName) == "view settings" { // Renamed check
+						m.CurrentScreen = app.ScreenSettings // Navigate to new screen
 						return m, nil
 					} else if strings.ToLower(itemName) == "paste from clipboard" {
 						m.PendingCommand = itemName
@@ -198,10 +197,10 @@ func updatePreview(m app.Model, registry *project.ProjectRegistry, selectedCmdNa
 	m.CurrentPreviewType = "none"
 
 	switch lowerCmd {
-	case "view project stats":
-		// Use the new helper function to generate the preview
-		m.StatsPreview = renderProjectInfoSection(m, registry)
-		m.CurrentPreviewType = "stats"
+	case "view settings": // Renamed
+		// No complex preview needed for settings, maybe just text?
+		m.FileTreePreview = "Navigate to application settings."
+		m.CurrentPreviewType = "file-tree" // Use file-tree for simple text preview
 	case "undo", "redo":
 		// No preview for these actions
 		m.CurrentPreviewType = "none"
@@ -261,14 +260,13 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 		paginatedCmds = fullCommandList[start:end]
 	}
 
-	// --- Header & Project Info (Moved here to be part of left pane) ---
-	// Spacer before logo
+	// --- Header (Removed project stats summary) ---
 	verticalSpace := lipgloss.NewStyle().Height(3).Render("") // Reduced vertical space
 	logo := app.TitleStyle.Render("NEXT") +
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#ff3600")).Render("GEN") +
 		" CLI" + lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(" "+m.Version) + "\n"
-	projectStats := app.SummarizeProjectStats(m.RecognizedPkgs) // Limited stats for header
-	headerSection := verticalSpace + logo + projectStats        // Combine header elements
+	// projectStats := app.SummarizeProjectStats(m.RecognizedPkgs) // REMOVED Limited stats for header
+	headerSection := verticalSpace + logo // Combine header elements (without stats)
 
 	// --- Static Action Bar (Now with potential focus) ---
 	actionBarText := renderStaticActionBar(actionRow, m.ActionIndex, m.MainScreenFocus == "action") // Pass index and focus
@@ -345,6 +343,7 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 	// Determine the raw preview content based on type
 	switch m.CurrentPreviewType {
 	case "stats":
+		// For now, if stats preview is somehow set, display it, but it shouldn't be set by updatePreview.
 		previewContent = m.StatsPreview
 	case "file-tree":
 		previewContent = m.FileTreePreview
@@ -371,14 +370,15 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 	previewHeader := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
 	previewContentWithHeader := previewHeader + "\n\n" + previewContent
 	// Render with consistent padding, no border, and explicit height
-	rightPanelWidth := m.TerminalWidth - leftPanelWidth - 1 // Account for left panel width and space separator
-	if rightPanelWidth < 30 {
-		rightPanelWidth = 30
-	} // Ensure minimum reasonable width
-	rightPanel := lipgloss.NewStyle().
-		Padding(1, 2).
+	rightPanelWidth := m.TerminalWidth - leftPanelWidth - 1 // Adjust width based on terminal size
+	if rightPanelWidth < 10 {
+		rightPanelWidth = 10
+	}
+	rightPanelStyle := lipgloss.NewStyle().
+		Padding(1, 1).                   // Consistent padding
 		Height(availableHeightForPanes). // Set explicit height
-		Render(previewContentWithHeader)
+		Width(rightPanelWidth)           // Set explicit width
+	rightPanel := rightPanelStyle.Render(previewContentWithHeader)
 
 	// --- Render Left Panel ---
 	// Now render the left panel with the combined content and calculated height
@@ -388,7 +388,7 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 		Render(leftContentCombined)
 
 	// --- Combine Panes ---
-	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, " ", rightPanel) // Use single space separator
+	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, " ", rightPanel) // Use minimal space between
 
 	// --- Footer ---
 	// Render the final footer using the content without the paginator
@@ -399,8 +399,7 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 	return lipgloss.JoinVertical(lipgloss.Left, combinedPanes, "\n", finalFooter) // Use finalFooter here
 }
 
-// renderStaticActionBar renders the action bar icons horizontally.
-// It now accepts the selected index and focus state for highlighting.
+// renderStaticActionBar creates the interactive action bar.
 func renderStaticActionBar(items []string, selectedIndex int, hasFocus bool) string {
 	var actionBarItems []string
 	for i, val := range items {
@@ -413,8 +412,8 @@ func renderStaticActionBar(items []string, selectedIndex int, hasFocus bool) str
 			icon = "↻"
 		case "paste from clipboard":
 			icon = "📋"
-		case "view project stats":
-			icon = "📦"
+		case "view settings": // Renamed
+			icon = "⚙️" // Changed icon
 		default:
 			icon = "?"
 		}
@@ -435,281 +434,100 @@ func renderStaticActionBar(items []string, selectedIndex int, hasFocus bool) str
 }
 
 // UpdateScreenProjectStats handles input on the Project Stats screen.
-func UpdateScreenProjectStats(m app.Model, msg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
-	numOptions := 6 // Path, Packages, Usage, History, Manage Commands, Back (Removed Project Commands)
-
-	switch msg.String() {
-	case "ctrl+c", "q":
-		return m, tea.Quit
-
-	case "up", "k":
-		m.StatsScreenIndex = (m.StatsScreenIndex + numOptions - 1) % numOptions
-
-	case "down", "j":
-		m.StatsScreenIndex = (m.StatsScreenIndex + 1) % numOptions
-
-	case "enter":
-		switch m.StatsScreenIndex {
-		case 0: // Project Info
-		case 1: // Detected Packages
-		case 2: // Project Usage
-			// No action yet
-		case 3: // Command History
-			m.CurrentScreen = app.ScreenCommandHistory
-			m.HistoryScreenIndex = 0
-			m = updateHistoryPreview(m, registry)
-			return m, nil
-		case 4: // Manage Commands (Previously Project Commands)
-			m.CurrentScreen = app.ScreenCommandsCategory
-			m.CommandsCategoryIndex = 0
-			return m, nil
-		case 5: // Back (Previously index 6)
-			m.CurrentScreen = app.ScreenMain
-			m.StatsScreenIndex = 0
-			return m, nil
-		}
-
-	case "esc", "b": // Go back to Main
-		m.CurrentScreen = app.ScreenMain
-		m.StatsScreenIndex = 0
-		return m, nil
-	}
-
-	return m, nil
-}
+// MOVED to settings.screen.go
 
 // ViewProjectStatsScreen renders the full project stats (all recognized packages)
 // along with a header and footer.
-// For the full version that includes project registry data, use ViewProjectStatsScreenWithRegistry.
-func ViewProjectStatsScreen(m app.Model) string {
-	// This is a backward-compatible wrapper for apps that don't yet have access to the registry
-	return ViewProjectStatsScreenWithRegistry(m, nil)
-}
+// MOVED to settings.screen.go
 
 // ViewProjectStatsScreenWithRegistry renders the interactive project stats screen.
-func ViewProjectStatsScreenWithRegistry(m app.Model, registry *project.ProjectRegistry) string {
-	header := app.TitleStyle.Render("Project Stats") + "\n"
+// MOVED to settings.screen.go
 
-	// --- Left Pane: Navigation ---
-	navItems := []string{"Project Info", "Detected Packages", "Project Usage", "Command History", "Manage Commands", "Back"} // Removed Project Commands
-	var leftBuilder strings.Builder
-	leftBuilder.WriteString(app.SubtitleStyle.Render("Categories") + "\n\n")
-	for i, item := range navItems {
-		if i == m.StatsScreenIndex {
-			leftBuilder.WriteString(app.HighlightStyle.Render("> "+item) + "\n")
-		} else {
-			leftBuilder.WriteString(app.ChoiceStyle.Render("  "+item) + "\n")
-		}
-	}
-	// Use a fixed width for the left panel for consistent layout
-	leftPanel := lipgloss.NewStyle().
-		Width(50).
-		Padding(2, 2).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		Render(leftBuilder.String())
-
-	// --- Right Pane: Details Preview ---
-	var previewContent string
-	switch m.StatsScreenIndex {
-	case 0: // Project Info (Path, Type)
-		var pb strings.Builder
-		pb.WriteString(app.SubtitleStyle.Render("Project Info") + "\n\n")
-		if m.ProjectPath != "" {
-			pb.WriteString("Path: " + app.PathStyle.Render(m.ProjectPath) + "\n")
-			if registry != nil {
-				if info, found := registry.GetProject(m.ProjectPath); found && info.Type != "" {
-					pb.WriteString(fmt.Sprintf("Type: %s\n", info.Type))
-				}
-			}
-		} else {
-			pb.WriteString(app.ChoiceStyle.Render("Path not available.") + "\n")
-		}
-		previewContent = pb.String()
-	case 1: // Detected Packages
-		previewContent = app.SubtitleStyle.Render("Detected Packages") + "\n\n"
-		if len(m.RecognizedPkgs) > 0 {
-			previewContent += app.SummarizeFullProjectStats(m.RecognizedPkgs) // Uses the existing summarization
-		} else {
-			previewContent += app.ChoiceStyle.Render("No packages detected.")
-		}
-	case 2: // Project Usage (Count, Last Access)
-		var pb strings.Builder
-		pb.WriteString(app.SubtitleStyle.Render("Project Usage") + "\n\n")
-		if registry != nil && m.ProjectPath != "" {
-			if info, found := registry.GetProject(m.ProjectPath); found {
-				pb.WriteString(fmt.Sprintf("- Count: %d\n", info.UsageCount))
-				lastAccess := time.Unix(info.LastAccessTime, 0)
-				pb.WriteString(fmt.Sprintf("- Last Access: %s\n", lastAccess.Format("Jan 2, 2006 at 3:04 PM")))
-			} else {
-				pb.WriteString(app.ChoiceStyle.Render("  (Project usage not recorded yet)\n"))
-			}
-		} else {
-			pb.WriteString(app.ChoiceStyle.Render("  (Registry or Project Path not available)\n"))
-		}
-		previewContent = pb.String()
-	case 3: // Command History
-		var pb strings.Builder
-		pb.WriteString(app.SubtitleStyle.Render("Recent Commands (Preview)") + "\n\n") // Update title
-		if registry != nil && m.ProjectPath != "" {
-			if info, found := registry.GetProject(m.ProjectPath); found && len(info.CommandHistory) > 0 {
-				// Display only the names of the last N commands
-				maxToShow := 10 // Or adjust as needed for preview space
-				start := 0
-				if len(info.CommandHistory) > maxToShow {
-					start = len(info.CommandHistory) - maxToShow
-				}
-				for i := start; i < len(info.CommandHistory); i++ {
-					// Display command name with a simple list format
-					pb.WriteString(fmt.Sprintf("- %s\n", info.CommandHistory[i].Name))
-				}
-			} else {
-				pb.WriteString(app.ChoiceStyle.Render("  (No commands recorded yet)\n"))
-			}
-		} else {
-			pb.WriteString(app.ChoiceStyle.Render("  (History not available)\n"))
-		}
-		previewContent = pb.String()
-	case 4: // Manage Commands Preview (Previously Project Commands Preview)
-		previewContent = app.SubtitleStyle.Render("Recent Clipboard Commands") + "\n\n"
-		if registry != nil && len(registry.ClipboardCommands) > 0 {
-			// Get clipboard commands and sort by timestamp descending
-			cmds := make([]project.ClipboardCommandSpec, 0, len(registry.ClipboardCommands))
-			for _, spec := range registry.ClipboardCommands {
-				cmds = append(cmds, spec)
-			}
-			sort.SliceStable(cmds, func(i, j int) bool {
-				return cmds[i].Timestamp > cmds[j].Timestamp // Newest first
-			})
-
-			// --- Limit display ---
-			limit := 7
-			displayedCount := 0
-			for _, cmd := range cmds {
-				if displayedCount >= limit {
-					previewContent += app.ChoiceStyle.Render("  ...") + "\n"
-					break
-				}
-				previewContent += fmt.Sprintf("- %s\n", cmd.Name)
-				displayedCount++
-			}
-		} else {
-			previewContent += app.ChoiceStyle.Render("  (No clipboard commands saved yet)\n")
-		}
-	case 5: // Back (Previously index 6)
-		previewContent = app.HelpStyle.Render("Select an item on the left to view details.")
-	default:
-		previewContent = "Unknown selection."
-	}
-
-	// Apply common styling to the right panel
-	rightPanel := lipgloss.NewStyle().
-		Padding(0, 0).
-		Height(lipgloss.Height(leftPanel)). // Match height roughly
-		Border(lipgloss.RoundedBorder()).
-		Render(previewContent)
-
-	// --- Combine Panes ---
-	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
-
-	// --- Footer ---
-	footer := app.HelpStyle.Render("Use ↑/↓ to navigate, Enter on Back (or Esc/b) to return.")
-
-	// --- Final Layout ---
-	return lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
-}
-
-// Helper function to get the full prioritized list of commands for the main screen
+// getPrioritizedCommandList retrieves and orders the list of commands for the main screen.
 func getPrioritizedCommandList(m *app.Model, registry *project.ProjectRegistry) []string {
-	// Use a map to track added commands and prevent duplicates
-	added := make(map[string]bool)
-	var fullList []string
+	// Start with recently used (maintained in-memory for the session)
+	recent := commands.RecentUsed
 
-	// 1. Recent Commands (Top 5, excluding actions)
-	recentLimit := 5
-	count := 0
-	for _, cmd := range commands.RecentUsed {
-		lower := strings.ToLower(cmd)
-		if excluded[lower] {
-			continue
-		}
-		if !added[cmd] && count < recentLimit {
-			fullList = append(fullList, cmd)
-			added[cmd] = true
-			count++
-		}
+	// Prepare maps for quick lookup
+	recentMap := make(map[string]bool)
+	for _, cmd := range recent {
+		recentMap[cmd] = true
 	}
+	excludedMap := excluded // Use the package-level excluded map
 
-	// 2. Favorite Native Commands
-	if registry != nil && registry.FavoriteNativeCommands != nil {
-		var favNative []string
-		for cmdName := range registry.FavoriteNativeCommands {
-			favNative = append(favNative, cmdName)
-		}
-		sort.Strings(favNative) // Sort favorites alphabetically
-		for _, cmd := range favNative {
-			if !added[cmd] {
-				fullList = append(fullList, cmd)
-				added[cmd] = true
-			}
-		}
-	}
+	// Combine other command sources, excluding recent and explicitly excluded ones
+	otherCmds := []string{}
 
-	// 3. Favorite Clipboard Commands
+	// Add Clipboard Commands (Sorted)
 	if registry != nil && registry.ClipboardCommands != nil {
-		var favClipboard []project.ClipboardCommandSpec
-		for _, spec := range registry.ClipboardCommands {
-			if spec.IsFavorite {
-				favClipboard = append(favClipboard, spec)
-			}
+		clipboardNames := make([]string, 0, len(registry.ClipboardCommands))
+		for name := range registry.ClipboardCommands {
+			clipboardNames = append(clipboardNames, name)
 		}
-		// Sort favorites by timestamp, newest first
-		sort.SliceStable(favClipboard, func(i, j int) bool {
-			return favClipboard[i].Timestamp > favClipboard[j].Timestamp
-		})
-		for _, spec := range favClipboard {
-			if !added[spec.Name] {
-				fullList = append(fullList, spec.Name)
-				added[spec.Name] = true
+		sort.Strings(clipboardNames)
+		for _, name := range clipboardNames {
+			if !recentMap[name] && !excludedMap[strings.ToLower(name)] {
+				otherCmds = append(otherCmds, name)
 			}
 		}
 	}
 
-	// 4. Local Project Commands
-	localCmds, _ := getSortedProjectCommandNames(m.ProjectPath) // Ignore error here
-	for _, cmd := range localCmds {
-		if !added[cmd] {
-			fullList = append(fullList, cmd)
-			added[cmd] = true
+	// Add Native Commands (Sorted)
+	nativeNames := commands.AllCommandNames() // Assuming this returns sorted names
+	for _, name := range nativeNames {
+		if !recentMap[name] && !excludedMap[strings.ToLower(name)] {
+			otherCmds = append(otherCmds, name)
 		}
 	}
 
-	// 5. Remaining Native Commands
-	allNative := commands.AllCommandNames()
-	sort.Strings(allNative) // Sort alphabetically
-	for _, cmd := range allNative {
-		if !added[cmd] && !excluded[strings.ToLower(cmd)] {
-			fullList = append(fullList, cmd)
-			added[cmd] = true
+	// Add Project Commands (Sorted)
+	if registry != nil && m.ProjectPath != "" {
+		projectCmdNames, err := getSortedProjectCommandNames(m.ProjectPath)
+		if err == nil {
+			for _, name := range projectCmdNames {
+				if !recentMap[name] && !excludedMap[strings.ToLower(name)] {
+					otherCmds = append(otherCmds, name)
+				}
+			}
 		}
 	}
 
-	// 6. Remaining Clipboard Commands (non-favorite)
-	if registry != nil && registry.ClipboardCommands != nil {
-		var otherClipboard []string
-		for name, spec := range registry.ClipboardCommands {
-			if !spec.IsFavorite {
-				otherClipboard = append(otherClipboard, name)
-			}
+	// --- Sort other commands by priority (Favorites first) ---
+	sort.SliceStable(otherCmds, func(i, j int) bool {
+		nameI := otherCmds[i]
+		nameJ := otherCmds[j]
+		isFavI := isFavorite(nameI, registry)
+		isFavJ := isFavorite(nameJ, registry)
+
+		if isFavI && !isFavJ {
+			return true // Favorites come first
 		}
-		sort.Strings(otherClipboard)
-		for _, cmd := range otherClipboard {
-			if !added[cmd] {
-				fullList = append(fullList, cmd)
-				added[cmd] = true
-			}
+		if !isFavI && isFavJ {
+			return false
 		}
-	}
+		// If both are favorite or both not, maintain alphabetical order (already sorted by type)
+		return nameI < nameJ // Fallback to alphabetical if same favorite status
+	})
+
+	// Combine recent (already ordered) with sorted others
+	fullList := append(recent, otherCmds...)
 
 	return fullList
+}
+
+// isFavorite checks if a command is marked as favorite in any category.
+func isFavorite(cmdName string, registry *project.ProjectRegistry) bool {
+	if registry == nil {
+		return false
+	}
+	if isFav, ok := registry.FavoriteNativeCommands[cmdName]; ok && isFav {
+		return true
+	}
+	if cmdSpec, ok := registry.ClipboardCommands[cmdName]; ok && cmdSpec.IsFavorite {
+		return true
+	}
+	if isFav, ok := registry.FavoriteProjectCommands[cmdName]; ok && isFav {
+		return true
+	}
+	return false
 }

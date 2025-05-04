@@ -244,4 +244,55 @@ func (r *ProjectRegistry) IsSubdirectoryOfProject(currentPath string) (ProjectIn
 	return ProjectInfo{}, false
 }
 
+// RecordCommandHistory adds a command execution record to the specified project's history.
+// It ensures the history doesn't exceed a predefined limit (e.g., 20 entries)
+// and saves the updated registry.
+func (r *ProjectRegistry) RecordCommandHistory(projectPath string, historicCmd HistoricCommand) error {
+	if projectPath == "" || projectPath == "." {
+		return fmt.Errorf("cannot record history for empty or relative project path")
+	}
+	if r == nil {
+		return fmt.Errorf("project registry is nil")
+	}
+
+	r.mu.Lock() // Lock for writing
+	defer r.mu.Unlock()
+
+	projectInfo, found := r.Projects[projectPath]
+	if !found {
+		// Optionally, could try to detect the project here if not found,
+		// but for now, we require the project to be known.
+		return fmt.Errorf("project '%s' not found in registry, cannot record history", projectPath)
+	}
+
+	// Ensure history slice is initialized
+	if projectInfo.CommandHistory == nil {
+		projectInfo.CommandHistory = []HistoricCommand{}
+	}
+
+	// Append the new command
+	projectInfo.CommandHistory = append(projectInfo.CommandHistory, historicCmd)
+
+	// Limit history size (e.g., keep last 20)
+	const maxHistory = 20
+	if len(projectInfo.CommandHistory) > maxHistory {
+		projectInfo.CommandHistory = projectInfo.CommandHistory[len(projectInfo.CommandHistory)-maxHistory:]
+	}
+
+	// Update the project info in the registry map
+	r.Projects[projectPath] = projectInfo
+
+	// Save the entire registry to persist the change
+	// Release the lock before saving (Save has its own locks)
+	r.mu.Unlock()
+	err := r.Save()
+	r.mu.Lock() // Re-acquire lock for the defer unlock
+
+	if err != nil {
+		return fmt.Errorf("failed to save project registry after recording history for '%s': %w", projectPath, err)
+	}
+
+	return nil // Success
+}
+
 // --- Add other necessary methods for managing the registry ---

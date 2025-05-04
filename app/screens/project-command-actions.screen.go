@@ -66,8 +66,8 @@ func UpdateScreenProjectCommandActions(m app.Model, msg tea.Msg, registry *proje
 					return m, cursor.Blink                       // Start cursor blinking
 				} else {
 					// No variables needed, run directly
-					m.HistorySaveStatus = fmt.Sprintf("Attempting to run project command: %s", cmdName)
-					placeholders := make(map[string]string) // Empty placeholders
+					m.HistorySaveStatus = fmt.Sprintf("Attempting to run: %s", cmdName)
+					placeholders := make(map[string]string)
 					runCmd := commands.RunCommand(cmdName, m.ProjectPath, placeholders, registry)
 					return m, runCmd
 				}

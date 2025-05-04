@@ -141,8 +141,13 @@ func UpdateScreenClipboardActions(m app.Model, msg tea.KeyMsg, registry *project
 func ViewScreenClipboardActions(m app.Model, registry *project.ProjectRegistry) string {
 	header := app.TitleStyle.Render(fmt.Sprintf("Actions for: %s", m.SelectedClipboardCommand)) + "\n"
 
+	if registry == nil || registry.ClipboardCommands == nil {
+		content := app.ChoiceStyle.Render("Registry not available. Press Esc/b to go back.")
+		return lipgloss.JoinVertical(lipgloss.Left, header, content)
+	}
+
 	cmdSpec, exists := registry.ClipboardCommands[m.SelectedClipboardCommand]
-	if registry == nil || !exists {
+	if !exists {
 		content := app.ChoiceStyle.Render("Selected command no longer exists. Press Esc/b to go back.")
 		return lipgloss.JoinVertical(lipgloss.Left, header, content)
 	}

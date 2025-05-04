@@ -41,14 +41,13 @@ func UpdateScreenCommandsCategory(m app.Model, msg tea.KeyMsg, registry *project
 			// TODO: Reset ProjectCommandsListIndex here if needed
 			return m, nil
 		case 3: // Back
-			m.CurrentScreen = app.ScreenProjectStats
-			// Reset index for next time
+			m.CurrentScreen = app.ScreenSettings
 			m.CommandsCategoryIndex = 0
 			return m, nil
 		}
 
-	case "esc", "b": // Go back to Project Stats
-		m.CurrentScreen = app.ScreenProjectStats
+	case "esc", "b": // Go back to Settings
+		m.CurrentScreen = app.ScreenSettings
 		m.CommandsCategoryIndex = 0
 		return m, nil
 	}

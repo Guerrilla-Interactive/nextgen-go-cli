@@ -10,12 +10,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
-	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
-	"github.com/atotto/clipboard"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Use *.json to embed JSON files in the same directory (non-recursively).
@@ -250,172 +246,55 @@ func getTemplateVariableKeysFromBytes(templateBytes []byte) ([]string, error) {
 	return finalKeys, nil
 }
 
-// GetCommandVariableKeys checks command sources and returns required variable keys.
+// GetCommandVariableKeys attempts to determine the required variable keys for a command.
+// It checks clipboard, built-in templates, and local project commands.
 func GetCommandVariableKeys(cmdName, projectPath string, registry *project.ProjectRegistry) ([]string, error) {
-	var jsonBytes []byte
-	lowerCmdName := strings.ToLower(cmdName)
-
-	if lowerCmdName == "paste from clipboard" {
-		clipboardContent, readErr := clipboard.ReadAll()
-		if readErr != nil {
-			return nil, fmt.Errorf("failed to read clipboard: %w", readErr)
-		}
-		jsonBytes = []byte(clipboardContent)
-	} else if registry != nil && registry.ClipboardCommands != nil {
-		if cmdSpec, found := registry.ClipboardCommands[cmdName]; found {
-			jsonBytes = []byte(cmdSpec.Template)
-		}
+	// 1. Handle clipboard command
+	if strings.ToLower(cmdName) == "paste from clipboard" {
+		return ExtractVariablesFromClipboard() // Uses helper from command-helpers.go
 	}
 
-	if jsonBytes == nil && projectPath != "" {
-		localCmdPath := filepath.Join(projectPath, ".nextgen", "local-commands", cmdName+".json")
-		if _, statErr := os.Stat(localCmdPath); statErr == nil {
-			fileBytes, readErr := os.ReadFile(localCmdPath)
+	// 2. Check built-in commands
+	spec := GetCommandSpec(cmdName)
+	if spec.TemplatePath != "" {
+		templateBytes, err := LoadCommandTemplate(spec.TemplatePath)
+		if err != nil {
+			return nil, fmt.Errorf("error loading built-in template %s: %w", spec.TemplatePath, err)
+		}
+		return getTemplateVariableKeysFromBytes(templateBytes)
+	}
+
+	// 3. Check project-local commands
+	if projectPath != "" && projectPath != "." {
+		localCmdDir := filepath.Join(projectPath, ".nextgen", "local-commands")
+		kebabName := ToKebabCase(cmdName)
+		cmdFilePath := filepath.Join(localCmdDir, kebabName+".json")
+		if _, err := os.Stat(cmdFilePath); err == nil {
+			// File exists, read and parse
+			projectCmdBytes, readErr := os.ReadFile(cmdFilePath)
 			if readErr != nil {
-				return nil, fmt.Errorf("error reading project command file %s: %w", localCmdPath, readErr)
+				return nil, fmt.Errorf("error reading project command file %s: %w", cmdFilePath, readErr)
 			}
-			jsonBytes = fileBytes
-		} else if !os.IsNotExist(statErr) {
-			return nil, fmt.Errorf("error checking project command file %s: %w", localCmdPath, statErr)
+			return getTemplateVariableKeysFromBytes(projectCmdBytes)
 		}
 	}
 
-	if jsonBytes == nil {
-		spec := GetCommandSpec(cmdName)
-		if spec.TemplatePath != "" {
-			embeddedBytes, readErr := commandFiles.ReadFile(spec.TemplatePath)
-			if readErr != nil {
-				return nil, fmt.Errorf("error reading embedded template %s: %w", spec.TemplatePath, readErr)
-			}
-			jsonBytes = embeddedBytes
+	// 4. Check user-saved clipboard commands (if registry available)
+	if registry != nil && registry.ClipboardCommands != nil {
+		if clipSpec, found := registry.ClipboardCommands[cmdName]; found {
+			return getTemplateVariableKeysFromBytes([]byte(clipSpec.Template))
 		}
 	}
 
-	if jsonBytes == nil {
-		// If still no bytes, command doesn't exist or has no template
-		// For commands without templates (like native ones), return empty list, no error.
-		return []string{}, nil
-	}
-
-	// Now parse the found bytes
-	keys, err := getTemplateVariableKeysFromBytes(jsonBytes)
-	if err != nil {
-		return nil, err // Propagate parsing error
-	}
-
-	return keys, nil
+	// 5. Command not found or doesn't use templates that require variables
+	return nil, nil // Return nil, nil if no keys applicable or command not found
 }
 
-// RunCommand prepares a tea.Cmd to execute the command defined by a template.
-// It looks for the command source in Clipboard -> Project Files -> Built-in.
-// TODO: Add mechanism to detect required variables and prompt the user.
-func RunCommand(cmdName, projectPath string, placeholders map[string]string, registry *project.ProjectRegistry) tea.Cmd {
-	// Return a function that encapsulates the command execution logic.
-	return func() tea.Msg {
-		// Reset CreatedFiles and EditedIndexers for this run.
-		CreatedFiles = []string{}
-		EditedIndexers = make(map[string]bool)
-
-		var jsonBytes []byte
-		var executionSource string // To know if it came from clipboard or file
-
-		// --- Determine Command Source and Load Template ---
-		lowerCmdName := strings.ToLower(cmdName)
-
-		if lowerCmdName == "paste from clipboard" {
-			clipboardContent, readErr := clipboard.ReadAll()
-			if readErr != nil {
-				return app.ErrorMsg{Err: fmt.Errorf("failed to read clipboard: %w", readErr)}
-			}
-			templateData := replacePlaceholders(string(clipboardContent), placeholders)
-			jsonBytes = []byte(templateData)
-			executionSource = "clipboard"
-		} else if registry != nil && registry.ClipboardCommands != nil {
-			// 1. Check Clipboard Registry
-			if cmdSpec, found := registry.ClipboardCommands[cmdName]; found {
-				jsonBytes = []byte(cmdSpec.Template)
-				executionSource = fmt.Sprintf("clipboard command '%s'", cmdName)
-			}
-		}
-
-		// 2. Check Local Project Commands (if not found in clipboard)
-		if jsonBytes == nil && projectPath != "" {
-			localCmdPath := filepath.Join(projectPath, ".nextgen", "local-commands", cmdName+".json")
-			if _, statErr := os.Stat(localCmdPath); statErr == nil {
-				// File exists, try to read it
-				fileBytes, readErr := os.ReadFile(localCmdPath)
-				if readErr == nil {
-					jsonBytes = fileBytes
-					executionSource = fmt.Sprintf("project command file %s", cmdName+".json")
-				} else {
-					// File exists but couldn't read
-					return app.ErrorMsg{Err: fmt.Errorf("error reading project command file %s: %w", localCmdPath, readErr)}
-				}
-			} else if !os.IsNotExist(statErr) {
-				// Error checking file existence (other than not existing)
-				return app.ErrorMsg{Err: fmt.Errorf("error checking project command file %s: %w", localCmdPath, statErr)}
-			}
-		}
-
-		// 3. Check Built-in Commands (if not found elsewhere)
-		if jsonBytes == nil {
-			spec := GetCommandSpec(cmdName)
-			if spec.TemplatePath != "" {
-				embeddedBytes, readErr := commandFiles.ReadFile(spec.TemplatePath)
-				if readErr == nil {
-					jsonBytes = embeddedBytes
-					executionSource = fmt.Sprintf("built-in template %s", spec.TemplatePath)
-				} else {
-					return app.ErrorMsg{Err: fmt.Errorf("error reading embedded template %s: %w", spec.TemplatePath, readErr)}
-				}
-			}
-		}
-
-		// Check if template was loaded
-		if jsonBytes == nil {
-			return app.ErrorMsg{Err: fmt.Errorf("command '%s' not found or template unavailable", cmdName)}
-		}
-
-		// --- Execute Template Logic ---
-		execErr := ExecuteJSONTemplateFromMemory(jsonBytes, projectPath, placeholders)
-		// Record history regardless of execution error
-
-		// --- Record Command History (Common Logic) ---
-		if registry != nil && projectPath != "" {
-			if projectInfo, found := registry.GetProject(projectPath); found {
-				// Use the original cmdName for history
-				historicCmd := project.HistoricCommand{
-					Name:           cmdName,
-					Variables:      placeholders,
-					Timestamp:      time.Now().Unix(),
-					GeneratedFiles: append([]string{}, CreatedFiles...),
-				}
-				if projectInfo.CommandHistory == nil {
-					projectInfo.CommandHistory = []project.HistoricCommand{}
-				}
-				projectInfo.CommandHistory = append(projectInfo.CommandHistory, historicCmd)
-				// Limit history size
-				if len(projectInfo.CommandHistory) > 20 {
-					projectInfo.CommandHistory = projectInfo.CommandHistory[len(projectInfo.CommandHistory)-20:]
-				}
-				registry.AddOrUpdateProject(projectInfo)
-				if saveErr := registry.Save(); saveErr != nil {
-					fmt.Printf("Warning: Failed to save project registry after executing command '%s': %v\n", cmdName, saveErr)
-				}
-			} else {
-				fmt.Printf("Warning: Project '%s' not found in registry, cannot record history.\n", projectPath)
-			}
-		} else {
-			fmt.Println("Warning: Registry or ProjectPath unavailable, cannot record history.")
-		}
-		// --- End History Recording ---
-
-		// Return result message
-		if execErr != nil {
-			return app.ErrorMsg{Err: fmt.Errorf("error executing template for command '%s' from %s: %w", cmdName, executionSource, execErr)}
-		}
-
-		// Success!
-		return app.SuccessMsg{Message: fmt.Sprintf("Command '%s' executed successfully from %s.", cmdName, executionSource)}
-	}
+// ExecuteCommandRegistryCommand handles the execution of template-based commands asynchronously.
+// Renamed from RunCommand to avoid conflict.
+// REMOVED as RunCommand in command-helpers.go now handles TUI execution.
+/*
+func ExecuteCommandRegistryCommand(cmdName, projectPath string, placeholders map[string]string, registry *project.ProjectRegistry) tea.Cmd {
+	// ... function body removed ...
 }
+*/

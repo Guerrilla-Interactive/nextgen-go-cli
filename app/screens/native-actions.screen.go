@@ -39,7 +39,7 @@ func UpdateScreenNativeActions(m app.Model, msg tea.KeyMsg, registry *project.Pr
 
 		switch selectedAction {
 		case "Run":
-			// Check if the built-in command requires variables
+			// Check if the command requires variables
 			keys, err := commands.GetCommandVariableKeys(cmdName, m.ProjectPath, registry)
 			if err != nil {
 				m.HistorySaveStatus = fmt.Sprintf("Error preparing command '%s': %v", cmdName, err)
@@ -60,9 +60,9 @@ func UpdateScreenNativeActions(m app.Model, msg tea.KeyMsg, registry *project.Pr
 				m = UpdateFilenamePromptPreview(m, registry) // Call exported function
 				return m, cursor.Blink                       // Start cursor blinking
 			} else {
-				// No variables needed, run directly using RunCommand
+				// No variables needed, run directly
 				m.HistorySaveStatus = fmt.Sprintf("Attempting to run: %s", cmdName)
-				placeholders := make(map[string]string) // Empty placeholders
+				placeholders := make(map[string]string)
 				runCmd := commands.RunCommand(cmdName, m.ProjectPath, placeholders, registry)
 				return m, runCmd
 			}

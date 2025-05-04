@@ -8,9 +8,13 @@ import (
 	"regexp"
 	"strings"
 
+	// Needed for timestamp in history
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/cli"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project" // Needed for registry
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/utils"
 	"github.com/atotto/clipboard"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // -----------------------------------------------------------------------------
@@ -297,7 +301,7 @@ func replacePlaceholders(content string, placeholders map[string]string) string 
 	return content
 }
 
-// RunJsonTemplate is a convenience function to run any JSON command file.
+// RunJsonTemplate loads and executes a command template from a JSON file.
 func RunJsonTemplate(jsonFilePath, projectPath string, placeholders map[string]string) error {
 	if err := ExecuteJSONTemplate(jsonFilePath, projectPath, placeholders); err != nil {
 		return fmt.Errorf("failed to run JSON template: %w", err)
@@ -305,7 +309,7 @@ func RunJsonTemplate(jsonFilePath, projectPath string, placeholders map[string]s
 	return nil
 }
 
-// RunJsonTemplateBytes is a convenience function to run any JSON command from in-memory bytes.
+// RunJsonTemplateBytes loads and executes a command template from byte data.
 func RunJsonTemplateBytes(jsonBytes []byte, projectPath string, placeholders map[string]string) error {
 	if err := ExecuteJSONTemplateFromMemory(jsonBytes, projectPath, placeholders); err != nil {
 		return fmt.Errorf("failed to run JSON template from memory: %w", err)
@@ -313,7 +317,7 @@ func RunJsonTemplateBytes(jsonBytes []byte, projectPath string, placeholders map
 	return nil
 }
 
-// ExecuteJSONTemplateFromMemory unmarshals the JSON template from memory and creates files/folders.
+// ExecuteJSONTemplateFromMemory executes the template logic given the JSON bytes.
 func ExecuteJSONTemplateFromMemory(jsonBytes []byte, projectPath string, placeholders map[string]string) error {
 	// 1. Unmarshal the JSON into our JSONCommandTemplate struct.
 	var template JSONCommandTemplate
@@ -710,4 +714,103 @@ func ValidateArgs(parsedArgs cli.CommandArgs, expectedArgs []cli.ArgDef, expecte
 	// ... (Implementation Skipped for brevity, can be added later) ...
 
 	return nil // Validation passed
+}
+
+// RunCommand handles the asynchronous execution of commands triggered from the TUI.
+// It determines the command type (clipboard, project, built-in) and executes it.
+// It returns a tea.Cmd that will send an app.CommandFinishedMsg when done.
+func RunCommand(cmdName, projectPath string, placeholders map[string]string, registry *project.ProjectRegistry) tea.Cmd {
+	// Reset global file/edit trackers before running the command
+	CreatedFiles = []string{}
+	EditedIndexers = make(map[string]bool)
+
+	// Make a copy of placeholders to avoid modification issues
+	localPlaceholders := make(map[string]string)
+	if placeholders != nil {
+		for k, v := range placeholders {
+			localPlaceholders[k] = v
+		}
+	}
+
+	// Return the async command function
+	return func() tea.Msg {
+		var err error
+		var executionSource string // For potential error messages
+		var templateBytes []byte
+
+		// --- Special Handling for Paste From Clipboard ---
+		if strings.ToLower(cmdName) == "paste from clipboard" {
+			clipboardContent, readErr := clipboard.ReadAll()
+			if readErr != nil {
+				err = fmt.Errorf("failed to read clipboard for paste command: %w", readErr)
+			} else {
+				templateBytes = []byte(clipboardContent)
+				executionSource = "clipboard content"
+			}
+		} else {
+			// --- Original Logic to Find Template ---
+			// 1. Check Clipboard Registry Commands (if registry is available)
+			if registry != nil && registry.ClipboardCommands != nil {
+				if clipSpec, found := registry.ClipboardCommands[cmdName]; found {
+					templateBytes = []byte(clipSpec.Template)
+					executionSource = fmt.Sprintf("clipboard command '%s'", cmdName)
+				}
+			}
+
+			// 2. Check Project-Local Commands (if not found above and path is valid)
+			if templateBytes == nil && projectPath != "" && projectPath != "." {
+				localCmdPath := filepath.Join(projectPath, ".nextgen", "local-commands")
+				kebabName := ToKebabCase(cmdName)
+				cmdFilePath := filepath.Join(localCmdPath, kebabName+".json")
+				if _, statErr := os.Stat(cmdFilePath); statErr == nil {
+					fileBytes, readErr := os.ReadFile(cmdFilePath)
+					if readErr == nil {
+						templateBytes = fileBytes
+						executionSource = fmt.Sprintf("project command '%s'", kebabName+".json")
+					} else {
+						err = fmt.Errorf("error reading project command file %s: %w", cmdFilePath, readErr)
+					}
+				} else if !os.IsNotExist(statErr) {
+					err = fmt.Errorf("error checking project command file %s: %w", cmdFilePath, statErr)
+				}
+			}
+
+			// 3. Check Built-in Commands (if not found above)
+			if templateBytes == nil && err == nil { // Only check if no bytes found and no prior error
+				spec := GetCommandSpec(cmdName)
+				if spec.TemplatePath != "" {
+					embeddedBytes, readErr := LoadCommandTemplate(spec.TemplatePath) // Use LoadCommandTemplate
+					if readErr == nil {
+						templateBytes = embeddedBytes
+						executionSource = fmt.Sprintf("built-in template %s", spec.TemplatePath)
+					} else {
+						err = fmt.Errorf("error reading embedded template %s: %w", spec.TemplatePath, readErr)
+					}
+				}
+			}
+		}
+
+		// --- Execute if template found and no error so far ---
+		if templateBytes != nil && err == nil {
+			err = ExecuteJSONTemplateFromMemory(templateBytes, projectPath, localPlaceholders)
+			if err != nil {
+				// Add context to the execution error
+				err = fmt.Errorf("error executing template for command '%s' from %s: %w", cmdName, executionSource, err)
+			}
+		} else if err == nil {
+			// No template found, and no other error occurred
+			err = fmt.Errorf("command '%s' not found or has no associated template for TUI execution", cmdName)
+		}
+
+		// --- Return CommandFinishedMsg ---
+		// Always return the message, populated with execution details.
+		// History recording happens in main.go based on this message.
+		return app.CommandFinishedMsg{
+			Err:            err, // Will be nil on success
+			CommandName:    cmdName,
+			ProjectPath:    projectPath,
+			Placeholders:   localPlaceholders,
+			GeneratedFiles: append([]string{}, CreatedFiles...), // Send a copy
+		}
+	}
 }

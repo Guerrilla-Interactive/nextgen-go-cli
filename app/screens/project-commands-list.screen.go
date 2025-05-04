@@ -160,7 +160,7 @@ func UpdateScreenProjectCommandsList(m app.Model, msg tea.KeyMsg, registry *proj
 
 	case "enter":
 		if isBackSelected { // Back selected
-			m.CurrentScreen = app.ScreenProjectStats
+			m.CurrentScreen = app.ScreenSettings // Go back to Settings
 			m.ProjectCommandsListIndex = 0
 			return m, nil
 		} else if realIndex < totalCmds { // Check against total commands
@@ -172,8 +172,8 @@ func UpdateScreenProjectCommandsList(m app.Model, msg tea.KeyMsg, registry *proj
 			return m, nil // Return updated model to trigger view change
 		}
 
-	case "esc", "b": // Go back to Project Stats
-		m.CurrentScreen = app.ScreenProjectStats
+	case "esc", "b": // Go back to Settings
+		m.CurrentScreen = app.ScreenSettings // Go back to Settings
 		m.ProjectCommandsListIndex = 0
 		return m, nil
 	}
