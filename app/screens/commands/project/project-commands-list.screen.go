@@ -46,14 +46,20 @@ func GetSortedProjectCommandNames(projectPath string) ([]string, error) {
 // updateProjectCommandPreview generates the file tree preview for the selected project command.
 func updateProjectCommandPreview(m app.Model) app.Model {
 	m.ProjectCommandPreview = "Loading preview..."
-	projectCmdNames, _ := GetSortedProjectCommandNames(m.ProjectPath) // Ignore error for preview
+	projectCmdNames, _ := GetSortedProjectCommandNames(m.ProjectPath)
 	totalCmds := len(projectCmdNames)
-	start, end := m.ProjectCommandsPaginator.GetSliceBounds(totalCmds)
-	numItemsOnPage := end - start // Calculate items on page consistently
-	realIndex := start + m.ProjectCommandsListIndex
-	isBackSelected := m.ProjectCommandsListIndex == numItemsOnPage // Use consistent calculation
+	p := m.ProjectCommandsPaginator
+	start, _ := p.GetSliceBounds(totalCmds)
+	numItemsOnPage := p.ItemsOnPage(totalCmds)
+	isBackSelected := m.ProjectCommandsListIndex == numItemsOnPage
+	var realIndex int
+	if totalCmds > 0 {
+		realIndex = start + m.ProjectCommandsListIndex
+	} else {
+		realIndex = -1
+	}
 
-	if isBackSelected || realIndex >= totalCmds {
+	if isBackSelected || realIndex < 0 || realIndex >= totalCmds {
 		m.ProjectCommandPreview = "(Select a command)"
 		return m
 	}
@@ -120,65 +126,91 @@ func UpdateScreenProjectCommandsList(m app.Model, msg tea.KeyMsg, registry *proj
 	m.ProjectCommandsPaginator.SetTotalPages(totalCmds)
 	p := &m.ProjectCommandsPaginator
 
-	// --- Update Paginator ---
-	// We forward the message to the paginator first
-	var paginatorCmd tea.Cmd
-	*p, paginatorCmd = p.Update(msg)
-
-	// --- Calculate index and page options (needed for view/selection) ---
+	// --- Calculate index and page options ---
 	start, end := p.GetSliceBounds(totalCmds)
 	numItemsOnPage := end - start
 	numOptionsOnPage := numItemsOnPage + 1 // Items + Back
-	// Clamp list index BEFORE using it
 	if m.ProjectCommandsListIndex >= numOptionsOnPage {
 		m.ProjectCommandsListIndex = numOptionsOnPage - 1
 	}
-	realIndex := start + m.ProjectCommandsListIndex
+	if m.ProjectCommandsListIndex < 0 { // Ensure index is not negative
+		m.ProjectCommandsListIndex = 0
+	}
+	var realIndex int // Index in the full list
+	if totalCmds > 0 {
+		realIndex = start + m.ProjectCommandsListIndex
+	} else {
+		realIndex = -1 // No items
+	}
 	isBackSelected := m.ProjectCommandsListIndex == numItemsOnPage
 
-	// --- Handle Keypresses (after paginator update) ---
+	// Update paginator first
+	var paginatorCmd tea.Cmd
+	*p, paginatorCmd = p.Update(msg)
+
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
 
-	// Left/Right are handled by the paginator's Update above
-	// We just need to return its potential command
+	case "left", "h":
+		if totalCmds > 0 {
+			oldPage := p.Page
+			*p, paginatorCmd = p.Update(tea.KeyMsg{Type: tea.KeyLeft})
+			if p.Page != oldPage {
+				m.ProjectCommandsListIndex = 0
+				m = updateProjectCommandPreview(m)
+			}
+		}
+		return m, paginatorCmd
+
+	case "right", "l":
+		if totalCmds > 0 {
+			oldPage := p.Page
+			*p, paginatorCmd = p.Update(tea.KeyMsg{Type: tea.KeyRight})
+			if p.Page != oldPage {
+				m.ProjectCommandsListIndex = 0
+				m = updateProjectCommandPreview(m)
+			}
+		}
+		return m, paginatorCmd
 
 	case "up", "k":
-		newIndex := (m.ProjectCommandsListIndex + numOptionsOnPage - 1) % numOptionsOnPage
-		if newIndex != m.ProjectCommandsListIndex {
-			m.ProjectCommandsListIndex = newIndex
-			m = updateProjectCommandPreview(m) // Update preview on selection change
+		if numOptionsOnPage > 0 {
+			newIndex := (m.ProjectCommandsListIndex + numOptionsOnPage - 1) % numOptionsOnPage
+			if newIndex != m.ProjectCommandsListIndex {
+				m.ProjectCommandsListIndex = newIndex
+				m = updateProjectCommandPreview(m)
+			}
 		}
 
 	case "down", "j":
-		newIndex := (m.ProjectCommandsListIndex + 1) % numOptionsOnPage
-		if newIndex != m.ProjectCommandsListIndex {
-			m.ProjectCommandsListIndex = newIndex
-			m = updateProjectCommandPreview(m) // Update preview on selection change
+		if numOptionsOnPage > 0 {
+			newIndex := (m.ProjectCommandsListIndex + 1) % numOptionsOnPage
+			if newIndex != m.ProjectCommandsListIndex {
+				m.ProjectCommandsListIndex = newIndex
+				m = updateProjectCommandPreview(m)
+			}
 		}
 
 	case "enter":
-		if isBackSelected { // Back selected
-			m.CurrentScreen = app.ScreenSettings // Go back to Settings
+		if isBackSelected {
+			m.CurrentScreen = app.ScreenSettings
 			m.ProjectCommandsListIndex = 0
 			return m, nil
-		} else if realIndex < totalCmds { // Check against total commands
-			cmdName := projectCmdNames[realIndex] // Potential crash point
-
+		} else if realIndex >= 0 && realIndex < totalCmds {
+			cmdName := projectCmdNames[realIndex]
 			m.SelectedProjectCommand = cmdName
 			m.CurrentScreen = app.ScreenProjectCommandActions
 			m.ProjectCommandActionIndex = 0
-			return m, nil // Return updated model to trigger view change
+			return m, nil
 		}
 
 	case "esc", "b": // Go back to Settings
-		m.CurrentScreen = app.ScreenSettings // Go back to Settings
+		m.CurrentScreen = app.ScreenSettings
 		m.ProjectCommandsListIndex = 0
 		return m, nil
 	}
 
-	// Return the updated model and any command from the paginator
 	return m, paginatorCmd
 }
 
@@ -203,10 +235,15 @@ func ViewScreenProjectCommandsList(m app.Model, registry *project.ProjectRegistr
 	numItemsOnPage := len(paginatedCmds)
 	isBackSelected := m.ProjectCommandsListIndex == numItemsOnPage
 
-	// --- Render List ---
+	// --- Calculate Paginator View Early ---
+	paginatorView := ""
+	if totalCmds > p.PerPage {
+		paginatorView = p.View()
+	}
+
+	// --- Render List Items ---
 	var listBuilder strings.Builder
 	listBuilder.WriteString(app.SubtitleStyle.Render("Select Command:") + "\n\n")
-
 	if totalCmds == 0 {
 		listBuilder.WriteString(app.ChoiceStyle.Render("  (No commands saved in .nextgen/local-commands)") + "\n")
 	} else {
@@ -226,16 +263,32 @@ func ViewScreenProjectCommandsList(m app.Model, registry *project.ProjectRegistr
 			}
 		}
 	}
-	listBuilder.WriteString("\n") // Spacer
+	// listBuilder now only contains command items
 
-	// Add Back button
+	// --- Render Back Button Separately ---
+	backButtonView := ""
 	if isBackSelected {
-		listBuilder.WriteString(app.HighlightStyle.Render("> Back") + "\n")
+		backButtonView = app.HighlightStyle.Render("> Back")
 	} else {
-		listBuilder.WriteString(app.ChoiceStyle.Render("  Back") + "\n")
+		backButtonView = app.ChoiceStyle.Render("  Back")
 	}
 
-	leftPanel := lipgloss.NewStyle().Padding(1, 2).Width(40).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Render(listBuilder.String())
+	// --- Combine Left Pane Content ---
+	leftContentItems := []string{listBuilder.String()}
+	if paginatorView != "" {
+		leftContentItems = append(leftContentItems, lipgloss.NewStyle().MarginTop(1).Render(paginatorView))
+	}
+	leftContentItems = append(leftContentItems, backButtonView)
+	leftContentCombined := lipgloss.JoinVertical(lipgloss.Left, leftContentItems...)
+
+	// --- Left Panel Styling & Rendering ---
+	leftPanelWidth := 40
+	leftPanel := lipgloss.NewStyle().
+		Width(leftPanelWidth).
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Render(leftContentCombined)
 
 	// --- Right Pane: File Tree Preview ---
 	previewContent := m.ProjectCommandPreview
@@ -243,29 +296,34 @@ func ViewScreenProjectCommandsList(m app.Model, registry *project.ProjectRegistr
 		previewContent = app.HelpStyle.Render("Select a command to see its file tree preview.")
 	}
 
+	// --- Truncate Preview Content ---
+	const maxPreviewLines = 12
+	lines := strings.Split(previewContent, "\n")
+	if len(lines) > maxPreviewLines {
+		previewContent = strings.Join(lines[:maxPreviewLines], "\n")
+		previewContent += "\n... (truncated)"
+	}
+
 	// Prepend header
 	folderName := filepath.Base(m.ProjectPath)
 	headerPreview := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
 	previewContent = headerPreview + "\n\n" + previewContent
 
-	rightPanel := lipgloss.NewStyle().
+	// Define right panel style WITHOUT explicit width
+	rightPanelStyle := lipgloss.NewStyle().
 		Padding(1, 2).
-		Width(m.TerminalWidth - 40 - 8).
-		Height(lipgloss.Height(leftPanel)).
-		Render(previewContent)
+		Height(lipgloss.Height(leftPanel)). // Match height roughly
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62"))
+	rightPanel := rightPanelStyle.Render(previewContent)
 
-	// --- Combine ---
+	// --- Combine, Footer ---
 	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
-
-	// --- Paginator View ---
-	paginatorView := ""
-	if totalCmds > p.PerPage {
-		paginatorView = p.View()
-	}
-
 	footer := app.HelpStyle.Render("Use ↑/↓/←/→ to navigate, Enter to select, Esc/b to go back.")
 
-	// Combine list, paginator, footer
-	finalView := lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", paginatorView, "\n", footer)
+	finalView := lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
+	}
 	return finalView
 }

@@ -119,6 +119,9 @@ func ViewScreenRenameClipboard(m app.Model) string {
 
 	footer := app.HelpStyle.Render("Enter to confirm, Esc to cancel.")
 
-	// Combine all parts
-	return lipgloss.JoinVertical(lipgloss.Left, header, inputPanel, status, "\n", footer)
+	finalView := lipgloss.JoinVertical(lipgloss.Left, header, inputPanel, status, "\n", footer)
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
+	}
+	return finalView
 }

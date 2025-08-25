@@ -184,7 +184,11 @@ func ViewInstallDetailsScreen(m app.Model) string {
 	// Combine header, file tree and options; then append the help notice.
 	msg := header + "\n" + pathLine + "\n" + treeContainer + "\n\n" + options + "\n\n" +
 		app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)")
-	return sharedScreens.BaseContainer(msg)
+	finalView := sharedScreens.BaseContainer(msg)
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
+	}
+	return finalView
 }
 
 // UpdateInstallDetailsScreen handles key input for the Install Details screen.

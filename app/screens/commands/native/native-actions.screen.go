@@ -108,5 +108,9 @@ func ViewScreenNativeActions(m app.Model, registry *project.ProjectRegistry) str
 
 	footer := app.HelpStyle.Render("Use ↑/↓ to navigate, Enter to select, Esc/b to go back.")
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, listPanel, status, "\n", footer)
+	finalView := lipgloss.JoinVertical(lipgloss.Left, header, listPanel, status, "\n", footer)
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
+	}
+	return finalView
 }

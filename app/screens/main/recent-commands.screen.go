@@ -16,13 +16,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// actionRow defines the dedicated Action Row commands.
-var actionRow = []string{"undo", "redo", "paste from clipboard", "View Settings"}
-
 // excluded commands for history/listing purposes
 var excluded = map[string]bool{
-	"undo":                     true,
-	"redo":                     true,
 	"show all my commands":     true, // Assuming this is a navigation command
 	"view settings":            true, // Renamed
 	"logoutorloginplaceholder": true, // Assuming this is navigation/action
@@ -68,6 +63,10 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 				// Move focus within action bar
 				m.ActionIndex = (m.ActionIndex + len(actionRow) - 1) % len(actionRow)
 				m = updatePreview(m, registry, actionRow[m.ActionIndex])
+				if strings.ToLower(actionRow[m.ActionIndex]) == "paste from clipboard" {
+					// Force refresh preview for clipboard
+					m = updatePreview(m, registry, actionRow[m.ActionIndex])
+				}
 			}
 
 		case "right", "l":
@@ -78,6 +77,10 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 				// Move focus within action bar
 				m.ActionIndex = (m.ActionIndex + 1) % len(actionRow)
 				m = updatePreview(m, registry, actionRow[m.ActionIndex])
+				if strings.ToLower(actionRow[m.ActionIndex]) == "paste from clipboard" {
+					// Force refresh preview for clipboard
+					m = updatePreview(m, registry, actionRow[m.ActionIndex])
+				}
 			}
 
 		case "up", "k":
@@ -91,11 +94,12 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 					} else {
 						m.ActionIndex = m.LastActionIndex
 					}
+					if strings.ToLower(actionRow[m.ActionIndex]) == "paste from clipboard" {
+						m = updatePreview(m, registry, actionRow[m.ActionIndex])
+					}
 				} else if totalCmds > 0 {
 					m.SelectedIndex--
 				}
-			} else { // Focus is "action"
-				// Pressing up on action bar wraps around (handled by left/right for now)
 			}
 
 		case "down", "j":
@@ -107,9 +111,6 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 				// Navigate down the list on the current page
 				if m.SelectedIndex < numItemsOnPage-1 {
 					m.SelectedIndex++
-				} else {
-					// Optional: Wrap around to top? Or stop?
-					// For now, let's stop at the bottom of the page.
 				}
 			}
 
@@ -153,17 +154,15 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 					m.CurrentPreviewType = "none" // Clear preview after selection
 					m.FileTreePreview = ""
 					m.StatsPreview = ""
-					// We need to combine the selection command with any paginator command
-					// Check if paginatorCmd is nil before batching
-					if paginatorCmd != nil {
-						return m, tea.Batch(paginatorCmd, selectCmd)
-					} else {
-						return m, selectCmd
-					}
+					// Combine selection with paginator command (nil-safe in Batch)
+					return m, tea.Batch(paginatorCmd, selectCmd)
 				}
 			}
 		}
 	}
+
+	// --- Handle Clipboard Refresh Tick ---
+	// Removed per-screen clipboard tick
 
 	// --- Update Preview (moved down to ensure paginatorCmd is potentially set) ---
 	// Check if paginator needs update even if no key press triggered it (e.g. WindowSizeMsg)
@@ -202,9 +201,6 @@ func updatePreview(m app.Model, registry *project.ProjectRegistry, selectedCmdNa
 		// Use sharedScreens.RenderProjectInfoSection
 		m.StatsPreview = sharedScreens.RenderProjectInfoSection(m, registry)
 		m.CurrentPreviewType = "stats"
-	case "undo", "redo":
-		// No preview for these actions
-		m.CurrentPreviewType = "none"
 	case "paste from clipboard":
 		// Generate preview based on clipboard content
 		// Use default placeholders as we don't have real input yet
@@ -214,14 +210,31 @@ func updatePreview(m app.Model, registry *project.ProjectRegistry, selectedCmdNa
 			m.FileTreePreview = pv
 			m.CurrentPreviewType = "file-tree"
 		} else {
-			m.FileTreePreview = "Preview unavailable for clipboard content."
-			if err != nil {
-				m.FileTreePreview += fmt.Sprintf("\nError: %v", err)
-			}
-			m.CurrentPreviewType = "none" // Set to none if preview failed
+			// Clean, minimal guidance panel using Lipgloss
+			muted := lipgloss.NewStyle().Foreground(lipgloss.Color("#888"))
+			title := app.SubtitleStyle.Render("Clipboard Preview")
+			msg := muted.Render("Copy a NextGen JSON command, then choose ‘paste from clipboard’.")
+			content := lipgloss.JoinVertical(lipgloss.Left, title, "", msg)
+			panel := lipgloss.NewStyle().Padding(1, 2).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Render(content)
+			m.FileTreePreview = panel
+			m.CurrentPreviewType = "file-tree"
 		}
 	default:
 		// Attempt to generate file tree preview for other commands
+		// First, handle saved clipboard commands using their stored template
+		if registry != nil {
+			if cmdSpec, ok := registry.ClipboardCommands[selectedCmdName]; ok {
+				placeholderMap := commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+				pv, err := commands.GeneratePreviewFileTreeFromBytes([]byte(cmdSpec.Template), placeholderMap, m.ProjectPath)
+				if err == nil && strings.TrimSpace(pv) != "" {
+					m.FileTreePreview = pv
+					m.CurrentPreviewType = "file-tree"
+					return m
+				}
+				// If clipboard template preview fails, fall through to generic handling below
+			}
+		}
+
 		// Use the new function to get keys
 		keys, err := commands.GetCommandVariableKeys(selectedCmdName, m.ProjectPath, registry)
 		var placeholderMap map[string]string
@@ -241,9 +254,6 @@ func updatePreview(m app.Model, registry *project.ProjectRegistry, selectedCmdNa
 			m.CurrentPreviewType = "file-tree"
 		} else {
 			m.CurrentPreviewType = "none"
-			if err2 != nil {
-				// Optional: Log error: fmt.Printf("Preview error for %s: %v\n", selectedCmdName, err2)
-			}
 		}
 	}
 	return m
@@ -363,7 +373,7 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 	lines := strings.Split(previewContent, "\n")
 	if len(lines) > maxPreviewContentHeight {
 		previewContent = strings.Join(lines[:maxPreviewContentHeight], "\n")
-		previewContent += "\n... (truncated)"
+		// previewContent += "\n... (truncated)"
 	}
 
 	// --- Prepend header and render final right panel ---
@@ -371,19 +381,14 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 	previewHeader := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
 	previewContentWithHeader := previewHeader + "\n\n" + previewContent
 
-	// Define right panel style WITHOUT explicit width
-	rightPanelStyle := lipgloss.NewStyle().
-		Padding(1, 1).                  // Consistent padding
-		Height(availableHeightForPanes) // Set explicit height
-	// REMOVED: Width(rightPanelWidth) // Let Lipgloss determine width
-	rightPanel := rightPanelStyle.Render(previewContentWithHeader)
+	// Build right panel content and bottom-align within available height
+	rightInner := lipgloss.NewStyle().Padding(1, 1).Render(previewContentWithHeader)
+	rightPanel := lipgloss.Place(lipgloss.Width(rightInner), availableHeightForPanes, lipgloss.Left, lipgloss.Bottom, rightInner)
 
 	// --- Render Left Panel ---
 
-	leftPanel := leftPanelStyle.
-		Width(leftPanelWidth).           // Set fixed width for left panel
-		Height(availableHeightForPanes). // Set explicit height to match right panel
-		Render(leftContentCombined)
+	leftRendered := leftPanelStyle.Render(leftContentCombined)
+	leftPanel := lipgloss.Place(leftPanelWidth, availableHeightForPanes, lipgloss.Left, lipgloss.Bottom, leftRendered)
 
 	// --- Combine Panes ---
 	// Lipgloss JoinHorizontal will distribute remaining space to the right panel
@@ -394,26 +399,27 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 	finalFooter := lipgloss.NewStyle().Render(footerContent)
 
 	// --- Final Layout ---
-	return lipgloss.JoinVertical(lipgloss.Left, combinedPanes, "\n", finalFooter)
+	finalLayout := lipgloss.JoinVertical(lipgloss.Left, combinedPanes, "\n", finalFooter)
+	// Align the entire screen to the bottom of the terminal if dimensions are known
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalLayout)
+	}
+	return finalLayout
 }
+
+// actionRow defines the dedicated Action Row commands.
+var actionRow = []string{"paste from clipboard", "View Settings"}
 
 // renderStaticActionBar creates the interactive action bar.
 func renderStaticActionBar(items []string, selectedIndex int, hasFocus bool) string {
 	var actionBarItems []string
 	for i, val := range items {
 		lowerVal := strings.ToLower(val)
-		var icon string
-		switch lowerVal {
-		case "undo":
-			icon = "↺"
-		case "redo":
-			icon = "↻"
-		case "paste from clipboard":
-			icon = "📋"
-		case "view settings": // Renamed
-			icon = "⚙️" // Changed icon
-		default:
-			icon = "?"
+		icon := "?"
+		if lowerVal == "paste from clipboard" {
+			icon = "Paste from Clipboard"
+		} else if lowerVal == "view settings" {
+			icon = "Settings"
 		}
 		// Apply highlight if this item has focus
 		itemText := icon // Default text is just the icon
@@ -430,16 +436,6 @@ func renderStaticActionBar(items []string, selectedIndex int, hasFocus bool) str
 		Padding(0, 0).
 		Render(lipgloss.JoinHorizontal(lipgloss.Bottom, actionBarItems...))
 }
-
-// UpdateScreenProjectStats handles input on the Project Stats screen.
-// MOVED to settings.screen.go
-
-// ViewProjectStatsScreen renders the full project stats (all recognized packages)
-// along with a header and footer.
-// MOVED to settings.screen.go
-
-// ViewProjectStatsScreenWithRegistry renders the interactive project stats screen.
-// MOVED to settings.screen.go
 
 // getPrioritizedCommandList retrieves and orders the list of commands for the main screen.
 func getPrioritizedCommandList(m *app.Model, registry *project.ProjectRegistry) []string {
@@ -533,21 +529,4 @@ func getPrioritizedCommandList(m *app.Model, registry *project.ProjectRegistry) 
 	appendUnique(&resultList, remainingOthers)
 
 	return resultList
-}
-
-// isFavorite checks if a command is marked as favorite in any category.
-func isFavorite(cmdName string, registry *project.ProjectRegistry) bool {
-	if registry == nil {
-		return false
-	}
-	if isFav, ok := registry.FavoriteNativeCommands[cmdName]; ok && isFav {
-		return true
-	}
-	if cmdSpec, ok := registry.ClipboardCommands[cmdName]; ok && cmdSpec.IsFavorite {
-		return true
-	}
-	if isFav, ok := registry.FavoriteProjectCommands[cmdName]; ok && isFav {
-		return true
-	}
-	return false
 }

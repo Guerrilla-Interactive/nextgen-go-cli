@@ -24,18 +24,27 @@ func updateHistoryPreview(m app.Model, registry *project.ProjectRegistry) app.Mo
 
 	if projectInfo, found := registry.GetProject(m.ProjectPath); found {
 		history := projectInfo.CommandHistory
-		if len(history) == 0 {
+		totalCmds := len(history)
+		if totalCmds == 0 {
 			m.HistoryFileTreePreview = "(No command history)"
 			return m
 		}
-		// Check if index is valid (might be on "Back")
-		if m.HistoryScreenIndex < 0 || m.HistoryScreenIndex >= len(history) {
+
+		// Use paginator to find the real index
+		p := m.HistoryPaginator // Use the correct paginator
+		start, _ := p.GetSliceBounds(totalCmds)
+		numItemsOnPage := p.ItemsOnPage(totalCmds)
+		isBackSelected := m.HistoryScreenIndex == numItemsOnPage // Index relative to page items + Back
+		realIndex := start + m.HistoryScreenIndex
+
+		// Check if index is valid (might be on "Back" or out of bounds)
+		if isBackSelected || realIndex < 0 || realIndex >= totalCmds {
 			m.HistoryFileTreePreview = "(Select a command)"
 			return m
 		}
 
 		// Get the specific command record from history
-		historicCmd := history[m.HistoryScreenIndex]
+		historicCmd := history[realIndex]
 		generatedFiles := historicCmd.GeneratedFiles // <-- Get the stored file list
 
 		// --- Generate file tree directly from stored GeneratedFiles ---
@@ -65,99 +74,154 @@ func updateHistoryPreview(m app.Model, registry *project.ProjectRegistry) app.Mo
 
 // UpdateScreenCommandHistory handles input on the Command History screen.
 func UpdateScreenCommandHistory(m app.Model, msg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
-	var historyLen int
+	var history []project.HistoricCommand
 	if projectInfo, found := registry.GetProject(m.ProjectPath); found {
-		historyLen = len(projectInfo.CommandHistory)
+		history = projectInfo.CommandHistory
 	}
-	numOptions := historyLen + 1 // Commands + Back
+	totalCmds := len(history)
+
+	// --- Paginator Setup ---
+	m.HistoryPaginator.SetTotalPages(totalCmds)
+	p := &m.HistoryPaginator
+
+	// --- Calculate index and page options ---
+	start, end := p.GetSliceBounds(totalCmds)
+	numItemsOnPage := end - start
+	numOptionsOnPage := numItemsOnPage + 1 // Items + Back
+	if m.HistoryScreenIndex >= numOptionsOnPage {
+		m.HistoryScreenIndex = numOptionsOnPage - 1
+	}
+	if m.HistoryScreenIndex < 0 {
+		m.HistoryScreenIndex = 0
+	}
+	isBackSelected := m.HistoryScreenIndex == numItemsOnPage
+
+	// Update paginator first
+	var paginatorCmd tea.Cmd
+	*p, paginatorCmd = p.Update(msg)
 
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
 
+	case "left", "h":
+		if totalCmds > 0 { // Only paginate if list not empty
+			*p, paginatorCmd = p.Update(tea.KeyMsg{Type: tea.KeyLeft})
+			m.HistoryScreenIndex = 0              // Reset index to top of new page
+			m = updateHistoryPreview(m, registry) // Update preview for new page
+		}
+		return m, paginatorCmd
+
+	case "right", "l":
+		if totalCmds > 0 { // Only paginate if list not empty
+			*p, paginatorCmd = p.Update(tea.KeyMsg{Type: tea.KeyRight})
+			m.HistoryScreenIndex = 0              // Reset index to top of new page
+			m = updateHistoryPreview(m, registry) // Update preview for new page
+		}
+		return m, paginatorCmd
+
 	case "up", "k":
-		newIndex := (m.HistoryScreenIndex + numOptions - 1) % numOptions
-		if newIndex != m.HistoryScreenIndex {
-			m.HistoryScreenIndex = newIndex
-			// Update preview when selection changes
-			m = updateHistoryPreview(m, registry)
+		if numOptionsOnPage > 0 { // Avoid modulo by zero
+			newIndex := (m.HistoryScreenIndex + numOptionsOnPage - 1) % numOptionsOnPage
+			if newIndex != m.HistoryScreenIndex {
+				m.HistoryScreenIndex = newIndex
+				m = updateHistoryPreview(m, registry)
+			}
 		}
 
 	case "down", "j":
-		newIndex := (m.HistoryScreenIndex + 1) % numOptions
-		if newIndex != m.HistoryScreenIndex {
-			m.HistoryScreenIndex = newIndex
-			// Update preview when selection changes
-			m = updateHistoryPreview(m, registry)
+		if numOptionsOnPage > 0 { // Avoid modulo by zero
+			newIndex := (m.HistoryScreenIndex + 1) % numOptionsOnPage
+			if newIndex != m.HistoryScreenIndex {
+				m.HistoryScreenIndex = newIndex
+				m = updateHistoryPreview(m, registry)
+			}
 		}
 
 	case "enter":
-		// If "Back" is selected (index == historyLen), go back to Settings
-		if m.HistoryScreenIndex == historyLen {
+		if isBackSelected {
 			m.CurrentScreen = app.ScreenSettings
-			// Reset index for next time
 			m.HistoryScreenIndex = 0
 			m.HistoryFileTreePreview = ""
 			return m, nil
 		}
-		// Enter on history items currently does nothing
+		// Enter on history items still does nothing
 
 	case "esc", "b": // Go back to Settings
 		m.CurrentScreen = app.ScreenSettings
-		// Reset index for next time
 		m.HistoryScreenIndex = 0
 		m.HistoryFileTreePreview = ""
 		return m, nil
 	}
 
-	return m, nil
+	return m, paginatorCmd // Return model and any cmd from paginator
 }
 
 // ViewScreenCommandHistory renders the command history screen.
 func ViewScreenCommandHistory(m app.Model, registry *project.ProjectRegistry) string {
 	header := app.TitleStyle.Render("Project Command History") + "\n"
 
-	// --- Left Pane: History List ---
-	var leftBuilder strings.Builder
-	leftBuilder.WriteString(app.SubtitleStyle.Render("Commands Run") + "\n\n")
-
-	// Change history type to match ProjectInfo
+	// --- Get Data ---
 	var history []project.HistoricCommand
 	var projectFound bool
 	if registry != nil && m.ProjectPath != "" {
 		if projectInfo, found := registry.GetProject(m.ProjectPath); found {
-			history = projectInfo.CommandHistory // Direct assignment is now fine
+			history = projectInfo.CommandHistory
 			projectFound = true
 		}
 	}
+	totalCmds := len(history)
+	p := m.HistoryPaginator // Use the correct paginator
+	start, end := p.GetSliceBounds(totalCmds)
+	paginatedCmds := []project.HistoricCommand{}
+	if start < end {
+		paginatedCmds = history[start:end]
+	}
+	numItemsOnPage := len(paginatedCmds)
+	isBackSelected := m.HistoryScreenIndex == numItemsOnPage
+
+	// --- Calculate Paginator View Early ---
+	paginatorView := ""
+	if totalCmds > p.PerPage {
+		p.SetTotalPages(totalCmds) // Ensure total pages is set
+		paginatorView = p.View()
+	}
+
+	// --- Left Pane: History List ---
+	var leftBuilder strings.Builder
+	leftBuilder.WriteString(app.SubtitleStyle.Render("Commands Run") + "\n\n")
 
 	if !projectFound {
 		leftBuilder.WriteString(app.ChoiceStyle.Render("  (Project history not available)"))
-	} else if len(history) == 0 {
+	} else if totalCmds == 0 {
 		leftBuilder.WriteString(app.ChoiceStyle.Render("  (No commands recorded yet)"))
 	} else {
-		// Display commands (newest first maybe? currently oldest first)
-		for i, historicCmd := range history {
-			// Access the Name field for display
+		// Display paginated commands
+		for i, historicCmd := range paginatedCmds {
 			cmdName := historicCmd.Name
-			if i == m.HistoryScreenIndex {
+			if i == m.HistoryScreenIndex { // Check against index on page
 				leftBuilder.WriteString(app.HighlightStyle.Render("> "+cmdName) + "\n")
 			} else {
 				leftBuilder.WriteString(app.ChoiceStyle.Render("  "+cmdName) + "\n")
 			}
 		}
 	}
-	leftBuilder.WriteString("\n") // Spacer
 
-	// Add Back button
-	if m.HistoryScreenIndex == len(history) { // Back is selected
+	// --- Append Paginator and Back Button to Left Pane ---
+	leftBuilder.WriteString("\n") // Spacer
+	if paginatorView != "" {
+		// Remove MarginTop, just add the view and a newline
+		leftBuilder.WriteString(paginatorView + "\n")
+	}
+	if isBackSelected { // Highlight based on index on page
 		leftBuilder.WriteString(app.HighlightStyle.Render("> Back") + "\n")
 	} else {
 		leftBuilder.WriteString(app.ChoiceStyle.Render("  Back") + "\n")
 	}
 
+	leftPanelWidth := 40 // Define fixed width for left panel
 	leftPanelStyle := lipgloss.NewStyle().
-		Width(40). // Adjust width as needed
+		Width(leftPanelWidth). // Apply fixed width
 		Padding(1, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62"))
@@ -166,21 +230,38 @@ func ViewScreenCommandHistory(m app.Model, registry *project.ProjectRegistry) st
 	// --- Right Pane: File Tree Preview ---
 	previewContent := m.HistoryFileTreePreview
 	if previewContent == "" {
-		// Initial state or when Back is selected
-		previewContent = app.HelpStyle.Render("Select a command from the history to see its generated file preview.")
+		previewContent = app.HelpStyle.Render("Select a command to see its generated file tree.")
 	}
 
-	rightPanel := lipgloss.NewStyle().
-		Padding(1, 2).
-		Width(m.TerminalWidth - 40 - 8).
-		Height(lipgloss.Height(leftPanel)).
-		Render(previewContent)
+	// --- Truncate Preview Content ---
+	const maxPreviewLines = 12
+	lines := strings.Split(previewContent, "\n")
+	if len(lines) > maxPreviewLines {
+		previewContent = strings.Join(lines[:maxPreviewLines], "\n")
+		previewContent += "\n... (truncated)"
+	}
 
-	// --- Combine ---
+	// Prepend header
+	folderName := filepath.Base(m.ProjectPath)
+	headerPreview := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
+	previewContent = headerPreview + "\n\n" + previewContent // Use the potentially truncated content
+
+	// Define right panel style WITHOUT explicit width
+	rightPanelStyle := lipgloss.NewStyle().
+		Padding(1, 2).
+		Height(lipgloss.Height(leftPanel)). // Match height roughly
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62"))
+	rightPanel := rightPanelStyle.Render(previewContent)
+
+	// --- Combine & Footer ---
 	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
 
-	// --- Footer ---
-	footer := app.HelpStyle.Render("Use ↑/↓ to navigate, Enter on Back (or Esc/b) to return.")
-
-	return lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
+	// Paginator View is now part of the left pane, remove from final join
+	footer := app.HelpStyle.Render("Use ↑/↓/←/→ to navigate, Esc/b to go back.")
+	finalView := lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer) // REMOVED paginatorView here
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
+	}
+	return finalView
 }

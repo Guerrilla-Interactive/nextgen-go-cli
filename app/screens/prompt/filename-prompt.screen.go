@@ -11,7 +11,6 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
-	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
@@ -267,7 +266,10 @@ func ViewFilenamePrompt(m app.Model, registry *project.ProjectRegistry) string {
 	}
 
 	// Place the "[Back]" button above the input panel.
-	leftPanel := lipgloss.JoinVertical(lipgloss.Left, backButton, inputPanel)
+	leftPanelWidth := 50 // Example fixed width, adjust as needed
+	leftPanel := lipgloss.NewStyle().
+		Width(leftPanelWidth).
+		Render(lipgloss.JoinVertical(lipgloss.Left, backButton, inputPanel))
 
 	// If LivePreview is empty, compute a default preview using default placeholder values.
 	preview := m.FileTreePreview
@@ -302,15 +304,24 @@ func ViewFilenamePrompt(m app.Model, registry *project.ProjectRegistry) string {
 	header := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
 	preview = header + "\n\n" + preview
 
-	// Build the right panel (the file tree preview) using the updated preview.
-	rightPanel := shared.SideContainer(preview)
+	// Build the right panel style WITHOUT explicit width
+	rightPanelStyle := lipgloss.NewStyle().
+		Padding(1, 2) // Apply padding as needed
+	// REMOVED explicit Width
+	rightPanel := rightPanelStyle.Render(preview)
 
-	// Join the anchored left panel and the right panel horizontally with bottom alignment,
-	// then append the help notice.
-	return lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.JoinHorizontal(lipgloss.Bottom, leftPanel, rightPanel),
+	// Join the panels horizontally
+	// Lipgloss should handle distributing the width
+	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Bottom, leftPanel, "  ", rightPanel) // Add space
+
+	finalView := lipgloss.JoinVertical(lipgloss.Left,
+		combinedPanes, // Use the combined panel layout
 		app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)"),
 	)
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
+	}
+	return finalView
 }
 
 // updateFilenamePromptPreview generates the file tree preview for the filename prompt screen.

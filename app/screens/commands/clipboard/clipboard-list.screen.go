@@ -73,46 +73,66 @@ func UpdateScreenClipboardList(m app.Model, msg tea.KeyMsg, registry *project.Pr
 	m.ClipboardPaginator.SetTotalPages(totalCmds)
 	p := &m.ClipboardPaginator
 
-	// --- Calculate real index based on paginator and list index ---
-	// The list index (m.ClipboardListIndex) now refers to the item on the *current page*.
+	// --- Calculate index and page options ---
 	start, end := p.GetSliceBounds(totalCmds)
-	// Clamp list index to the number of items on the current page + Back button
 	numItemsOnPage := end - start
-	numOptionsOnPage := numItemsOnPage + 1 // Items + Back button
+	numOptionsOnPage := numItemsOnPage + 1 // Items + Back
 	if m.ClipboardListIndex >= numOptionsOnPage {
 		m.ClipboardListIndex = numOptionsOnPage - 1
 	}
-	realIndex := start + m.ClipboardListIndex // Index in the full clipboardCmdNames list
+	if m.ClipboardListIndex < 0 { // Ensure index is not negative
+		m.ClipboardListIndex = 0
+	}
+	var realIndex int // Index in the full list
+	if totalCmds > 0 {
+		realIndex = start + m.ClipboardListIndex
+	} else {
+		realIndex = -1 // No items
+	}
 	isBackSelected := m.ClipboardListIndex == numItemsOnPage
 
+	// Update paginator first
 	var paginatorCmd tea.Cmd
 	*p, paginatorCmd = p.Update(msg)
 
-	var cmd tea.Cmd
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
 
 	case "left", "h":
-		*p, cmd = p.Update(tea.KeyMsg{Type: tea.KeyLeft}) // Use paginator update
-		return m, cmd
+		if totalCmds > 0 { // Only paginate if list not empty
+			if p.Page != m.ClipboardPaginator.Page { // Check if page actually changed
+				m.ClipboardListIndex = 0 // Reset index to top of new page
+				m = updateClipboardListPreview(m, registry)
+			}
+		}
+		return m, paginatorCmd
 
 	case "right", "l":
-		*p, cmd = p.Update(tea.KeyMsg{Type: tea.KeyRight}) // Use paginator update
-		return m, cmd
+		if totalCmds > 0 { // Only paginate if list not empty
+			if p.Page != m.ClipboardPaginator.Page {
+				m.ClipboardListIndex = 0 // Reset index to top of new page
+				m = updateClipboardListPreview(m, registry)
+			}
+		}
+		return m, paginatorCmd
 
 	case "up", "k":
-		newIndex := (m.ClipboardListIndex + numOptionsOnPage - 1) % numOptionsOnPage
-		if newIndex != m.ClipboardListIndex {
-			m.ClipboardListIndex = newIndex
-			m = updateClipboardListPreview(m, registry) // <-- Update preview
+		if numOptionsOnPage > 0 { // Avoid modulo by zero
+			newIndex := (m.ClipboardListIndex + numOptionsOnPage - 1) % numOptionsOnPage
+			if newIndex != m.ClipboardListIndex {
+				m.ClipboardListIndex = newIndex
+				m = updateClipboardListPreview(m, registry) // <-- Update preview
+			}
 		}
 
 	case "down", "j":
-		newIndex := (m.ClipboardListIndex + 1) % numOptionsOnPage
-		if newIndex != m.ClipboardListIndex {
-			m.ClipboardListIndex = newIndex
-			m = updateClipboardListPreview(m, registry) // <-- Update preview
+		if numOptionsOnPage > 0 { // Avoid modulo by zero
+			newIndex := (m.ClipboardListIndex + 1) % numOptionsOnPage
+			if newIndex != m.ClipboardListIndex {
+				m.ClipboardListIndex = newIndex
+				m = updateClipboardListPreview(m, registry) // <-- Update preview
+			}
 		}
 
 	case "enter":
@@ -120,7 +140,7 @@ func UpdateScreenClipboardList(m app.Model, msg tea.KeyMsg, registry *project.Pr
 			m.CurrentScreen = app.ScreenCommandsCategory
 			m.ClipboardListIndex = 0 // Reset index
 			return m, nil
-		} else if realIndex < totalCmds { // Check against total commands
+		} else if realIndex >= 0 && realIndex < totalCmds { // Check against total commands
 			// Command selected - Go to Actions screen
 			m.SelectedClipboardCommand = clipboardCmdNames[realIndex]
 			m.CurrentScreen = app.ScreenClipboardActions
@@ -154,10 +174,15 @@ func ViewScreenClipboardList(m app.Model, registry *project.ProjectRegistry) str
 	numItemsOnPage := len(paginatedCmds)
 	isBackSelected := m.ClipboardListIndex == numItemsOnPage
 
-	// --- Render List ---
+	// --- Calculate Paginator View Early ---
+	paginatorView := ""
+	if totalCmds > p.PerPage {
+		paginatorView = p.View()
+	}
+
+	// --- Render List Items ---
 	var listBuilder strings.Builder
 	listBuilder.WriteString(app.SubtitleStyle.Render("Select Command:") + "\n\n")
-
 	if len(paginatedCmds) == 0 {
 		listBuilder.WriteString(app.ChoiceStyle.Render("  (No clipboard commands saved yet)") + "\n")
 	} else {
@@ -177,46 +202,74 @@ func ViewScreenClipboardList(m app.Model, registry *project.ProjectRegistry) str
 			}
 		}
 	}
-	listBuilder.WriteString("\n") // Spacer
+	// listBuilder now only contains the command items
 
-	// Add Back button
+	// --- Render Back Button Separately ---
+	backButtonView := ""
 	if isBackSelected {
-		listBuilder.WriteString(app.HighlightStyle.Render("> Back") + "\n")
+		backButtonView = app.HighlightStyle.Render("> Back")
 	} else {
-		listBuilder.WriteString(app.ChoiceStyle.Render("  Back") + "\n")
+		backButtonView = app.ChoiceStyle.Render("  Back")
 	}
 
-	leftPanel := lipgloss.NewStyle().Padding(1, 2).Width(40).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Render(listBuilder.String())
+	// --- Combine Left Pane Content ---
+	// Join list, optional paginator, and back button
+	leftContentItems := []string{listBuilder.String()}
+	if paginatorView != "" {
+		leftContentItems = append(leftContentItems, lipgloss.NewStyle().MarginTop(1).Render(paginatorView))
+	}
+	leftContentItems = append(leftContentItems, backButtonView)
+	leftContentCombined := lipgloss.JoinVertical(lipgloss.Left, leftContentItems...)
+
+	// --- Left Panel Styling & Rendering ---
+	leftPanelWidth := 40
+	leftPanel := lipgloss.NewStyle().
+		Width(leftPanelWidth).
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Render(leftContentCombined) // Render the combined content
 
 	// --- Right Pane: File Tree Preview ---
 	previewContent := m.ClipboardListPreview
-	if previewContent == "" {
-		previewContent = app.HelpStyle.Render("Select a command to see its file tree preview.")
+	if strings.TrimSpace(previewContent) == "" {
+		// Minimal help panel when nothing selected
+		muted := lipgloss.NewStyle().Foreground(lipgloss.Color("#888"))
+		title := app.SubtitleStyle.Render("Clipboard Preview")
+		msg := muted.Render("Select a saved clipboard command on the left.")
+		body := lipgloss.JoinVertical(lipgloss.Left, title, "", msg)
+		previewContent = lipgloss.NewStyle().Padding(1, 2).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Render(body)
+	}
+
+	// --- Truncate Preview Content ---
+	const maxPreviewLines = 12
+	lines := strings.Split(previewContent, "\n")
+	if len(lines) > maxPreviewLines {
+		previewContent = strings.Join(lines[:maxPreviewLines], "\n")
+		previewContent += "\n... (truncated)"
 	}
 
 	// Prepend header
 	folderName := filepath.Base(m.ProjectPath)
 	headerPreview := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
-	previewContent = headerPreview + "\n\n" + previewContent
+	previewContent = headerPreview + "\n\n" + previewContent // Use the potentially truncated content
 
-	// Apply consistent padding, no border
-	rightPanel := lipgloss.NewStyle().
+	// Define right panel style WITHOUT explicit width
+	rightPanelStyle := lipgloss.NewStyle().
 		Padding(1, 2).
-		Width(m.TerminalWidth - 40 - 8).
-		Height(lipgloss.Height(leftPanel)).
-		Render(previewContent)
+		Height(lipgloss.Height(leftPanel)). // Match height roughly
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62"))
+	rightPanel := rightPanelStyle.Render(previewContent)
 
-	// --- Combine ---
+	// --- Combine, Footer ---
 	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
-
-	// --- Paginator View ---
-	paginatorView := ""
-	if totalCmds > p.PerPage {
-		paginatorView = p.View()
-	}
-
 	footer := app.HelpStyle.Render("Use ↑/↓/←/→ to navigate, Enter to select, Esc/b to go back.")
 
-	// Combine list, paginator, footer
-	return lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", paginatorView, "\n", footer)
+	// Final join no longer includes paginatorView directly
+	finalView := lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
+	}
+	return finalView
 }

@@ -72,8 +72,9 @@ func ViewScreenCommandsCategory(m app.Model, registry *project.ProjectRegistry) 
 			listBuilder.WriteString(app.ChoiceStyle.Render("  "+cat) + "\n")
 		}
 	}
+	leftPanelWidth := 30 // Define fixed width for left panel
 	leftPanel := lipgloss.NewStyle().
-		Width(30). // Fixed width for left nav
+		Width(leftPanelWidth). // Apply fixed width
 		Padding(1, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
@@ -124,16 +125,20 @@ func ViewScreenCommandsCategory(m app.Model, registry *project.ProjectRegistry) 
 		previewContent = ""
 	}
 
-	rightPanel := lipgloss.NewStyle().
+	// Define right panel style WITHOUT explicit width
+	rightPanelStyle := lipgloss.NewStyle().
 		Padding(1, 2).
-		Width(m.TerminalWidth - 30 - 8).    // Adjust width
 		Height(lipgloss.Height(leftPanel)). // Match height roughly
-		Border(lipgloss.RoundedBorder()).
-		Render(previewContent)
+		Border(lipgloss.RoundedBorder())
+	rightPanel := rightPanelStyle.Render(previewContent)
 
 	// --- Combine & Footer ---
 	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
 	footer := app.HelpStyle.Render("Use ↑/↓ to navigate, Enter to select, Esc/b to go back.")
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
+	finalView := lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
+	}
+	return finalView
 }

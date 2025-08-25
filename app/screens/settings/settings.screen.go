@@ -58,7 +58,7 @@ func UpdateScreenSettings(m app.Model, msg tea.KeyMsg, registry *project.Project
 // ViewSettingsScreen renders the interactive settings screen.
 func ViewSettingsScreen(m app.Model, registry *project.ProjectRegistry) string {
 	// Rename title
-	header := app.TitleStyle.Render("Settings") + "\n"
+	leftHeader := app.TitleStyle.Render("Settings")
 
 	// --- Left Pane: Navigation ---\
 	// Updated navigation items
@@ -73,13 +73,14 @@ func ViewSettingsScreen(m app.Model, registry *project.ProjectRegistry) string {
 			leftBuilder.WriteString(app.ChoiceStyle.Render("  "+item) + "\n")
 		}
 	}
-	// Keep styling for now
+	leftPanelWidth := 50 // Define fixed width for left panel
+	leftPanelContent := lipgloss.JoinVertical(lipgloss.Left, leftHeader, leftBuilder.String())
 	leftPanel := lipgloss.NewStyle().
-		Width(50).
+		Width(leftPanelWidth). // Apply fixed width
 		Padding(2, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
-		Render(leftBuilder.String())
+		Render(leftPanelContent)
 
 	// --- Right Pane: Details Preview ---\
 	var previewContent string
@@ -132,17 +133,32 @@ func ViewSettingsScreen(m app.Model, registry *project.ProjectRegistry) string {
 		previewContent = "" // Should not happen
 	}
 
-	// Keep styling for now
-	rightPanel := lipgloss.NewStyle().
-		Padding(1).
-		Width(m.TerminalWidth). // Adjust width based on terminal size and left panel
-		Height(lipgloss.Height(leftPanel)).
-		Render(previewContent)
+	// --- Compute available height and bottom-align panels ---
+	footer := app.HelpStyle.Render("Use ↑/↓ to navigate categories, Enter to select, Esc/b to go back.")
+	footerHeight := lipgloss.Height(footer)
+	availableRowHeight := m.TerminalHeight - footerHeight - 1
+	if availableRowHeight < 10 {
+		availableRowHeight = 10
+	}
+
+	// Left column: header (top) + left box (bottom-aligned within remaining height)
+	leftHeaderHeight := lipgloss.Height(leftHeader)
+	leftBoxHeight := availableRowHeight - leftHeaderHeight
+	if leftBoxHeight < 3 {
+		leftBoxHeight = 3
+	}
+	leftRendered := leftPanel
+	leftColumn := lipgloss.Place(leftPanelWidth, availableRowHeight, lipgloss.Left, lipgloss.Bottom, leftRendered)
+
+	// Right panel bottom-aligned within the full row height
+	rightInner := lipgloss.NewStyle().Padding(2, 2).Border(lipgloss.RoundedBorder()).Render(previewContent)
+	rightPanel := lipgloss.Place(lipgloss.Width(rightInner), availableRowHeight, lipgloss.Left, lipgloss.Bottom, rightInner)
 
 	// --- Combine & Footer ---\
-	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
-	// Rename footer help text
-	footer := app.HelpStyle.Render("Use ↑/↓ to navigate categories, Enter to select, Esc/b to go back.")
-	// Rename title in final join
-	return lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
+	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftColumn, "  ", rightPanel)
+	finalView := lipgloss.JoinVertical(lipgloss.Left, combinedPanes, "\n", footer)
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
+	}
+	return finalView
 }

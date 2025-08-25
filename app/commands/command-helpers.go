@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	// Needed for timestamp in history
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
@@ -504,7 +505,16 @@ func GeneratePreviewFileTree(cmdName string, placeholders map[string]string, pro
 // GeneratePreviewFileTreeFromClipboard reads the clipboard content (assumed to be a JSON
 // template), applies the provided placeholders, and returns the preview file tree.
 func GeneratePreviewFileTreeFromClipboard(placeholders map[string]string, projectPath string) (string, error) {
-	clipboardContent, err := clipboard.ReadAll()
+	// Retry a couple of times in case clipboard just changed
+	var clipboardContent string
+	var err error
+	for i := 0; i < 2; i++ {
+		clipboardContent, err = clipboard.ReadAll()
+		if err == nil && strings.TrimSpace(clipboardContent) != "" {
+			break
+		}
+		time.Sleep(120 * time.Millisecond)
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to read clipboard: %w", err)
 	}
@@ -708,10 +718,6 @@ func ValidateArgs(parsedArgs cli.CommandArgs, expectedArgs []cli.ArgDef, expecte
 			}
 		}
 	}
-
-	// 3. Check for unexpected flags (optional, but good for strict CLIs)
-	// Iterate through parsed flags and check if they exist in expectedFlags
-	// ... (Implementation Skipped for brevity, can be added later) ...
 
 	return nil // Validation passed
 }

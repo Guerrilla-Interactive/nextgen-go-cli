@@ -135,5 +135,9 @@ func ViewScreenCommandsCategory(m app.Model, registry *project.ProjectRegistry) 
 	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
 	footer := app.HelpStyle.Render("Use ↑/↓ to navigate, Enter to select, Esc/b to go back.")
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
+	finalView := lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
+	}
+	return finalView
 }

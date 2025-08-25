@@ -27,21 +27,20 @@ func getSortedNativeCommandNames() []string {
 }
 
 // updateNativeListPreview generates the file tree preview for the selected native command.
-// Reinstated from previous version.
 func updateNativeListPreview(m app.Model) app.Model {
 	m.NativeListPreview = "Loading preview..."
 	nativeCmdNames := getSortedNativeCommandNames()
 	totalCmds := len(nativeCmdNames)
-	start, _ := m.NativePaginator.GetSliceBounds(totalCmds)
-	// Adjust realIndex calculation if list is empty
+	p := m.NativePaginator // Use the correct paginator
+	start, _ := p.GetSliceBounds(totalCmds)
+	numItemsOnPage := p.ItemsOnPage(totalCmds)
+	isBackSelected := totalCmds == 0 || m.NativeListIndex == numItemsOnPage // Index relative to page items + Back
 	var realIndex int
 	if totalCmds > 0 {
 		realIndex = start + m.NativeListIndex
 	} else {
-		realIndex = -1 // Indicate no valid selection
+		realIndex = -1
 	}
-	numItemsOnPage := m.NativePaginator.ItemsOnPage(totalCmds)
-	isBackSelected := totalCmds == 0 || m.NativeListIndex == numItemsOnPage
 
 	if isBackSelected || realIndex < 0 || realIndex >= totalCmds {
 		m.NativeListPreview = "(Select a command)"
@@ -76,7 +75,7 @@ func UpdateScreenNativeList(m app.Model, msg tea.KeyMsg, registry *project.Proje
 	m.NativePaginator.SetTotalPages(totalCmds)
 	p := &m.NativePaginator
 
-	// --- Calculate real index and page options ---
+	// --- Calculate index and page options ---
 	start, end := p.GetSliceBounds(totalCmds)
 	numItemsOnPage := end - start
 	numOptionsOnPage := numItemsOnPage + 1 // Items + Back
@@ -92,9 +91,9 @@ func UpdateScreenNativeList(m app.Model, msg tea.KeyMsg, registry *project.Proje
 	} else {
 		realIndex = -1 // No items
 	}
-	// Determine if 'Back' is selected, considering if the list might be empty
 	isBackSelected := totalCmds == 0 || m.NativeListIndex == numItemsOnPage
 
+	// Update paginator first
 	var paginatorCmd tea.Cmd
 	*p, paginatorCmd = p.Update(msg)
 
@@ -108,6 +107,7 @@ func UpdateScreenNativeList(m app.Model, msg tea.KeyMsg, registry *project.Proje
 			*p, paginatorCmd = p.Update(tea.KeyMsg{Type: tea.KeyLeft})
 			if p.Page != oldPage {
 				m.NativeListIndex = 0
+				m = updateNativeListPreview(m)
 			}
 		}
 		return m, paginatorCmd
@@ -118,6 +118,7 @@ func UpdateScreenNativeList(m app.Model, msg tea.KeyMsg, registry *project.Proje
 			*p, paginatorCmd = p.Update(tea.KeyMsg{Type: tea.KeyRight})
 			if p.Page != oldPage {
 				m.NativeListIndex = 0
+				m = updateNativeListPreview(m)
 			}
 		}
 		return m, paginatorCmd
@@ -180,12 +181,17 @@ func ViewScreenNativeList(m app.Model, registry *project.ProjectRegistry) string
 	numItemsOnPage := len(paginatedCmds)
 	isBackSelected := totalCmds == 0 || m.NativeListIndex == numItemsOnPage
 
-	// --- Render List ---
+	// --- Calculate Paginator View Early ---
+	paginatorView := ""
+	if totalCmds > p.PerPage {
+		paginatorView = p.View()
+	}
+
+	// --- Render List Items ---
 	var listBuilder strings.Builder
 	listBuilder.WriteString(app.SubtitleStyle.Render("Select Command:") + "\n\n")
-
 	if totalCmds == 0 {
-		listBuilder.WriteString(app.ChoiceStyle.Render("  (No built-in commands found)") + "\n") // Updated text
+		listBuilder.WriteString(app.ChoiceStyle.Render("  (No built-in commands found)") + "\n")
 	} else {
 		for i, name := range paginatedCmds {
 			// No favorite status for built-in commands
@@ -198,66 +204,68 @@ func ViewScreenNativeList(m app.Model, registry *project.ProjectRegistry) string
 			}
 		}
 	}
-	listBuilder.WriteString("\n") // Spacer
+	// listBuilder now only contains command items
 
-	// Add Back button
+	// --- Render Back Button Separately ---
+	backButtonView := ""
 	if isBackSelected {
-		listBuilder.WriteString(app.HighlightStyle.Render("> Back") + "\n")
+		backButtonView = app.HighlightStyle.Render("> Back")
 	} else {
-		listBuilder.WriteString(app.ChoiceStyle.Render("  Back") + "\n")
+		backButtonView = app.ChoiceStyle.Render("  Back")
 	}
 
-	// --- Left Panel Rendering ---
+	// --- Combine Left Pane Content ---
+	leftContentItems := []string{listBuilder.String()}
+	if paginatorView != "" {
+		leftContentItems = append(leftContentItems, lipgloss.NewStyle().MarginTop(1).Render(paginatorView))
+	}
+	leftContentItems = append(leftContentItems, backButtonView)
+	leftContentCombined := lipgloss.JoinVertical(lipgloss.Left, leftContentItems...)
+
+	// --- Left Panel Styling & Rendering ---
 	leftPanelWidth := 40
-	leftPanelContent := listBuilder.String()
-	leftPanel := lipgloss.NewStyle().Padding(1, 2).Width(leftPanelWidth).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Render(leftPanelContent)
+	leftPanel := lipgloss.NewStyle().
+		Width(leftPanelWidth).
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Render(leftContentCombined)
 
 	// --- Right Pane: File Tree Preview ---
-	previewContent := m.NativeListPreview // Use the state updated by updateNativeListPreview
+	previewContent := m.NativeListPreview
 	if previewContent == "" {
-		// Provide a default message if preview hasn't loaded or failed
-		previewContent = app.HelpStyle.Render("(Select a command to see its file tree preview)")
+		previewContent = app.HelpStyle.Render("Select a command to see its file tree preview.")
+	}
+
+	// --- Truncate Preview Content ---
+	const maxPreviewLines = 12
+	lines := strings.Split(previewContent, "\n")
+	if len(lines) > maxPreviewLines {
+		previewContent = strings.Join(lines[:maxPreviewLines], "\n")
+		previewContent += "\n... (truncated)"
 	}
 
 	// Prepend header
 	folderName := filepath.Base(m.ProjectPath)
 	headerPreview := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
-	previewContent = headerPreview + "\n\n" + previewContent
+	previewContent = headerPreview + "\n\n" + previewContent // Use the potentially truncated content
 
-	// Ensure preview content fits vertically (basic truncation)
-	previewHeight := lipgloss.Height(leftPanel) // Match left panel height
-	maxLines := previewHeight - 4               // Account for padding/borders/header roughly
-	if maxLines < 1 {
-		maxLines = 1
-	}
-	lines := strings.Split(previewContent, "\n")
-	if len(lines) > maxLines {
-		previewContent = strings.Join(lines[:maxLines], "\n") + "\n..."
-	}
-
-	// Render Right Panel
-	rightPanelWidth := m.TerminalWidth - leftPanelWidth - 8 // Adjust for padding/margin
-	if rightPanelWidth < 20 {
-		rightPanelWidth = 20
-	}
-	rightPanel := lipgloss.NewStyle().
+	// Define right panel style WITHOUT explicit width
+	rightPanelStyle := lipgloss.NewStyle().
 		Padding(1, 2).
-		Width(rightPanelWidth).
-		Height(previewHeight).
-		Border(lipgloss.RoundedBorder()). // Add border back for visual separation
-		Render(previewContent)
+		Height(lipgloss.Height(leftPanel)). // Match height roughly
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62"))
+	rightPanel := rightPanelStyle.Render(previewContent)
 
-	// --- Combine ---
+	// --- Combine, Footer ---
 	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
-
-	// --- Paginator View ---
-	paginatorView := ""
-	if totalCmds > p.PerPage {
-		paginatorView = p.View()
-	}
-
 	footer := app.HelpStyle.Render("Use ↑/↓/←/→ to navigate, Enter to select, Esc/b to go back.")
 
 	// Combine list, paginator, footer
-	return lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", paginatorView, "\n", footer)
+	finalView := lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
+	}
+	return finalView
 }

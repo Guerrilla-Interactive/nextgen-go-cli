@@ -100,6 +100,7 @@ type Model struct {
 	NativePaginator          paginator.Model
 	ProjectCommandsPaginator paginator.Model
 	MainListPaginator        paginator.Model
+	HistoryPaginator         paginator.Model
 
 	// --- Data & Other State ---
 	SelectedClipboardCommand string

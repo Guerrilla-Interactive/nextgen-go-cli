@@ -6,6 +6,7 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // UpdateScreenSelect updates the "select" (login/offline) screen.
@@ -48,5 +49,9 @@ func ViewSelectScreen(m app.Model) string {
 	body += app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)")
 
 	// Wrap the select screen content with a base container.
-	return sharedScreens.BaseContainer(body)
+	panel := sharedScreens.BaseContainer(body)
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, panel)
+	}
+	return panel
 }

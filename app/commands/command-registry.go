@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
@@ -41,7 +42,25 @@ func init() {
 			}
 			// Store file contents in the registry, keyed by filename (like "page-and-archive.json")
 			templateRegistry[path] = data
-			// log.Printf("Embedded file: %s", path)
+			// Populate Commands dynamically from embedded files
+			type minimal struct {
+				Title string `json:"title"`
+				Name  string `json:"name"`
+			}
+			var m minimal
+			if json.Unmarshal(data, &m) != nil {
+				// ignore parse error for title extraction; fallback to filename
+			}
+			name := strings.TrimSpace(m.Title)
+			if name == "" {
+				base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+				name = strings.ReplaceAll(base, "-", " ")
+			}
+			lower := strings.ToLower(name)
+			if !strings.HasPrefix(lower, "add ") && !strings.HasPrefix(lower, "remove ") {
+				name = "add " + name
+			}
+			Commands = append(Commands, CommandSpec{Name: name, TemplatePath: path})
 		}
 		return nil
 	})
@@ -49,6 +68,9 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to init command registry: %v", err)
 	}
+
+	// Ensure stable ordering for UI lists
+	sort.Slice(Commands, func(i, j int) bool { return Commands[i].Name < Commands[j].Name })
 }
 
 // LoadCommandTemplate retrieves the raw JSON template data from memory.
@@ -80,33 +102,10 @@ type CommandSpec struct {
 }
 
 // Commands is our single authoritative list of all possible commands.
-var Commands = []CommandSpec{
-	{Name: "add page", TemplatePath: "native-commands/page-and-archive.json"},
-	{Name: "add wordpress block", TemplatePath: "native-commands/wordpress-interactive-block-for-nextgen-theme.json"},
-	{Name: "add nextgen pagebuilder block", TemplatePath: "native-commands/add-nextgen-pagebuilder-block.json"},
-	{Name: "add multiple variables example", TemplatePath: "native-commands/multiple-variables-example.json"},
-	{Name: "add wordpress gutenberg block", TemplatePath: "native-commands/wordpress-gutenberg-block.json"},
-	{Name: "add test pagebuilder block", TemplatePath: "native-commands/test-pagebuilder.json"},
-	{Name: "add nextgen slug route", TemplatePath: "native-commands/add-nextgen-slug-route.json"},
-	{Name: "undo"},
-	{Name: "redo"},
-	{Name: "add hello", TemplatePath: "native-commands/hello-world.json"},
-}
+var Commands = []CommandSpec{}
 
 // RecentUsed & NextSteps remain separate slices, for usage in the UI.
-var RecentUsed = []string{
-	"paste from clipboard",
-	"add wordpress block",
-	"add wordpress gutenberg block",
-	"add nextgen pagebuilder block",
-	"add nextgen slug route",
-	"add multiple variables example",
-	"add test pagebuilder block",
-
-	"add page",
-	"undo",
-	"redo",
-}
+var RecentUsed = []string{}
 
 var NextSteps = []string{
 	"Show all my commands",
@@ -116,8 +115,6 @@ var NextSteps = []string{
 // CommandIconMap associates non-add/remove commands with an icon.
 // The "add" and "remove" commands are now handled automatically.
 var CommandIconMap = map[string]string{
-	"undo":                 "↺",
-	"redo":                 "↻",
 	"paste from clipboard": "📋",
 	"view project stats":   "📦",
 	// Other commands that do not start with "add " or "remove " can be added here.
@@ -289,12 +286,3 @@ func GetCommandVariableKeys(cmdName, projectPath string, registry *project.Proje
 	// 5. Command not found or doesn't use templates that require variables
 	return nil, nil // Return nil, nil if no keys applicable or command not found
 }
-
-// ExecuteCommandRegistryCommand handles the execution of template-based commands asynchronously.
-// Renamed from RunCommand to avoid conflict.
-// REMOVED as RunCommand in command-helpers.go now handles TUI execution.
-/*
-func ExecuteCommandRegistryCommand(cmdName, projectPath string, placeholders map[string]string, registry *project.ProjectRegistry) tea.Cmd {
-	// ... function body removed ...
-}
-*/
