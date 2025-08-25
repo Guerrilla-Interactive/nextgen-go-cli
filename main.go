@@ -57,7 +57,7 @@ import (
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.67"
+var Version = "v1.0.69"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -120,10 +120,19 @@ func (b commandRegistryCheckerBridge) CommandExists(name string) bool {
 	return false // Not found in any known location
 }
 
+type HeartbeatMsg struct{}
+
+func heartbeatTick() tea.Cmd {
+	return tea.Tick(time.Millisecond*800, func(time.Time) tea.Msg { return HeartbeatMsg{} })
+}
+
 // Init returns the Cmd that loads project info.
 func (pm ProgramModel) Init() tea.Cmd {
-	// Call InitProjectCmd from the shared package
-	return sharedScreens.InitProjectCmd(pm.M)
+	// Call InitProjectCmd from the shared package and start heartbeat
+	return tea.Batch(
+		sharedScreens.InitProjectCmd(pm.M),
+		heartbeatTick(),
+	)
 }
 
 // Update handles incoming Msgs (both from Init commands and user interaction).
@@ -207,6 +216,15 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		pm.M.TerminalHeight = typedMsg.Height
 		return pm, nil
 
+	case HeartbeatMsg:
+		// Periodic driver to allow screens to refresh state (e.g., clipboard preview)
+		if pm.M.CurrentScreen == app.ScreenMain {
+			updatedM, cmd := mainScreen.UpdateScreenMain(pm.M, typedMsg, pm.ProjectRegistry)
+			pm.M = updatedM
+			return pm, tea.Batch(cmd, heartbeatTick())
+		}
+		return pm, heartbeatTick()
+
 	case tea.KeyMsg:
 		switch pm.M.CurrentScreen {
 		case app.ScreenSelect:
@@ -280,7 +298,15 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			pm.M = updatedM
 			return pm, cmd
 		default:
-			return pm, nil
+			// Forward non-key/custom messages to current screen when needed (e.g., ticks)
+			switch pm.M.CurrentScreen {
+			case app.ScreenMain:
+				updatedM, cmd := mainScreen.UpdateScreenMain(pm.M, typedMsg, pm.ProjectRegistry)
+				pm.M = updatedM
+				return pm, cmd
+			default:
+				return pm, nil
+			}
 		}
 	// Add quit handling to save registry on exit
 	case tea.QuitMsg:
@@ -457,27 +483,34 @@ func main() {
 	// --- Initialize Paginators ---
 	clipboardPaginator := paginator.New()
 	clipboardPaginator.Type = paginator.Dots
-	clipboardPaginator.PerPage = 10
+	clipboardPaginator.PerPage = 7
 	clipboardPaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render("•")
 	clipboardPaginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("•")
 
 	nativePaginator := paginator.New()
 	nativePaginator.Type = paginator.Dots
-	nativePaginator.PerPage = 10
+	nativePaginator.PerPage = 7
 	nativePaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff3600")).Render("•")
 	nativePaginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("•")
 
 	projectCommandsPaginator := paginator.New()
 	projectCommandsPaginator.Type = paginator.Dots
-	projectCommandsPaginator.PerPage = 10 // Or a different value?
+	projectCommandsPaginator.PerPage = 7
 	projectCommandsPaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff3600")).Render("•")
 	projectCommandsPaginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("•")
 
 	mainListPaginator := paginator.New()
 	mainListPaginator.Type = paginator.Dots
-	mainListPaginator.PerPage = 8 // Max 8 items per page for main list
+	mainListPaginator.PerPage = 5
 	mainListPaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff3600")).Render("•")
 	mainListPaginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("•")
+
+	// NEW: Initialize History Paginator
+	historyPaginator := paginator.New()
+	historyPaginator.Type = paginator.Dots
+	historyPaginator.PerPage = 7
+	historyPaginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff3600")).Render("•")
+	historyPaginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("•")
 
 	// Build your initial model
 	initialModel := app.Model{
@@ -493,6 +526,7 @@ func main() {
 		NativePaginator:          nativePaginator,
 		ProjectCommandsPaginator: projectCommandsPaginator,
 		MainListPaginator:        mainListPaginator,
+		HistoryPaginator:         historyPaginator, // Add history paginator
 	}
 
 	// Set default terminal dimensions so panels are anchored on first render.
