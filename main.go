@@ -57,7 +57,7 @@ import (
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.70"
+var Version = "v1.0.71"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -243,8 +243,8 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenInstallDetails:
-			// Use sharedScreens package for Update
-			updatedM, cmd := sharedScreens.UpdateScreenInstallDetails(pm.M, typedMsg)
+			// Route to main screen's Install Details Update handler
+			updatedM, cmd := mainScreen.UpdateInstallDetailsScreen(pm.M, typedMsg)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenSettings:
