@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
@@ -71,6 +71,8 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 			m.CurrentVariableIndex++
 
 			if m.CurrentVariableIndex >= len(m.VariableKeys) {
+				// Record only the base command (not inputs) to recent
+				sharedScreens.RecordCommand(&m, m.PendingCommand)
 				mainValue := m.Variables[m.VariableKeys[0]]
 				extraVars := make(map[string]string)
 				for i := 0; i < len(m.VariableKeys); i++ {
@@ -157,40 +159,26 @@ func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *projec
 					}
 				}
 
-				if _, exists := registry.ClipboardCommands[commandNameToSave]; !exists {
-					clipboardContentToSave := clipboardContent // Use content read above if possible
-					if clipboardContentToSave == "" && readErr != nil {
-						clipboardContentToSave, _ = clipboard.ReadAll() // Try reading again
-					}
-					if clipboardContentToSave != "" {
-						newSpec := project.ClipboardCommandSpec{
-							Name:      commandNameToSave,
-							Template:  string(clipboardContentToSave),
-							Timestamp: time.Now().Unix(),
-						}
-						if registry.ClipboardCommands == nil {
-							registry.ClipboardCommands = make(map[string]project.ClipboardCommandSpec)
-						}
-						registry.ClipboardCommands[commandNameToSave] = newSpec
-						if saveErr := registry.Save(); saveErr != nil {
-							// Don't return error yet, proceed to run command, maybe set status
-							m.HistorySaveStatus = fmt.Sprintf("Warning: Failed to save clipboard command: %v", saveErr)
-						} else {
-							// Set status, but proceed to run
-							m.HistorySaveStatus = fmt.Sprintf("Saved clipboard as command: %s", commandNameToSave)
-						}
+				clipboardContentToSave := clipboardContent // Use content read above if possible
+				if clipboardContentToSave == "" && readErr != nil {
+					clipboardContentToSave, _ = clipboard.ReadAll() // Try reading again
+				}
+				if clipboardContentToSave != "" {
+					if err := commands.UpsertClipboardCommand(registry, commandNameToSave, clipboardContentToSave); err != nil {
+						m.HistorySaveStatus = fmt.Sprintf("Warning: Failed to save clipboard command: %v", err)
 					} else {
-						// Failed to read clipboard for saving
-						m.HistorySaveStatus = "Warning: Could not read clipboard to save command."
+						m.HistorySaveStatus = fmt.Sprintf("Saved clipboard as command: %s", commandNameToSave)
 					}
 				} else {
-					// Command name already exists
-					m.HistorySaveStatus = fmt.Sprintf("Warning: Command '%s' already exists in clipboard, not saved.", commandNameToSave)
+					// Failed to read clipboard for saving
+					m.HistorySaveStatus = "Warning: Could not read clipboard to save command."
 				}
 			}
 		}
 		// --- End Clipboard Saving ---
 
+		// Record only the base command (not inputs) to recent
+		sharedScreens.RecordCommand(&m, m.PendingCommand)
 		// Set status and screen before returning command
 		if m.HistorySaveStatus == "" { // Don't overwrite clipboard save status unless empty
 			m.HistorySaveStatus = fmt.Sprintf("Running command: %s...", m.PendingCommand)

@@ -249,25 +249,30 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 
 			// If file already exists then we introduce smart merge behavior.
 			if _, err := os.Stat(currentPath); err == nil {
-				existingContentBytes, readErr := os.ReadFile(currentPath)
-				if readErr != nil {
-					return fmt.Errorf("failed to read existing file %s: %w", currentPath, readErr)
-				}
-				mergedContent, mergeErr := smartMerge(string(existingContentBytes), code)
-				if mergeErr != nil {
-					return fmt.Errorf("failed to merge file %s: %w", currentPath, mergeErr)
-				}
-				if err := os.WriteFile(currentPath, []byte(mergedContent), 0644); err != nil {
-					return fmt.Errorf("failed to write merged file %s: %w", currentPath, err)
-				}
-				fmt.Printf("✓ Merged updates into existing file %s.\n", currentPath)
-				// If this is an indexer, mark it as edited using a relative path if possible.
 				if isIndexer {
+					existingContentBytes, readErr := os.ReadFile(currentPath)
+					if readErr != nil {
+						return fmt.Errorf("failed to read existing file %s: %w", currentPath, readErr)
+					}
+					mergedContent, mergeErr := smartMerge(string(existingContentBytes), code)
+					if mergeErr != nil {
+						return fmt.Errorf("failed to merge file %s: %w", currentPath, mergeErr)
+					}
+					if err := os.WriteFile(currentPath, []byte(mergedContent), 0644); err != nil {
+						return fmt.Errorf("failed to write merged file %s: %w", currentPath, err)
+					}
+					fmt.Printf("✓ Merged updates into existing file %s.\n", currentPath)
 					if rel, err := filepath.Rel(projectPath, currentPath); err == nil {
 						MarkEditedIndexer(rel)
 					} else {
 						MarkEditedIndexer(currentPath)
 					}
+				} else {
+					newContent := removeSnippetMarkers(code)
+					if err := os.WriteFile(currentPath, []byte(newContent), 0644); err != nil {
+						return fmt.Errorf("failed to overwrite file %s: %w", currentPath, err)
+					}
+					fmt.Printf("✓ Replaced existing file %s.\n", currentPath)
 				}
 				// Record the file (including indexer files) using a relative path if possible.
 				if rel, err := filepath.Rel(projectPath, currentPath); err == nil {
@@ -610,11 +615,7 @@ func ExtractVariablesFromClipboard() ([]string, error) {
 		result = append(result, key)
 	}
 
-	// If no variables found, return a default
-	if len(result) == 0 {
-		return []string{"Filename"}, nil
-	}
-
+	// If no variables found, return empty to signal no prompt needed
 	return result, nil
 }
 
@@ -819,4 +820,21 @@ func RunCommand(cmdName, projectPath string, placeholders map[string]string, reg
 			GeneratedFiles: append([]string{}, CreatedFiles...), // Send a copy
 		}
 	}
+}
+
+// UpsertClipboardCommand overwrites or adds a clipboard command by name and saves the registry.
+func UpsertClipboardCommand(registry *project.ProjectRegistry, name string, template string) error {
+	if registry == nil {
+		return fmt.Errorf("registry unavailable")
+	}
+	if registry.ClipboardCommands == nil {
+		registry.ClipboardCommands = make(map[string]project.ClipboardCommandSpec)
+	}
+	registry.ClipboardCommands[name] = project.ClipboardCommandSpec{
+		Name:       name,
+		Template:   template,
+		IsFavorite: registry.ClipboardCommands[name].IsFavorite, // preserve favorite if existed
+		Timestamp:  time.Now().Unix(),
+	}
+	return registry.Save()
 }

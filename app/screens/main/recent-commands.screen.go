@@ -2,6 +2,7 @@ package mainScreen
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -124,21 +125,20 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 						return m, nil
 					} else if strings.ToLower(itemName) == "paste from clipboard" {
 						m.PendingCommand = itemName
-						// Pass projectPath and registry to sharedScreens.RequiresMultipleVars
-						if sharedScreens.RequiresMultipleVars(itemName, m.ProjectPath, registry) {
-							// Set up for multi-variable prompt
-							m.MultipleVariables = true
-							m.VariableKeys = sharedScreens.ExtractVariableKeys(itemName, m.ProjectPath, registry)
-							m.CurrentVariableIndex = 0
-							m.Variables = make(map[string]string)
-						} else {
-							// Set up for single-variable prompt (Filename)
-							m.MultipleVariables = false
-							m.VariableKeys = []string{"Filename"} // Default for clipboard paste
+						// Determine variables; if none, run directly without prompt
+						keys, _ := commands.ExtractVariablesFromClipboard()
+						if len(keys) == 0 {
+							m.HistorySaveStatus = fmt.Sprintf("Running command: %s...", itemName)
+							m.CurrentScreen = app.ScreenInstallDetails
+							return m, commands.RunCommand(itemName, m.ProjectPath, nil, registry)
 						}
+						// Otherwise, go to prompt
+						m.MultipleVariables = len(keys) > 1
+						m.VariableKeys = keys
+						m.CurrentVariableIndex = 0
+						m.Variables = make(map[string]string)
 						m.CurrentScreen = app.ScreenFilenamePrompt
 						m.TempFilename = ""
-						// Update preview for prompt screen
 						return m, cursor.Blink
 					}
 					// TODO: Handle undo/redo if implemented
@@ -245,6 +245,19 @@ func updatePreview(m app.Model, registry *project.ProjectRegistry, selectedCmdNa
 		} else {
 			// Fallback if no keys found or error getting keys
 			placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Filename>"})
+		}
+
+		// Next, handle project-local commands (.nextgen/local-commands)
+		if m.ProjectPath != "" {
+			kebab := commands.ToKebabCase(selectedCmdName)
+			localPath := filepath.Join(m.ProjectPath, ".nextgen", "local-commands", kebab+".json")
+			if data, readErr := os.ReadFile(localPath); readErr == nil {
+				if pv, perr := commands.GeneratePreviewFileTreeFromBytes(data, placeholderMap, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+					m.FileTreePreview = pv
+					m.CurrentPreviewType = "file-tree"
+					return m
+				}
+			}
 		}
 
 		// Pass the potentially updated selectedCmdName if it was clipboard paste
@@ -417,7 +430,7 @@ func renderStaticActionBar(items []string, selectedIndex int, hasFocus bool) str
 		lowerVal := strings.ToLower(val)
 		icon := "?"
 		if lowerVal == "paste from clipboard" {
-			icon = "Paste from Clipboard"
+			icon = "Paste"
 		} else if lowerVal == "view settings" {
 			icon = "Settings"
 		}
@@ -428,7 +441,7 @@ func renderStaticActionBar(items []string, selectedIndex int, hasFocus bool) str
 			itemStyle = app.HighlightStyle.Copy().Bold(true) // Keep highlight style, maybe remove Reverse?
 			itemText = fmt.Sprintf("> %s <", icon)           // Add markers
 		}
-		actionBarItems = append(actionBarItems, lipgloss.NewStyle().Padding(0, 1).Render(itemStyle.Render(itemText)))
+		actionBarItems = append(actionBarItems, lipgloss.NewStyle().Padding(0, 3, 0, 0).Render(itemStyle.Render(itemText)))
 	}
 	// Join horizontally and remove border styling
 	return lipgloss.NewStyle().
