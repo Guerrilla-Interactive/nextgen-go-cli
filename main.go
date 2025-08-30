@@ -35,7 +35,7 @@ import (
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.75"
+var Version = "v1.0.76"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -83,7 +83,9 @@ func (b commandRegistryCheckerBridge) CommandExists(name string) bool {
 		}
 	} else {
 		// Log warning if registry fails to load during check?
-		fmt.Printf("DEBUG [CommandExists]: Could not load registry to check command '%s': %v\n", name, err)
+		if cli.IsDebugEnabled() {
+			fmt.Printf("DEBUG [CommandExists]: Could not load registry to check command '%s': %v\n", name, err)
+		}
 	}
 
 	// --- Check Project Commands (.nextgen/local-commands) ---
@@ -319,25 +321,47 @@ func (pm ProgramModel) View() string {
 	case app.ScreenProjectCommandsList:
 		return projectCmdScreen.ViewScreenProjectCommandsList(pm.M, pm.ProjectRegistry)
 	case app.ScreenProjectCommandActions:
-		// Debug logs
-		fmt.Fprintf(os.Stderr, "DEBUG: Routing to ViewScreenProjectCommandActions\n")
-		fmt.Fprintf(os.Stderr, "DEBUG:   pm.M.SelectedProjectCommand = '%s'\n", pm.M.SelectedProjectCommand)
-		registryIsNil := pm.ProjectRegistry == nil
-		fmt.Fprintf(os.Stderr, "DEBUG:   pm.ProjectRegistry == nil: %t\n", registryIsNil)
+		if cli.IsDebugEnabled() {
+			fmt.Fprintf(os.Stderr, "DEBUG: Routing to ViewScreenProjectCommandActions\n")
+			fmt.Fprintf(os.Stderr, "DEBUG:   pm.M.SelectedProjectCommand = '%s'\n", pm.M.SelectedProjectCommand)
+			registryIsNil := pm.ProjectRegistry == nil
+			fmt.Fprintf(os.Stderr, "DEBUG:   pm.ProjectRegistry == nil: %t\n", registryIsNil)
+		}
 		return projectCmdScreen.ViewScreenProjectCommandActions(pm.M, pm.ProjectRegistry)
 	}
 	return ""
 }
 
 func main() {
-	fmt.Println("DEBUG: main() function started.")
+	// Enable debug early if --debug present in raw args
+	raw := os.Args[1:]
+	for _, a := range raw {
+		if a == "--debug" {
+			cli.SetDebugEnabled(true)
+			break
+		}
+	}
+	// Enable verbose early if --verbose present
+	for _, a := range raw {
+		if a == "--verbose" {
+			cli.SetVerboseEnabled(true)
+			break
+		}
+	}
+	if cli.IsDebugEnabled() {
+		fmt.Println("DEBUG: main() function started.")
+	}
 	args := os.Args[1:] // Get arguments excluding program name
 
 	// --- Load Project Registry ---
-	fmt.Println("DEBUG: Attempting to load project registry...")
+	if cli.IsDebugEnabled() {
+		fmt.Println("DEBUG: Attempting to load project registry...")
+	}
 	projectRegistry, err := project.LoadProjectRegistry()
 	if err != nil {
-		fmt.Printf("DEBUG: Error loading project registry: %v\n", err)
+		if cli.IsDebugEnabled() {
+			fmt.Printf("DEBUG: Error loading project registry: %v\n", err)
+		}
 		fmt.Printf("Warning: Could not load project registry: %v\n", err)
 		// Continue with an empty registry rather than failing
 		projectRegistry = &project.ProjectRegistry{
@@ -346,8 +370,10 @@ func main() {
 			GlobalUsages: 0,
 		}
 	} else {
-		fmt.Printf("DEBUG: Project registry loaded successfully from %s. Contains %d projects. Global usages: %d\n",
-			projectRegistry.RegistryPath, len(projectRegistry.Projects), projectRegistry.GlobalUsages)
+		if cli.IsDebugEnabled() {
+			fmt.Printf("DEBUG: Project registry loaded successfully from %s. Contains %d projects. Global usages: %d\n",
+				projectRegistry.RegistryPath, len(projectRegistry.Projects), projectRegistry.GlobalUsages)
+		}
 	}
 
 	// --- Update .nextgen/nextgen-cli-commands.mdc on every run ---
@@ -366,6 +392,12 @@ func main() {
 	if len(args) > 0 {
 		// Pass the registry checker to the parser
 		parsedArgs := cli.ParseCommandLineArgs(args, registryChecker)
+		if parsedArgs.BoolFlags["debug"] {
+			cli.SetDebugEnabled(true)
+		}
+		if parsedArgs.BoolFlags["verbose"] {
+			cli.SetVerboseEnabled(true)
+		}
 
 		// Handle parsing errors
 		if len(parsedArgs.Errors) > 0 {
@@ -399,11 +431,15 @@ func main() {
 				os.Exit(0)
 			} else {
 				// Execute the command
-				fmt.Printf("DEBUG: Command name '%s' recognized, proceeding to executeAndExit...\n", parsedArgs.CommandName)
+				if cli.IsDebugEnabled() {
+					fmt.Printf("DEBUG: Command name '%s' recognized, proceeding to executeAndExit...\n", parsedArgs.CommandName)
+				}
 				executeAndExit(parsedArgs, projectRegistry)
 			}
 		} else {
-			fmt.Println("DEBUG: Command name NOT recognized by parser.")
+			if cli.IsDebugEnabled() {
+				fmt.Println("DEBUG: Command name NOT recognized by parser.")
+			}
 			if isHelpIntent {
 				// General help requested
 				displayGeneralHelp()
@@ -422,14 +458,20 @@ func main() {
 	fmt.Println("No command-line arguments provided, starting interactive mode...")
 
 	// Get current directory for project detection
-	fmt.Println("DEBUG: Attempting to get current working directory...")
+	if cli.IsDebugEnabled() {
+		fmt.Println("DEBUG: Attempting to get current working directory...")
+	}
 	currentDir, err := os.Getwd()
 	if err != nil {
-		fmt.Printf("DEBUG: Error getting working directory: %v\n", err)
+		if cli.IsDebugEnabled() {
+			fmt.Printf("DEBUG: Error getting working directory: %v\n", err)
+		}
 		fmt.Printf("Warning: Could not determine current directory: %v\n", err)
 		currentDir = "" // Default to empty if unable to determine
 	} else {
-		fmt.Printf("DEBUG: Current working directory: %s\n", currentDir)
+		if cli.IsDebugEnabled() {
+			fmt.Printf("DEBUG: Current working directory: %s\n", currentDir)
+		}
 	}
 
 	// Try to detect project information for the current directory
@@ -588,17 +630,23 @@ func displayCommandHelp(commandName string) {
 // executeAndExit attempts to execute a command based on parsed args and exits.
 func executeAndExit(parsedArgs cli.CommandArgs, registry *project.ProjectRegistry) {
 	// Get current directory (needed for project context during execution)
-	fmt.Println("DEBUG: Attempting to get current working directory for execution...")
+	if cli.IsDebugEnabled() {
+		fmt.Println("DEBUG: Attempting to get current working directory for execution...")
+	}
 	currentDir, err := os.Getwd()
 	if err != nil {
 		fmt.Printf("Warning: Could not determine current directory for command execution: %v\n", err)
 	}
-	fmt.Printf("DEBUG: Current working directory for execution: %s\n", currentDir)
+	if cli.IsDebugEnabled() {
+		fmt.Printf("DEBUG: Current working directory for execution: %s\n", currentDir)
+	}
 
-	fmt.Printf("Attempting direct execution for command: %s\n", parsedArgs.CommandName)
-	fmt.Printf("Variables: %v\n", parsedArgs.Variables)
-	fmt.Printf("Flags: %v\n", parsedArgs.Flags)
-	fmt.Printf("BoolFlags: %v\n", parsedArgs.BoolFlags)
+	if cli.IsVerboseEnabled() {
+		fmt.Printf("Attempting direct execution for command: %s\n", parsedArgs.CommandName)
+		fmt.Printf("Variables: %v\n", parsedArgs.Variables)
+		fmt.Printf("Flags: %v\n", parsedArgs.Flags)
+		fmt.Printf("BoolFlags: %v\n", parsedArgs.BoolFlags)
+	}
 
 	// If this is an args-based command, validate required args/flags first
 	if cmd, found := args_pkg.GetCommand(parsedArgs.CommandName); found {
@@ -638,22 +686,30 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 
 	// 1. Try executing as an Arg-based command first
 	if cmd, found := args_pkg.GetCommand(commandName); found {
-		fmt.Printf("DEBUG: Executing command '%s' via args package...\n", commandName)
+		if cli.IsDebugEnabled() {
+			fmt.Printf("DEBUG: Executing command '%s' via args package...\n", commandName)
+		}
 		execErr = cmd.Execute(args)
-		fmt.Printf("DEBUG: Args command '%s' finished. Error: %v\n", commandName, execErr)
+		if cli.IsDebugEnabled() {
+			fmt.Printf("DEBUG: Args command '%s' finished. Error: %v\n", commandName, execErr)
+		}
 		// Placeholders are not directly available from args commands for history
 
 	} else if registry != nil && registry.NativeCommands != nil && registry.NativeCommands[commandName] != "" {
 		// 2. Try executing as a User-Saved Native Command
 		commandString := registry.NativeCommands[commandName]
-		fmt.Printf("DEBUG: Executing command '%s' as user-saved native command...\n", commandName)
+		if cli.IsDebugEnabled() {
+			fmt.Printf("DEBUG: Executing command '%s' as user-saved native command...\n", commandName)
+		}
 		fmt.Printf("  Command: %s\n  Args: %v\n", commandString, commandArgs)
 		execErr = runShellCommand(commandString, commandArgs, projectPath)
 
 	} else if registry != nil && registry.ClipboardCommands != nil && registry.ClipboardCommands[commandName].Template != "" {
 		// 3. Try executing as a Clipboard Command
 		clipboardSpec := registry.ClipboardCommands[commandName]
-		fmt.Printf("DEBUG: Executing command '%s' as clipboard command...\n", commandName)
+		if cli.IsDebugEnabled() {
+			fmt.Printf("DEBUG: Executing command '%s' as clipboard command...\n", commandName)
+		}
 		templateBytes := []byte(clipboardSpec.Template)
 		keys := template_cmds.InferVariableKeys(string(templateBytes))
 		if len(keys) != len(commandArgs) {
@@ -670,7 +726,9 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 				varsMap[key] = commandArgs[i]
 			}
 			placeholders = template_cmds.BuildPlaceholders(varsMap) // Store placeholders
-			fmt.Printf("DEBUG: Running clipboard template with placeholders: %+v\n", placeholders)
+			if cli.IsDebugEnabled() {
+				fmt.Printf("DEBUG: Running clipboard template with placeholders: %+v\n", placeholders)
+			}
 			template_cmds.CreatedFiles = []string{}
 			template_cmds.EditedIndexers = make(map[string]bool)
 			execErr = template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
@@ -692,7 +750,9 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 					var cmdData projectCommandFile
 					if json.Unmarshal(jsonData, &cmdData) == nil && strings.TrimSpace(cmdData.Command) != "" {
 						commandString := cmdData.Command
-						fmt.Printf("DEBUG: Executing command '%s' as project command...\n", commandName)
+						if cli.IsDebugEnabled() {
+							fmt.Printf("DEBUG: Executing command '%s' as project command...\n", commandName)
+						}
 						fmt.Printf("  Command: %s\n  Args: %v\n", commandString, commandArgs)
 						execErr = runShellCommand(commandString, commandArgs, projectPath)
 						// Placeholders not applicable
@@ -703,7 +763,9 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 						if json.Unmarshal(jsonData, &generic) == nil {
 							if fp, ok := generic["filePaths"]; ok {
 								if arr, okArr := fp.([]interface{}); okArr && len(arr) > 0 {
-									fmt.Printf("DEBUG: Executing command '%s' as project template command...\n", commandName)
+									if cli.IsDebugEnabled() {
+										fmt.Printf("DEBUG: Executing command '%s' as project template command...\n", commandName)
+									}
 									keys := template_cmds.InferVariableKeys(string(jsonData))
 									if len(keys) != len(commandArgs) {
 										usageParts := make([]string, len(keys))
@@ -744,7 +806,9 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 		if !executedProject {
 			spec := template_cmds.GetCommandSpec(commandName)
 			if spec.TemplatePath != "" {
-				fmt.Printf("DEBUG: Executing command '%s' as built-in template command...\n", commandName)
+				if cli.IsDebugEnabled() {
+					fmt.Printf("DEBUG: Executing command '%s' as built-in template command...\n", commandName)
+				}
 				templateBytes, loadErr := template_cmds.LoadCommandTemplate(spec.TemplatePath)
 				if loadErr != nil {
 					execErr = fmt.Errorf("failed to load template %s: %w", spec.TemplatePath, loadErr)
@@ -764,7 +828,9 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 							varsMap[key] = commandArgs[i]
 						}
 						placeholders = template_cmds.BuildPlaceholders(varsMap) // Store placeholders
-						fmt.Printf("DEBUG: Running template with placeholders: %+v\n", placeholders)
+						if cli.IsDebugEnabled() {
+							fmt.Printf("DEBUG: Running template with placeholders: %+v\n", placeholders)
+						}
 						template_cmds.CreatedFiles = []string{}
 						template_cmds.EditedIndexers = make(map[string]bool)
 						execErr = template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
