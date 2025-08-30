@@ -1,0 +1,218 @@
+---
+description: Auto-generated list of NextGen CLI commands
+globs:
+alwaysApply: false
+---
+
+### All Commands
+Updated: 2025-08-30T15:45:34Z UTC
+
+- Add Gucci theme assets
+- Add Nextgen Pagebuilder Block
+- Add Nextgen theme assets
+- Add Summer theme assets
+- Add Violet Sky theme assets
+- add Multiple Variables Example Command
+- add Nextgen Slug Route
+- add Sample Command
+- copy-of-add-nextgen-pagebuilder-block-with-props
+- list-all
+- something-else
+- style
+
+### File Tree Previews
+
+#### Add Gucci theme assets
+
+- Usage: `ng Add Gucci theme assets`
+
+```text
+┗ 📂 app
+   ┣ 📜 globals.css
+   ┗ 📜 load-fonts.tsx
+
+```
+
+#### Add Nextgen Pagebuilder Block
+
+- Usage (name): `ng Add Nextgen Pagebuilder Block <ComponentName>`
+- Usage (slug): `ng add-nextgen-pagebuilder-block <ComponentName>`
+- Variables: ComponentName
+
+```text
+┗ 📂 features
+   ┗ 📂 page-builder-blocks
+      ┣ 📜 block-component-exporter.tsx
+      ┣ 📜 block-indexer.tsx
+      ┗ 📂 blocks
+         ┗ 📂 <componentname>-block
+            ┣ 📜 <componentname>.block-component.tsx
+            ┣ 📜 <componentname>.block-query.ts
+            ┣ 📜 <componentname>.block-schema.tsx
+            ┗ 📜 index.ts
+
+```
+
+#### Add Nextgen theme assets
+
+- Usage: `ng Add Nextgen theme assets`
+
+```text
+┗ 📂 app
+   ┣ 📜 globals.css
+   ┗ 📜 load-fonts.tsx
+
+```
+
+#### Add Summer theme assets
+
+- Usage: `ng Add Summer theme assets`
+
+```text
+┗ 📂 app
+   ┣ 📜 globals.css
+   ┗ 📜 load-fonts.tsx
+
+```
+
+#### Add Violet Sky theme assets
+
+- Usage: `ng Add Violet Sky theme assets`
+
+```text
+┗ 📂 app
+   ┣ 📜 globals.css
+   ┗ 📜 load-fonts.tsx
+
+```
+
+#### add Multiple Variables Example Command
+
+- Usage (name): `ng add Multiple Variables Example Command <Main> <Page> <Feature>`
+- Usage (slug): `ng multiple-variables-example <Main> <Page> <Feature>`
+- Variables: Main, Page, Feature
+
+```text
+┗ 📂 src
+   ┣ 📂 components
+   ┃  ┗ 📂 <Main>Component
+   ┃     ┗ 📜 index.tsx
+   ┗ 📂 pages
+      ┗ 📂 {{.CamelCasePage}}
+         ┗ 📜 view.tsx
+
+```
+
+#### add Nextgen Slug Route
+
+- Usage (name): `ng add Nextgen Slug Route <RouteName>`
+- Usage (slug): `ng add-nextgen-slug-route <RouteName>`
+- Variables: RouteName
+
+```text
+┣ 📂 app
+┃  ┗ 📂 (main)
+┃     ┣ 📂 <routename>
+┃     ┃  ┗ 📂 [slug]
+┃     ┃     ┣ 📂 (<routename>-slug-core-utilities)
+┃     ┃     ┃  ┣ 📜 <routename>-slug.desk-structure.ts
+┃     ┃     ┃  ┣ 📜 <routename>-slug.route-query.ts
+┃     ┃     ┃  ┣ 📜 <routename>-slug.route-schema.ts
+┃     ┃     ┃  ┗ 📜 <routename>-slug.server-actions.ts
+┃     ┃     ┗ 📜 page.tsx
+┃     ┗ 📜 all-route-document-schemas.ts
+┗ 📂 sanity
+   ┗ 📂 desk-organized-sanity-utilities
+      ┗ 📜 structure.ts
+
+```
+
+#### add Sample Command
+
+- Usage (name): `ng add Sample Command <ComponentName>`
+- Usage (slug): `ng page-and-archive <ComponentName>`
+- Variables: ComponentName
+
+```text
+┣ 📂 sanity
+┃  ┣ 📂 schemas
+┃  ┃  ┗ 📂 documents
+┃  ┃     ┗ 📜 index.tsx
+┃  ┗ 📂 structure
+┃     ┗ 📜 index.tsx
+┗ 📂 src
+   ┣ 📂 app
+   ┃  ┗ 📂 (site)
+   ┃     ┗ 📂 {example}
+   ┃        ┣ 📂 (index)
+   ┃        ┃  ┗ 📂 ({example}-index-core)
+   ┃        ┃     ┣ 📂 ({example}-index-destination)
+   ┃        ┃     ┃  ┣ 📜 page.tsx
+   ┃        ┃     ┃  ┗ 📜 {example}-index.component.tsx
+   ┃        ┃     ┗ 📂 ({example}-index-server)
+   ┃        ┃        ┣ 📜 {example}.index-query.tsx
+   ┃        ┃        ┣ 📜 {example}.index-schema.tsx
+   ┃        ┃        ┗ 📜 {example}.index-structure.tsx
+   ┃        ┗ 📂 [slug]
+   ┃           ┣ 📂 ({example}-slug-destination)
+   ┃           ┃  ┣ 📜 page.tsx
+   ┃           ┃  ┗ 📜 {example}.slug-component.tsx
+   ┃           ┗ 📂 ({example}-slug-server)
+   ┃              ┣ 📜 {example}.slug-query.tsx
+   ┃              ┣ 📜 {example}.slug-schema.tsx
+   ┃              ┗ 📜 {example}.slug-structure.tsx
+   ┗ 📂 routing
+      ┗ 📜 ROUTES.tsx
+
+```
+
+#### copy-of-add-nextgen-pagebuilder-block-with-props
+
+- Usage (name): `ng copy-of-add-nextgen-pagebuilder-block-with-props <ComponentName>`
+- Variables: ComponentName
+
+```text
+┗ 📂 features
+   ┗ 📂 page-builder-blocks
+      ┣ 📜 block-indexer.tsx
+      ┣ 📂 blocks
+      ┃  ┗ 📂 <componentname>-block
+      ┃     ┣ 📜 <componentname>.block-component.tsx
+      ┃     ┣ 📜 <componentname>.block-query.ts
+      ┃     ┣ 📜 <componentname>.block-schema.tsx
+      ┃     ┗ 📜 index.ts
+      ┗ 📜 property-types.ts
+
+```
+
+#### list-all
+
+- Usage: `ng list-all`
+
+(No file changes preview available)
+
+#### something-else
+
+- Usage (name): `ng something-else <ComponentName>`
+- Variables: ComponentName
+
+```text
+┗ 📂 features
+   ┗ 📂 page-builder-blocks
+      ┣ 📜 block-component-exporter.tsx
+      ┣ 📜 block-indexer.tsx
+      ┗ 📂 blocks
+         ┗ 📂 <componentname>-block
+            ┣ 📜 <componentname>.block-component.tsx
+            ┣ 📜 <componentname>.block-query.ts
+            ┣ 📜 <componentname>.block-schema.tsx
+            ┗ 📜 index.ts
+
+```
+
+#### style
+
+- Usage: `ng style`
+
+(No file changes preview available)
+

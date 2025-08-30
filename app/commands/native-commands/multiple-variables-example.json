@@ -2,10 +2,7 @@
   "_id": "multiple-variables-example",
   "_type": "command",
   "title": "Multiple Variables Example Command",
-  "slug": {
-    "_type": "slug",
-    "current": "multiple-variables-example"
-  },
+  "slug": "multiple-variables-example",
   "filePaths": [
     {
       "_key": "grp-1",

@@ -46,6 +46,7 @@ func init() {
 			type minimal struct {
 				Title string `json:"title"`
 				Name  string `json:"name"`
+				Slug  string `json:"slug"`
 			}
 			var m minimal
 			if json.Unmarshal(data, &m) != nil {
@@ -60,7 +61,12 @@ func init() {
 			if !strings.HasPrefix(lower, "add ") && !strings.HasPrefix(lower, "remove ") {
 				name = "add " + name
 			}
-			Commands = append(Commands, CommandSpec{Name: name, TemplatePath: path})
+			// Determine slug: prefer explicit JSON `slug`, else fall back to filename base
+			slug := strings.TrimSpace(m.Slug)
+			if slug == "" {
+				slug = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+			}
+			Commands = append(Commands, CommandSpec{Name: name, Slug: slug, TemplatePath: path})
 		}
 		return nil
 	})
@@ -90,6 +96,13 @@ func GetCommandSpec(cmdName string) CommandSpec {
 			return spec
 		}
 	}
+	// Try slug match using exact or kebab-cased variant
+	normalized := ToKebabCase(cmdName)
+	for _, spec := range Commands {
+		if strings.EqualFold(spec.Slug, cmdName) || strings.EqualFold(spec.Slug, normalized) {
+			return spec
+		}
+	}
 	return CommandSpec{}
 }
 
@@ -98,6 +111,7 @@ func GetCommandSpec(cmdName string) CommandSpec {
 // multiple independent variables will be collected.
 type CommandSpec struct {
 	Name         string
+	Slug         string
 	TemplatePath string
 }
 
@@ -151,6 +165,13 @@ func AllCommandNames() []string {
 func TemplatePathFor(cmdName string) (string, bool) {
 	for _, c := range Commands {
 		if c.Name == cmdName {
+			return c.TemplatePath, true
+		}
+	}
+	// Try by slug
+	normalized := ToKebabCase(cmdName)
+	for _, c := range Commands {
+		if strings.EqualFold(c.Slug, cmdName) || strings.EqualFold(c.Slug, normalized) {
 			return c.TemplatePath, true
 		}
 	}

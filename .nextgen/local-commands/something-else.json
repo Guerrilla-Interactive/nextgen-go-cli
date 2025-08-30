@@ -1,0 +1,98 @@
+{
+  "_id": "BapcUgcb40Ae0qy2ZShmAr",
+  "_type": "command",
+  "title": "Add Nextgen Pagebuilder Block",
+  "slug": "add-nextgen-pagebuilder-block",
+  "filePaths": [
+    {
+      "_key": "1738868072581-yljmao56m",
+      "_type": "filePathGroup",
+      "id": "path-1738867914866",
+      "path": "/features/page-builder-blocks",
+      "nodes": [
+        {
+          "_key": "1738868072581-10rdjzs2n",
+          "_type": "treeNode",
+          "id": "folder-1738867916026",
+          "name": "blocks",
+          "type": "folder",
+          "code": "",
+          "isIndexer": false,
+          "children": [
+            {
+              "_type": "treeNode",
+              "_key": "1738908150397-xkzrrdrgg",
+              "id": "folder-1738907615562",
+              "name": "{{.LowerCaseComponentName}}-block",
+              "code": "",
+              "isIndexer": false,
+              "children": [
+                {
+                  "children": [],
+                  "_type": "treeNode",
+                  "_key": "1738908150397-v72fzmkdv",
+                  "id": "file-1738907938593-ix2v1cyrn",
+                  "name": "{{.LowerCaseComponentName}}.block-component.tsx",
+                  "code": "import { Container, FlexCol, FlexRow, InnerSection, Section } from \"@/features/unorganized-components/nextgen-core-ui\";\nimport React from \"react\";\n\ninterface {{.PascalCaseComponentName}}Props {\n  title: string\n}\n\nexport default async function {{.PascalCaseComponentName}}BlockComponent(props:\nPartial<{{.PascalCaseComponentName}}Props>) {\nconst { title } = props;\n\n  return (\n    <Section className=\"my-12\">\n      <InnerSection>\n      <Container className=\"\">\n        <FlexRow>\n          <FlexCol>\n            <h3>\n              Example pretitle\n            </h3>\n            <h2>\n                 Example {title}\n            </h2>\n          </FlexCol>\n          <FlexCol>\n            <p>\n              Example description\n            </p>\n          </FlexCol>\n        </FlexRow>\n      </Container>\n      </InnerSection>\n    </Section>\n  );\n}\n",
+                  "isIndexer": false,
+                  "type": "file"
+                },
+                {
+                  "children": [],
+                  "_type": "treeNode",
+                  "_key": "1738908150397-4iudg4xye",
+                  "id": "file-1738907938593-u2xq3vq5d",
+                  "name": "{{.LowerCaseComponentName}}.block-query.ts",
+                  "code": "import { groq } from \"next-sanity\";\n\nconst {{.CamelCaseComponentName}}BlockQuery = groq`\n  _type == \"{{.LowerCaseComponentName}}-block\" => {\n    _type,\n    title,\n  },\n`;\n\nexport default {{.CamelCaseComponentName}}BlockQuery;\n",
+                  "isIndexer": false,
+                  "type": "file"
+                },
+                {
+                  "_key": "1738908150397-t05gwnest",
+                  "id": "file-1738907938593-cxvqda7pq",
+                  "name": "{{.LowerCaseComponentName}}.block-schema.tsx",
+                  "code": "import { defineField, defineType } from \"sanity\";\nimport { Newspaper } from \"lucide-react\";\n\nexport default defineType({\n  name: \"{{.LowerCaseComponentName}}-block\",\n  type: \"object\",\n  title: \"{{.PascalCaseComponentName}}\",\n  description: \"Description for {{.LowerCaseComponentName}}\",\n  icon: Newspaper,\n  fields: [\n    defineField({\n      title: \"Title\"\n      name: \"title\",\n      type: \"string\",\n    }),\n  ],\n  preview: {\n    prepare() {\n      return {\n        title: \"{{.PascalCaseComponentName}}\",\n      };\n    },\n  },\n});\n",
+                  "isIndexer": false,
+                  "children": [],
+                  "_type": "treeNode",
+                  "type": "file"
+                },
+                {
+                  "name": "index.ts",
+                  "code": "import {{.CamelCaseComponentName}}BlockSchema from \"./{{.KebabCaseComponentName}}.block-schema\";\nimport {{.CamelCaseComponentName}}BlockQuery from \"./{{.KebabCaseComponentName}}.block-query\";\nimport {{.PascalCaseComponentName}}BlockComponent from \"./{{.KebabCaseComponentName}}.block-component\";\n\nexport {\n  {{.CamelCaseComponentName}}BlockSchema,\n  {{.CamelCaseComponentName}}BlockQuery,\n  {{.PascalCaseComponentName}}BlockComponent\n};\n\n",
+                  "isIndexer": false,
+                  "children": [],
+                  "_type": "treeNode",
+                  "_key": "1738908150397-pw8or1cfj",
+                  "id": "file-1738907938593-7ca5p1243",
+                  "type": "file"
+                }
+              ],
+              "type": "folder"
+            }
+          ]
+        },
+        {
+          "_key": "1740918516877-pgh1mee1u",
+          "_type": "treeNode",
+          "id": "file-1740918516877",
+          "name": "block-component-exporter.tsx",
+          "type": "file",
+          "code": "// THIS IS AN INDEXER FILE\n\nimport { BlockDataMap } from \"./block-indexer\";\n\nexport function Blocks({ blocks }: { blocks?: Sanity.Block[] }) {\n    if (!blocks) return null;\n    return (\n      <>\n        {blocks.map((block, index) => {\n          const key = block._key || index;\n          const Component = BlockDataMap[block._type]?.component;\n          if (!Component) return <div data-type={block._type} key={key} />;\n          return <Component {...block} key={key} />;\n        })}\n      </>\n    );\n  }",
+          "isIndexer": true,
+          "children": []
+        },
+        {
+          "_key": "1738915780930-sfvdk48k2",
+          "_type": "treeNode",
+          "id": "file-1738915358780",
+          "name": "block-indexer.tsx",
+          "type": "file",
+          "code": "// THIS IS AN INDEXER FILE\n\nimport { groq } from \"next-sanity\";\n\n// START OF VALUE 1\nimport { {{.PascalCaseComponentName}}BlockComponent, {{.CamelCaseComponentName}}BlockQuery, {{.CamelCaseComponentName}}BlockSchema } from \"./blocks/{{.LowerCaseComponentName}}-block\";\n// END OF VALUE 1\n// ADD VALUE 1 ABOVE\n\nexport const BlockDataMap: {\n  [key: string]: {\n    component?: React.ComponentType<any>;\n    schema?: any;\n    query?: string;\n  };\n} = {\n  // START OF VALUE 2\n  \"{{.LowerCaseComponentName}}-block\": { component: {{.PascalCaseComponentName}}BlockComponent, schema: {{.CamelCaseComponentName}}BlockSchema, query: {{.CamelCaseComponentName}}BlockQuery },\n  // END OF VALUE 2\n  // ADD VALUE 2 ABOVE\n};\n\n\nexport const getSanityPageBuilderBlocks = () =>\n  Object.entries(BlockDataMap)\n    .filter(([_, block]) => typeof block.query !== \"undefined\")\n    .map(([blockType]) => ({ type: blockType }));\n\nexport const allBlockSchemas = Object.values(BlockDataMap)\n  .filter((block) => block.schema !== undefined)\n  .map((block) => block.schema);\n\nexport const allBlockQueries: string = Object.values(BlockDataMap)\n  .filter((block) => block.query !== undefined)\n  .map((block) => block.query as string)\n  .join(\"\\n\");\n\n  \nexport const pageBuilderQueryAutomatic = groq`\nblocks[]{\n  ${allBlockQueries}\n},\n`;\n\n\n\nexport const pageBuilderQuery = groq`\nblocks[]{\n  // START OF VALUE 3\n  ${ {{.CamelCaseComponentName}}BlockQuery  },\n  // END OF VALUE 3 \n\n  // ADD VALUE 3 ABOVE\n  }\n  `\n  ;\n",
+          "isIndexer": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
