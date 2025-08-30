@@ -1,63 +1,41 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
-
-	"encoding/json"
-	"os/exec"
-	"runtime"
+	"time"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/cli"
-	commands "github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands/args"
+	template_cmds "github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands" // template helpers
+	args_pkg "github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands/args" // args-based commands
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/utils" // file tree utils
+
 	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	// Import the template commands package for helpers
-	"time" // Add for history recording
-
-	template_cmds "github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
-	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/utils" // Import utils for file tree
-
-	// Use alias for args package
-	args_pkg "github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands/args"
-
-	// Alias for settings package
-	settingsScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/settings"
-
-	// NEW import for history
-	historyScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/history"
-
-	// NEW import for clipboard
-	clipboardScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/clipboard"
-
-	// NEW import for native
-	nativeScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/native"
-
-	// NEW import for project commands
-	projectCmdScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/project"
-
-	// NEW import for category
+	// screens
 	categoryScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/category"
-
-	// NEW import for prompt
-	promptScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/prompt"
-
-	// NEW import for shared screens
-	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
-
-	// NEW import for main
+	clipboardScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/clipboard"
+	nativeScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/native"
+	projectCmdScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/project"
+	historyScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/history"
 	mainScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/main"
+	promptScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/prompt"
+	settingsScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/settings"
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.73"
+var Version = "v1.0.74"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -67,6 +45,11 @@ type ProgramModel struct {
 	M                app.Model
 	ProjectRegistry  *project.ProjectRegistry // Track the project registry in the model
 	InitialDetection bool                     // Track if initial project detection was performed
+}
+
+// projectCommandFile represents a local project command that wraps a shell command string.
+type projectCommandFile struct {
+	Command string `json:"command"`
 }
 
 // commandRegistryCheckerBridge implements cli.CommandRegistryChecker using the commands package.
@@ -84,8 +67,6 @@ func (b commandRegistryCheckerBridge) CommandExists(name string) bool {
 	}
 
 	// --- Load registry to check other types (inefficient, but necessary for now) ---
-	// A better approach might involve passing the loaded registry to the parser
-	// or having a more unified command lookup mechanism.
 	registry, err := project.LoadProjectRegistry() // Load registry here
 	if err == nil {                                // Only proceed if registry loaded successfully
 		// Check user-saved Native Commands
@@ -197,7 +178,6 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Optionally log or display the error.
 			pm.M.HistorySaveStatus = fmt.Sprintf("Command '%s' failed: %v", typedMsg.CommandName, typedMsg.Err)
 			fmt.Println("Command finished with error:", typedMsg.Err)
-			// Optionally, stay on the current screen or go to an error screen instead of InstallDetails?
 			// For now, still go to InstallDetails to show the error (it quits on key press)
 			pm.M.CurrentScreen = app.ScreenInstallDetails
 		}
@@ -228,72 +208,58 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch pm.M.CurrentScreen {
 		case app.ScreenSelect:
-			// Use sharedScreens package
 			updatedM, cmd := sharedScreens.UpdateScreenSelect(pm.M, typedMsg)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenMain:
-			// Use mainScreen alias
 			updatedM, cmd := mainScreen.UpdateScreenMain(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenFilenamePrompt:
-			// Use promptScreen alias
 			updatedM, cmd := promptScreen.UpdateScreenFilenamePrompt(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenInstallDetails:
-			// Route to main screen's Install Details Update handler
 			updatedM, cmd := mainScreen.UpdateInstallDetailsScreen(pm.M, typedMsg)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenSettings:
-			// Use the alias for settings package
 			updatedM, cmd := settingsScreen.UpdateScreenSettings(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenCommandHistory:
-			// Use the new alias for history package
 			updatedM, cmd := historyScreen.UpdateScreenCommandHistory(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenCommandsCategory:
-			// Use categoryScreen alias
 			updatedM, cmd := categoryScreen.UpdateScreenCommandsCategory(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenClipboardList:
-			// Use clipboardScreen alias
 			updatedM, cmd := clipboardScreen.UpdateScreenClipboardList(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenClipboardActions:
-			// Use clipboardScreen alias
 			updatedM, cmd := clipboardScreen.UpdateScreenClipboardActions(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenRenameClipboard:
-			// Use clipboardScreen alias
 			updatedM, cmd := clipboardScreen.UpdateScreenRenameClipboard(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenNativeList:
-			// Use nativeScreen alias
 			updatedM, cmd := nativeScreen.UpdateScreenNativeList(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenNativeActions:
-			// Use nativeScreen alias
 			updatedM, cmd := nativeScreen.UpdateScreenNativeActions(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenProjectCommandsList:
-			// Use projectCmdScreen alias
 			updatedM, cmd := projectCmdScreen.UpdateScreenProjectCommandsList(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenProjectCommandActions:
-			// Use projectCmdScreen alias
 			updatedM, cmd := projectCmdScreen.UpdateScreenProjectCommandActions(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
@@ -327,50 +293,37 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (pm ProgramModel) View() string {
 	switch pm.M.CurrentScreen {
 	case app.ScreenSelect:
-		// Use sharedScreens package
 		return sharedScreens.ViewSelectScreen(pm.M)
 	case app.ScreenMain:
-		// Use mainScreen alias
 		return mainScreen.ViewMainScreen(pm.M, pm.ProjectRegistry)
 	case app.ScreenFilenamePrompt:
 		return promptScreen.ViewFilenamePrompt(pm.M, pm.ProjectRegistry)
 	case app.ScreenInstallDetails:
-		// Use mainScreen alias for View for now (as shared only has placeholder)
 		return mainScreen.ViewInstallDetailsScreen(pm.M)
 	case app.ScreenSettings:
-		// Use the alias for settings package
 		return settingsScreen.ViewSettingsScreen(pm.M, pm.ProjectRegistry)
 	case app.ScreenCommandHistory:
-		// Use the new alias for history package
 		return historyScreen.ViewScreenCommandHistory(pm.M, pm.ProjectRegistry)
 	case app.ScreenCommandsCategory:
-		// Use categoryScreen alias
 		return categoryScreen.ViewScreenCommandsCategory(pm.M, pm.ProjectRegistry)
 	case app.ScreenClipboardList:
-		// Use clipboardScreen alias
 		return clipboardScreen.ViewScreenClipboardList(pm.M, pm.ProjectRegistry)
 	case app.ScreenClipboardActions:
-		// Use clipboardScreen alias
 		return clipboardScreen.ViewScreenClipboardActions(pm.M, pm.ProjectRegistry)
 	case app.ScreenRenameClipboard:
-		// Use clipboardScreen alias
 		return clipboardScreen.ViewScreenRenameClipboard(pm.M)
 	case app.ScreenNativeList:
-		// Use nativeScreen alias
 		return nativeScreen.ViewScreenNativeList(pm.M, pm.ProjectRegistry)
 	case app.ScreenNativeActions:
-		// Use nativeScreen alias
 		return nativeScreen.ViewScreenNativeActions(pm.M, pm.ProjectRegistry)
 	case app.ScreenProjectCommandsList:
-		// Use projectCmdScreen alias
 		return projectCmdScreen.ViewScreenProjectCommandsList(pm.M, pm.ProjectRegistry)
 	case app.ScreenProjectCommandActions:
-		// --- Add Debug Logging Here ---
+		// Debug logs
 		fmt.Fprintf(os.Stderr, "DEBUG: Routing to ViewScreenProjectCommandActions\n")
 		fmt.Fprintf(os.Stderr, "DEBUG:   pm.M.SelectedProjectCommand = '%s'\n", pm.M.SelectedProjectCommand)
 		registryIsNil := pm.ProjectRegistry == nil
 		fmt.Fprintf(os.Stderr, "DEBUG:   pm.ProjectRegistry == nil: %t\n", registryIsNil)
-		// --- End Debug Logging ---
 		return projectCmdScreen.ViewScreenProjectCommandActions(pm.M, pm.ProjectRegistry)
 	}
 	return ""
@@ -395,6 +348,15 @@ func main() {
 	} else {
 		fmt.Printf("DEBUG: Project registry loaded successfully from %s. Contains %d projects. Global usages: %d\n",
 			projectRegistry.RegistryPath, len(projectRegistry.Projects), projectRegistry.GlobalUsages)
+	}
+
+	// --- Update .nextgen/nextgen-cli-commands.mdc on every run ---
+	if cwd, cwdErr := os.Getwd(); cwdErr == nil {
+		if writeErr := args_pkg.WriteNextgenCommandsMDC(cwd, projectRegistry); writeErr != nil {
+			fmt.Printf("Warning: Failed to update .nextgen/nextgen-cli-commands.mdc: %v\n", writeErr)
+		}
+	} else {
+		fmt.Printf("Warning: Could not determine working directory to update commands MDC: %v\n", cwdErr)
 	}
 
 	// Create the registry checker bridge
@@ -558,7 +520,7 @@ func displayGeneralHelp() {
 	fmt.Println("Usage: ng [command] [variables...] [--flags...]")
 	fmt.Println("Run without arguments to enter interactive mode.")
 
-	allCmds := commands.GetAllCommands()
+	allCmds := args_pkg.GetAllCommands()
 	if len(allCmds) > 0 {
 		fmt.Println("\nAvailable Commands:")
 		sort.Slice(allCmds, func(i, j int) bool {
@@ -576,7 +538,7 @@ func displayGeneralHelp() {
 
 // displayCommandHelp displays detailed help for a specific command.
 func displayCommandHelp(commandName string) {
-	cmd, found := commands.GetCommand(commandName)
+	cmd, found := args_pkg.GetCommand(commandName)
 	if !found {
 		fmt.Printf("Error: Unknown command '%s'\n", commandName)
 		displayGeneralHelp() // Show general help as fallback
@@ -630,24 +592,29 @@ func executeAndExit(parsedArgs cli.CommandArgs, registry *project.ProjectRegistr
 	currentDir, err := os.Getwd()
 	if err != nil {
 		fmt.Printf("Warning: Could not determine current directory for command execution: %v\n", err)
-		// Decide if commands can run without project context or exit
-		// currentDir = ""
 	}
 	fmt.Printf("DEBUG: Current working directory for execution: %s\n", currentDir)
-
-	// TODO: Potentially load project config based on currentDir for the command
 
 	fmt.Printf("Attempting direct execution for command: %s\n", parsedArgs.CommandName)
 	fmt.Printf("Variables: %v\n", parsedArgs.Variables)
 	fmt.Printf("Flags: %v\n", parsedArgs.Flags)
 	fmt.Printf("BoolFlags: %v\n", parsedArgs.BoolFlags)
 
+	// If this is an args-based command, validate required args/flags first
+	if cmd, found := args_pkg.GetCommand(parsedArgs.CommandName); found {
+		if err := template_cmds.ValidateArgs(parsedArgs, cmd.ExpectedArgs(), cmd.ExpectedFlags()); err != nil {
+			// Show a helpful guide for correct usage
+			fmt.Printf("Error: %v\n\n", err)
+			displayCommandHelp(parsedArgs.CommandName)
+			os.Exit(1)
+		}
+	}
+
 	err = executeDirectCommand(parsedArgs, registry) // Pass registry
 	if err != nil {
 		fmt.Printf("Error executing command '%s': %v\n", parsedArgs.CommandName, err)
 		os.Exit(1)
 	}
-	// fmt.Println("Direct command execution successful (placeholder).") // Removed misleading message
 	os.Exit(0) // Exit after successful direct execution
 }
 
@@ -670,19 +637,19 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 	var placeholders map[string]string
 
 	// 1. Try executing as an Arg-based command first
-	cmd, found := args_pkg.GetCommand(commandName)
-	if found {
+	if cmd, found := args_pkg.GetCommand(commandName); found {
 		fmt.Printf("DEBUG: Executing command '%s' via args package...\n", commandName)
 		execErr = cmd.Execute(args)
 		fmt.Printf("DEBUG: Args command '%s' finished. Error: %v\n", commandName, execErr)
 		// Placeholders are not directly available from args commands for history
+
 	} else if registry != nil && registry.NativeCommands != nil && registry.NativeCommands[commandName] != "" {
 		// 2. Try executing as a User-Saved Native Command
 		commandString := registry.NativeCommands[commandName]
 		fmt.Printf("DEBUG: Executing command '%s' as user-saved native command...\n", commandName)
 		fmt.Printf("  Command: %s\n  Args: %v\n", commandString, commandArgs)
 		execErr = runShellCommand(commandString, commandArgs, projectPath)
-		// Placeholders are not applicable to shell commands for history
+
 	} else if registry != nil && registry.ClipboardCommands != nil && registry.ClipboardCommands[commandName].Template != "" {
 		// 3. Try executing as a Clipboard Command
 		clipboardSpec := registry.ClipboardCommands[commandName]
@@ -690,8 +657,13 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 		templateBytes := []byte(clipboardSpec.Template)
 		keys := template_cmds.InferVariableKeys(string(templateBytes))
 		if len(keys) != len(commandArgs) {
-			execErr = fmt.Errorf("clipboard command '%s' requires %d argument(s) (%s), but %d provided",
-				commandName, len(keys), strings.Join(keys, ", "), len(commandArgs))
+			usageParts := make([]string, len(keys))
+			for i, k := range keys {
+				usageParts[i] = fmt.Sprintf("<%s>", k)
+			}
+			usage := fmt.Sprintf("ng %s %s", commandName, strings.Join(usageParts, " "))
+			execErr = fmt.Errorf("clipboard command '%s' requires %d argument(s): %s\nUsage: %s",
+				commandName, len(keys), strings.Join(keys, ", "), usage)
 		} else {
 			varsMap := make(map[string]string)
 			for i, key := range keys {
@@ -703,63 +675,105 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 			template_cmds.EditedIndexers = make(map[string]bool)
 			execErr = template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
 		}
-	} else if projectPath != "." { // Check project command only if we have a valid path
-		// 4. Try executing as a Project Command
-		localCmdDir := filepath.Join(projectPath, ".nextgen", "local-commands")
-		kebabName := template_cmds.ToKebabCase(commandName)
-		cmdFilePath := filepath.Join(localCmdDir, kebabName+".json")
-		if _, err := os.Stat(cmdFilePath); err == nil {
-			jsonData, readErr := os.ReadFile(cmdFilePath)
-			if readErr != nil {
-				execErr = fmt.Errorf("failed to read project command file '%s': %w", cmdFilePath, readErr)
-			} else {
-				type ProjectCommandFile struct {
-					Command string `json:"command"`
-				}
-				var cmdData ProjectCommandFile
-				if jsonErr := json.Unmarshal(jsonData, &cmdData); jsonErr != nil {
-					execErr = fmt.Errorf("failed to parse project command file '%s': %w", cmdFilePath, jsonErr)
+
+	} else {
+		// 4. Try executing as a Project Command; if not found, fall back to Built-in Template Command
+		executedProject := false
+		if projectPath != "." {
+			localCmdDir := filepath.Join(projectPath, ".nextgen", "local-commands")
+			kebabName := template_cmds.ToKebabCase(commandName)
+			cmdFilePath := filepath.Join(localCmdDir, kebabName+".json")
+			if _, err := os.Stat(cmdFilePath); err == nil {
+				jsonData, readErr := os.ReadFile(cmdFilePath)
+				if readErr != nil {
+					execErr = fmt.Errorf("failed to read project command file '%s': %w", cmdFilePath, readErr)
 				} else {
-					commandString := cmdData.Command
-					if commandString == "" {
-						execErr = fmt.Errorf("command string is empty in project command file '%s'", cmdFilePath)
-					} else {
+					// First try to parse as a shell command file
+					var cmdData projectCommandFile
+					if json.Unmarshal(jsonData, &cmdData) == nil && strings.TrimSpace(cmdData.Command) != "" {
+						commandString := cmdData.Command
 						fmt.Printf("DEBUG: Executing command '%s' as project command...\n", commandName)
 						fmt.Printf("  Command: %s\n  Args: %v\n", commandString, commandArgs)
 						execErr = runShellCommand(commandString, commandArgs, projectPath)
 						// Placeholders not applicable
+						executedProject = true
+					} else {
+						// Otherwise, try to treat it as a template JSON
+						var generic map[string]interface{}
+						if json.Unmarshal(jsonData, &generic) == nil {
+							if fp, ok := generic["filePaths"]; ok {
+								if arr, okArr := fp.([]interface{}); okArr && len(arr) > 0 {
+									fmt.Printf("DEBUG: Executing command '%s' as project template command...\n", commandName)
+									keys := template_cmds.InferVariableKeys(string(jsonData))
+									if len(keys) != len(commandArgs) {
+										usageParts := make([]string, len(keys))
+										for i, k := range keys {
+											usageParts[i] = fmt.Sprintf("<%s>", k)
+										}
+										usage := fmt.Sprintf("ng %s %s", commandName, strings.Join(usageParts, " "))
+										execErr = fmt.Errorf(
+											"command '%s' requires %d argument(s): %s\nUsage: %s",
+											commandName, len(keys), strings.Join(keys, ", "), usage,
+										)
+									} else {
+										varsMap := make(map[string]string)
+										for i, key := range keys {
+											varsMap[key] = commandArgs[i]
+										}
+										placeholders = template_cmds.BuildPlaceholders(varsMap)
+										template_cmds.CreatedFiles = []string{}
+										template_cmds.EditedIndexers = make(map[string]bool)
+										execErr = template_cmds.ExecuteJSONTemplateFromMemory(jsonData, projectPath, placeholders)
+									}
+									executedProject = true
+								} else {
+									execErr = fmt.Errorf("invalid project command file '%s': missing 'command' or 'filePaths'", cmdFilePath)
+								}
+							} else {
+								execErr = fmt.Errorf("invalid project command file '%s': missing 'filePaths'", cmdFilePath)
+							}
+						} else {
+							execErr = fmt.Errorf("failed to parse project command file '%s'", cmdFilePath)
+						}
 					}
 				}
 			}
 		}
-	} else {
-		// 5. Try executing as a Built-in Template Command (Only if not found above)
-		spec := template_cmds.GetCommandSpec(commandName)
-		if spec.TemplatePath != "" {
-			fmt.Printf("DEBUG: Executing command '%s' as built-in template command...\n", commandName)
-			templateBytes, loadErr := template_cmds.LoadCommandTemplate(spec.TemplatePath)
-			if loadErr != nil {
-				execErr = fmt.Errorf("failed to load template %s: %w", spec.TemplatePath, loadErr)
-			} else {
-				keys := template_cmds.InferVariableKeys(string(templateBytes))
-				if len(keys) != len(commandArgs) {
-					execErr = fmt.Errorf("command '%s' requires %d argument(s) (%s), but %d provided",
-						commandName, len(keys), strings.Join(keys, ", "), len(commandArgs))
+
+		// 5. If not executed as a project command, try executing as a Built-in Template Command
+		if !executedProject {
+			spec := template_cmds.GetCommandSpec(commandName)
+			if spec.TemplatePath != "" {
+				fmt.Printf("DEBUG: Executing command '%s' as built-in template command...\n", commandName)
+				templateBytes, loadErr := template_cmds.LoadCommandTemplate(spec.TemplatePath)
+				if loadErr != nil {
+					execErr = fmt.Errorf("failed to load template %s: %w", spec.TemplatePath, loadErr)
 				} else {
-					varsMap := make(map[string]string)
-					for i, key := range keys {
-						varsMap[key] = commandArgs[i]
+					keys := template_cmds.InferVariableKeys(string(templateBytes))
+					if len(keys) != len(commandArgs) {
+						usageParts := make([]string, len(keys))
+						for i, k := range keys {
+							usageParts[i] = fmt.Sprintf("<%s>", k)
+						}
+						usage := fmt.Sprintf("ng %s %s", commandName, strings.Join(usageParts, " "))
+						execErr = fmt.Errorf("command '%s' requires %d argument(s): %s\nUsage: %s",
+							commandName, len(keys), strings.Join(keys, ", "), usage)
+					} else {
+						varsMap := make(map[string]string)
+						for i, key := range keys {
+							varsMap[key] = commandArgs[i]
+						}
+						placeholders = template_cmds.BuildPlaceholders(varsMap) // Store placeholders
+						fmt.Printf("DEBUG: Running template with placeholders: %+v\n", placeholders)
+						template_cmds.CreatedFiles = []string{}
+						template_cmds.EditedIndexers = make(map[string]bool)
+						execErr = template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
 					}
-					placeholders = template_cmds.BuildPlaceholders(varsMap) // Store placeholders
-					fmt.Printf("DEBUG: Running template with placeholders: %+v\n", placeholders)
-					template_cmds.CreatedFiles = []string{}
-					template_cmds.EditedIndexers = make(map[string]bool)
-					execErr = template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
 				}
+			} else {
+				// If not found in any category
+				return fmt.Errorf("unknown or unsupported command for direct execution: %s", commandName)
 			}
-		} else {
-			// If not found in any category
-			return fmt.Errorf("unknown or unsupported command for direct execution: %s", commandName)
 		}
 	}
 
@@ -769,7 +783,7 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 			Name:           commandName,
 			Variables:      placeholders, // Will be nil for non-template commands, which is fine
 			Timestamp:      time.Now().Unix(),
-			GeneratedFiles: append([]string{}, template_cmds.CreatedFiles...), // Copy generated files (relevant for templates)
+			GeneratedFiles: append([]string{}, template_cmds.CreatedFiles...), // Copy generated files
 		}
 		if err := registry.RecordCommandHistory(projectPath, historicCmd); err != nil {
 			fmt.Printf("Warning: Failed to record command history for '%s': %v\n", commandName, err)
