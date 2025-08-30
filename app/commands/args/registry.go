@@ -53,7 +53,7 @@ func RegisterCommand(cmd Command) {
 		panic(fmt.Sprintf("Command already registered: %s", cmd.Name()))
 	}
 	commandRegistry[cmd.Name()] = cmd
-	fmt.Printf("DEBUG: Registered command: %s\n", cmd.Name()) // Added debug print
+	// fmt.Printf("DEBUG: Registered command: %s\n", cmd.Name()) // Added debug print
 }
 
 // GetCommand retrieves a command from the registry by its name.

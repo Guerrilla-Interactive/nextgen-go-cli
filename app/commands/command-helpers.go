@@ -244,7 +244,9 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 			isIndexer := node.IsIndexer
 			if !isIndexer && strings.Contains(code, "// THIS IS AN INDEXER FILE") {
 				isIndexer = true
-				fmt.Printf("ℹ️  Detected indexer marker in file %s, registering as an indexer file.\n", currentPath)
+				if cli.IsVerboseEnabled() {
+					fmt.Printf("ℹ️  Detected indexer marker in file %s, registering as an indexer file.\n", currentPath)
+				}
 			}
 
 			// If file already exists then we introduce smart merge behavior.
@@ -261,7 +263,9 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 					if err := os.WriteFile(currentPath, []byte(mergedContent), 0644); err != nil {
 						return fmt.Errorf("failed to write merged file %s: %w", currentPath, err)
 					}
-					fmt.Printf("✓ Merged updates into existing file %s.\n", currentPath)
+					if cli.IsVerboseEnabled() {
+						fmt.Printf("✓ Merged updates into existing file %s.\n", currentPath)
+					}
 					if rel, err := filepath.Rel(projectPath, currentPath); err == nil {
 						MarkEditedIndexer(rel)
 					} else {
@@ -272,7 +276,9 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 					if err := os.WriteFile(currentPath, []byte(newContent), 0644); err != nil {
 						return fmt.Errorf("failed to overwrite file %s: %w", currentPath, err)
 					}
-					fmt.Printf("✓ Replaced existing file %s.\n", currentPath)
+					if cli.IsVerboseEnabled() {
+						fmt.Printf("✓ Replaced existing file %s.\n", currentPath)
+					}
 				}
 				// Record the file (including indexer files) using a relative path if possible.
 				if rel, err := filepath.Rel(projectPath, currentPath); err == nil {

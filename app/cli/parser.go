@@ -39,6 +39,24 @@ type CommandArgs struct {
 	Errors           []error           // Any parsing errors encountered
 }
 
+// Debug toggle controlled by --debug. Other packages can query this.
+var debugEnabled bool
+
+// SetDebugEnabled enables or disables debug logging globally for this process.
+func SetDebugEnabled(on bool) { debugEnabled = on }
+
+// IsDebugEnabled reports whether debug logging is currently enabled.
+func IsDebugEnabled() bool { return debugEnabled }
+
+// Verbose toggle controlled by --verbose for informational (non-debug) output.
+var verboseEnabled bool
+
+// SetVerboseEnabled enables or disables verbose informational output globally.
+func SetVerboseEnabled(on bool) { verboseEnabled = on }
+
+// IsVerboseEnabled reports whether verbose mode is currently enabled.
+func IsVerboseEnabled() bool { return verboseEnabled }
+
 // ParseCommandLineArgs processes the raw command-line arguments using a command registry checker.
 func ParseCommandLineArgs(rawArgs []string, registry CommandRegistryChecker) CommandArgs {
 	parsed := CommandArgs{
