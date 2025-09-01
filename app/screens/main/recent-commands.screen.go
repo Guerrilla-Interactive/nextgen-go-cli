@@ -1,17 +1,22 @@
 package mainScreen
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
 	projectCmdScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/project"
 	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
+	config "github.com/Guerrilla-Interactive/nextgen-go-cli/internal"
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -36,6 +41,7 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 	m.MainListPaginator.SetTotalPages(totalCmds)
 	p := &m.MainListPaginator
 	var paginatorCmd tea.Cmd // Store paginator command result here
+	var fetchCmd tea.Cmd     // optional async clerk fetch
 	// DONT update paginator here: *p, paginatorCmd = p.Update(msg)
 
 	// --- Calculate index and page options ---
@@ -49,6 +55,18 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 		} // Ensure not negative if page empty
 	}
 	realIndex := start + m.SelectedIndex // Index in the full list
+
+	// Handle async user info messages
+	if infoMsg, ok := msg.(app.ClerkUserInfoMsg); ok {
+		incoming := strings.TrimSpace(infoMsg.Token)
+		current := strings.TrimSpace(m.ClerkUserInfoToken)
+		if incoming == current {
+			m.ClerkUserInfo = infoMsg.Info
+			m.ClerkUserInfoAttempted = true
+		}
+		// Always clear fetching to avoid spinner getting stuck
+		m.IsFetchingClerkUserInfo = false
+	}
 
 	// --- Handle Keypresses ---
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
@@ -183,8 +201,26 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 		m.StatsPreview = ""
 	}
 
+	// Trigger async fetch for Clerk user info when hovering Settings
+	if m.MainScreenFocus == "action" && m.ActionIndex >= 0 && m.ActionIndex < len(actionRow) && strings.ToLower(actionRow[m.ActionIndex]) == "view settings" {
+		cfg, _ := config.LoadConfig()
+		tok := strings.TrimSpace(cfg.Token)
+		if cfg.IsLoggedIn && tok != "" {
+			// If token changed, reset cached state
+			if strings.TrimSpace(m.ClerkUserInfoToken) != tok {
+				m.ClerkUserInfo = ""
+				m.ClerkUserInfoAttempted = false
+			}
+			if !m.IsFetchingClerkUserInfo && !m.ClerkUserInfoAttempted {
+				m.IsFetchingClerkUserInfo = true
+				m.ClerkUserInfoToken = tok
+				fetchCmd = fetchClerkUserInfoCmd(tok)
+			}
+		}
+	}
+
 	// Return the updated model and any command from the paginator or other logic
-	return m, paginatorCmd
+	return m, tea.Batch(paginatorCmd, fetchCmd)
 }
 
 // updatePreview needs modification to accept the selected command name directly
@@ -198,8 +234,53 @@ func updatePreview(m app.Model, registry *project.ProjectRegistry, selectedCmdNa
 
 	switch lowerCmd {
 	case "view settings": // Renamed
-		// Use sharedScreens.RenderProjectInfoSection
-		m.StatsPreview = sharedScreens.RenderProjectInfoSection(m, registry)
+		// Use sharedScreens.RenderProjectInfoSection and append user info
+		base := sharedScreens.RenderProjectInfoSection(m, registry)
+		cfg, _ := config.LoadConfig()
+		userHeader := app.SubtitleStyle.Render("User") + "\n"
+		status := "Logged out"
+		if cfg.IsLoggedIn {
+			masked := maskToken(cfg.Token)
+			status = "Logged in (token " + masked + ")"
+			// Try to decode JWT (no signature verification) for basic user info
+			claims := parseJWTClaims(cfg.Token)
+			if len(claims) > 0 {
+				// Show a few common fields if present
+				if sub, ok := claims["sub"].(string); ok && sub != "" {
+					status += "\n  sub: " + sub
+				}
+				if email, ok := claims["email"].(string); ok && email != "" {
+					status += "\n  email: " + email
+				}
+				if iss, ok := claims["iss"].(string); ok && iss != "" {
+					status += "\n  iss: " + iss
+				}
+				if sid, ok := claims["sid"].(string); ok && sid != "" {
+					status += "\n  sid: " + sid
+				}
+				if exp, ok := claims["exp"].(float64); ok && exp > 0 {
+					status += "\n  exp: " + time.Unix(int64(exp), 0).Format(time.RFC3339)
+				}
+				// Show pro flag from public_metadata if present
+				if pmRaw, ok := claims["public_metadata"]; ok {
+					if pm, ok2 := pmRaw.(map[string]any); ok2 {
+						if v, ok3 := pm["pro"]; ok3 {
+							switch t := v.(type) {
+							case bool:
+								if t {
+									status += "\n  pro: true"
+								}
+							case string:
+								if strings.ToLower(t) == "true" {
+									status += "\n  pro: true"
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		m.StatsPreview = base + "\n" + userHeader + "  " + status + "\n"
 		m.CurrentPreviewType = "stats"
 	case "paste from clipboard":
 		// Generate preview based on clipboard content
@@ -542,4 +623,244 @@ func getPrioritizedCommandList(m *app.Model, registry *project.ProjectRegistry) 
 	appendUnique(&resultList, remainingOthers)
 
 	return resultList
+}
+
+// maskToken returns a shortened representation of a token for display.
+func maskToken(tok string) string {
+	if tok == "" {
+		return "(none)"
+	}
+	if len(tok) <= 10 {
+		return tok
+	}
+	return tok[:6] + "…" + tok[len(tok)-4:]
+}
+
+// parseJWTClaims decodes a JWT's payload segment without verifying the signature.
+// Supports Clerk desktop browser JWT as well if it's a JWT-like structure.
+func parseJWTClaims(token string) map[string]any {
+	parts := strings.Split(token, ".")
+	if len(parts) < 2 {
+		return nil
+	}
+	payload := parts[1]
+	// JWT uses base64url without padding
+	b, err := base64.RawURLEncoding.DecodeString(payload)
+	if err != nil {
+		// Try with standard encoding/padding fallback
+		b2, err2 := base64.StdEncoding.DecodeString(payload)
+		if err2 != nil {
+			return nil
+		}
+		b = b2
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil
+	}
+	return m
+}
+
+// getClerkUserInfoViaAPI tries to fetch user details from Clerk using CLERK_SECRET_KEY.
+// It returns a formatted string with name/email if available.
+func getClerkUserInfoViaAPI(token string) (string, bool) {
+	secret := "sk_test_x4wDfcf3CRfAooiH3u1KBzzYHKgDzUNqUgW3Ut8Zeb"
+	instance := "https://smooth-vervet-76.accounts.dev"
+	if instance == "" {
+		instance = "https://smooth-vervet-76.accounts.dev"
+	}
+	if secret == "" {
+		return "", false
+	}
+
+	// Attempt to infer user ID from token (JWT sub) if present
+	if claims := parseJWTClaims(token); len(claims) > 0 {
+		if sub, ok := claims["sub"].(string); ok && sub != "" {
+			if s, ok2 := fetchClerkUser(instance, secret, sub); ok2 {
+				return s, true
+			}
+		}
+	}
+
+	// Fallback: try to fetch the current user via sessions API using the token if it's a session token
+	if s, ok := fetchClerkMe(instance, secret, token); ok {
+		return s, true
+	}
+	return "", false
+}
+
+func fetchClerkUser(instance, secret, userID string) (string, bool) {
+	req, err := http.NewRequest("GET", instance+"/v1/users/"+userID, nil)
+	if err != nil {
+		return "", false
+	}
+	req.Header.Set("Authorization", "Bearer "+secret)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", false
+	}
+	var body struct {
+		ID           string `json:"id"`
+		Email        string `json:"email_address"`
+		FirstName    string `json:"first_name"`
+		LastName     string `json:"last_name"`
+		PrimaryEmail struct {
+			EmailAddress string `json:"email_address"`
+		} `json:"primary_email_address"`
+		PrivateMetadata map[string]any `json:"private_metadata"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return "", false
+	}
+	email := body.Email
+	if email == "" {
+		email = body.PrimaryEmail.EmailAddress
+	}
+	name := strings.TrimSpace(body.FirstName + " " + body.LastName)
+	out := "  name: " + name
+	if email != "" {
+		out += "\n  email: " + email
+	}
+	out += "\n  id: " + body.ID
+	if ent, ok := extractEntitlements(body.PrivateMetadata); ok {
+		out += "\n" + ent
+	}
+	if pm, ok := formatPrivateMetadata(body.PrivateMetadata); ok {
+		out += "\n" + pm
+	}
+	return out, true
+}
+
+func fetchClerkMe(instance, secret, token string) (string, bool) {
+	// Try to fetch the session's user
+	req, err := http.NewRequest("GET", instance+"/v1/me", nil)
+	if err != nil {
+		return "", false
+	}
+	req.Header.Set("Authorization", "Bearer "+secret)
+	// Some Clerk deployments may require the session token as a header to resolve the subject
+	if token != "" {
+		req.Header.Set("X-Session-Token", token)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", false
+	}
+	var body struct {
+		ID              string         `json:"id"`
+		Email           string         `json:"email_address"`
+		FirstName       string         `json:"first_name"`
+		LastName        string         `json:"last_name"`
+		PrivateMetadata map[string]any `json:"private_metadata"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return "", false
+	}
+	name := strings.TrimSpace(body.FirstName + " " + body.LastName)
+	out := "  name: " + name
+	if body.Email != "" {
+		out += "\n  email: " + body.Email
+	}
+	if body.ID != "" {
+		out += "\n  id: " + body.ID
+	}
+	if ent, ok := extractEntitlements(body.PrivateMetadata); ok {
+		out += "\n" + ent
+	}
+	if pm, ok := formatPrivateMetadata(body.PrivateMetadata); ok {
+		out += "\n" + pm
+	}
+	return out, true
+}
+
+// extractEntitlements reads private_metadata.entitlements.nextgen_cli and formats it.
+func extractEntitlements(privateMD map[string]any) (string, bool) {
+	if privateMD == nil {
+		return "", false
+	}
+	entitlementsRaw, ok := privateMD["entitlements"]
+	if !ok {
+		return "", false
+	}
+	entitlements, ok := entitlementsRaw.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	ngRaw, ok := entitlements["nextgen_cli"]
+	if !ok {
+		return "", false
+	}
+	ng, ok := ngRaw.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	// Safely pull known fields
+	get := func(k string) string {
+		if v, ok := ng[k]; ok {
+			switch t := v.(type) {
+			case string:
+				return t
+			case float64:
+				return fmt.Sprintf("%g", t)
+			case nil:
+				return "null"
+			default:
+				b, _ := json.Marshal(t)
+				return string(b)
+			}
+		}
+		return ""
+	}
+	lines := []string{"  entitlements.nextgen_cli:",
+		"    plan: " + get("plan"),
+		"    status: " + get("status"),
+		"    product: " + get("product"),
+		"    validUntilMs: " + get("validUntilMs"),
+		"    stripePriceId: " + get("stripePriceId"),
+		"    stripeCustomerId: " + get("stripeCustomerId"),
+		"    stripeSubscriptionId: " + get("stripeSubscriptionId"),
+	}
+	return strings.Join(lines, "\n"), true
+}
+
+// formatPrivateMetadata returns the full private_metadata as indented JSON.
+// It prefixes the block with a label and indents the JSON for readability.
+
+func formatPrivateMetadata(privateMD map[string]any) (string, bool) {
+	if len(privateMD) == 0 {
+		return "", false
+	}
+	b, err := json.MarshalIndent(privateMD, "", "  ")
+	if err != nil {
+		return "", false
+	}
+	// Indent JSON block under a header for consistent styling
+	return "  private_metadata:\n" + indentLines("    ", string(b)), true
+}
+
+// indentLines prefixes every line in s with prefix.
+func indentLines(prefix, s string) string {
+	lines := strings.Split(s, "\n")
+	for i := range lines {
+		lines[i] = prefix + lines[i]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// fetchClerkUserInfoCmd runs Clerk user info fetch in background and returns an async message
+func fetchClerkUserInfoCmd(token string) tea.Cmd {
+	return func() tea.Msg {
+		if extra, ok := getClerkUserInfoViaAPI(token); ok {
+			return app.ClerkUserInfoMsg{Info: extra, Token: token}
+		}
+		return app.ClerkUserInfoMsg{Info: "", Token: token}
+	}
 }

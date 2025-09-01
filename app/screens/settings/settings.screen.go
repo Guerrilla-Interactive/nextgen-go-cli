@@ -7,14 +7,15 @@ import (
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	config "github.com/Guerrilla-Interactive/nextgen-go-cli/internal"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // UpdateScreenSettings handles input on the Settings screen.
 func UpdateScreenSettings(m app.Model, msg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
-	// Updated categories: Project Info, Command History, Manage Commands, Back
-	numOptions := 4 // Reduced number of options
+	// Updated categories: Project Info, Command History, Manage Commands, Logout, Back
+	numOptions := 5
 
 	switch msg.String() {
 	case "ctrl+c", "q":
@@ -40,7 +41,16 @@ func UpdateScreenSettings(m app.Model, msg tea.KeyMsg, registry *project.Project
 			m.CurrentScreen = app.ScreenCommandsCategory
 			m.CommandsCategoryIndex = 0 // Reset index for the target screen
 			return m, nil
-		case 3: // Back (new index 3, old 5)
+		case 3: // Logout (new index 3)
+			cfg, _ := config.LoadConfig()
+			cfg.IsLoggedIn = false
+			cfg.Token = ""
+			_ = config.SaveConfig(cfg)
+			m.IsLoggedIn = false
+			m.CurrentScreen = app.ScreenLogin
+			m.SettingsScreenIndex = 0
+			return m, nil
+		case 4: // Back (new index 4)
 			m.CurrentScreen = app.ScreenMain
 			m.SettingsScreenIndex = 0 // Reset index for this screen
 			return m, nil
@@ -62,7 +72,7 @@ func ViewSettingsScreen(m app.Model, registry *project.ProjectRegistry) string {
 
 	// --- Left Pane: Navigation ---\
 	// Updated navigation items
-	navItems := []string{"Project Info", "Command History", "Manage Commands", "Back"}
+	navItems := []string{"Project Info", "Command History", "Manage Commands", "Logout", "Back"}
 	var leftBuilder strings.Builder
 
 	for i, item := range navItems {
@@ -127,7 +137,9 @@ func ViewSettingsScreen(m app.Model, registry *project.ProjectRegistry) string {
 		previewContent = app.HelpStyle.Render("View the history of commands run in this project.")
 	case 2: // Manage Commands Preview (new index 2, old 4)
 		previewContent = app.HelpStyle.Render("Manage saved clipboard, native, and project-specific commands.")
-	case 3: // Back Preview (new index 3, old 5)
+	case 3: // Logout Preview
+		previewContent = app.HelpStyle.Render("Log out of your Clerk session and return to the login screen.")
+	case 4: // Back Preview (new index 4)
 		previewContent = app.HelpStyle.Render("Return to the main command screen.")
 	default:
 		previewContent = "" // Should not happen

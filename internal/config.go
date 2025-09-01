@@ -5,4 +5,6 @@ package config
 type Config struct {
 	IsLoggedIn bool   `json:"is_logged_in"`
 	Token      string `json:"token,omitempty"`
+	UserID     string `json:"user_id,omitempty"`
+	Unverified bool   `json:"unverified,omitempty"`
 }
