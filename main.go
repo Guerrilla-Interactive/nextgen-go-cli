@@ -28,14 +28,16 @@ import (
 	nativeScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/native"
 	projectCmdScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/project"
 	historyScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/history"
+	loginScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/login"
 	mainScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/main"
 	promptScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/prompt"
 	settingsScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/settings"
 	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
+	config "github.com/Guerrilla-Interactive/nextgen-go-cli/internal"
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.77"
+var Version = "v1.0.78"
 
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
@@ -121,6 +123,15 @@ func (pm ProgramModel) Init() tea.Cmd {
 // Update handles incoming Msgs (both from Init commands and user interaction).
 func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch typedMsg := msg.(type) {
+	case loginScreen.LoginCompletedMsg:
+		updated, cmd := loginScreen.HandleLoginMsg(pm.M, typedMsg)
+		pm.M = updated
+		return pm, cmd
+
+	case loginScreen.FetchUserCompletedMsg:
+		updated, cmd := loginScreen.HandleLoginMsg(pm.M, typedMsg)
+		pm.M = updated
+		return pm, cmd
 
 	// 1) If the message is an app.Model, it's likely from InitProjectCmd:
 	case app.Model:
@@ -217,6 +228,10 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			updatedM, cmd := mainScreen.UpdateScreenMain(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
+		case app.ScreenLogin:
+			updatedM, cmd := loginScreen.UpdateScreenLogin(pm.M, typedMsg)
+			pm.M = updatedM
+			return pm, cmd
 		case app.ScreenFilenamePrompt:
 			updatedM, cmd := promptScreen.UpdateScreenFilenamePrompt(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
@@ -298,6 +313,8 @@ func (pm ProgramModel) View() string {
 		return sharedScreens.ViewSelectScreen(pm.M)
 	case app.ScreenMain:
 		return mainScreen.ViewMainScreen(pm.M, pm.ProjectRegistry)
+	case app.ScreenLogin:
+		return loginScreen.ViewScreenLogin(pm.M)
 	case app.ScreenFilenamePrompt:
 		return promptScreen.ViewFilenamePrompt(pm.M, pm.ProjectRegistry)
 	case app.ScreenInstallDetails:
@@ -518,8 +535,8 @@ func main() {
 
 	// Build your initial model
 	initialModel := app.Model{
-		IsLoggedIn:               true,
-		CurrentScreen:            app.ScreenMain,
+		IsLoggedIn:               false,
+		CurrentScreen:            app.ScreenLogin,
 		ProjectPath:              currentDir,
 		RecognizedPkgs:           recognizedPkgs,
 		Version:                  Version,
@@ -531,6 +548,16 @@ func main() {
 		ProjectCommandsPaginator: projectCommandsPaginator,
 		MainListPaginator:        mainListPaginator,
 		HistoryPaginator:         historyPaginator, // Add history paginator
+	}
+
+	// Load persisted auth state from config
+	if cfg, err := config.LoadConfig(); err == nil {
+		initialModel.IsLoggedIn = cfg.IsLoggedIn
+		if initialModel.IsLoggedIn {
+			initialModel.CurrentScreen = app.ScreenMain
+		} else {
+			initialModel.CurrentScreen = app.ScreenLogin
+		}
 	}
 
 	// Set default terminal dimensions so panels are anchored on first render.
