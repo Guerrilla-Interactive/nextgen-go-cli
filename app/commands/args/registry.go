@@ -231,11 +231,25 @@ func WriteNextgenCommandsMDC(projectPath string, registry *project.ProjectRegist
 				b.WriteString(k)
 				b.WriteString(">")
 			}
+			b.WriteString("` | `nextgen ")
+			b.WriteString(name)
+			for _, k := range keys {
+				b.WriteString(" <")
+				b.WriteString(k)
+				b.WriteString(">")
+			}
 			b.WriteString("`\n")
 			// Slug variant if available
 			if spec := commands_pkg.GetCommandSpec(name); spec.Slug != "" {
 				b.WriteString("- Usage (slug): ")
 				b.WriteString("`ng ")
+				b.WriteString(spec.Slug)
+				for _, k := range keys {
+					b.WriteString(" <")
+					b.WriteString(k)
+					b.WriteString(">")
+				}
+				b.WriteString("` | `nextgen ")
 				b.WriteString(spec.Slug)
 				for _, k := range keys {
 					b.WriteString(" <")
@@ -251,6 +265,8 @@ func WriteNextgenCommandsMDC(projectPath string, registry *project.ProjectRegist
 			// Arg-based or no variables
 			b.WriteString("- Usage: ")
 			b.WriteString("`ng ")
+			b.WriteString(name)
+			b.WriteString("` | `nextgen ")
 			b.WriteString(name)
 			b.WriteString("`\n\n")
 		}

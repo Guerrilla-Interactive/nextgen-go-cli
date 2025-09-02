@@ -39,6 +39,44 @@ import (
 // Define Version (will be set via linker flags during build)
 var Version = "v1.0.83"
 
+// determine CLI name variants (primary + aliases)
+func detectPrimaryCLIName() string {
+	exe := filepath.Base(os.Args[0])
+	lower := strings.ToLower(exe)
+	if strings.Contains(lower, "nextgen") {
+		return "nextgen"
+	}
+	return "ng"
+}
+
+func cliNameVariants() (string, []string) {
+	primary := detectPrimaryCLIName()
+	if primary == "ng" {
+		return primary, []string{"ng", "nextgen"}
+	}
+	return primary, []string{"nextgen", "ng"}
+}
+
+func formatUsageBoth(cmdName, argSig string) string {
+	_, variants := cliNameVariants()
+	var b strings.Builder
+	for i, n := range variants {
+		b.WriteString(n)
+		if strings.TrimSpace(cmdName) != "" {
+			b.WriteString(" ")
+			b.WriteString(cmdName)
+		}
+		if strings.TrimSpace(argSig) != "" {
+			b.WriteString(" ")
+			b.WriteString(argSig)
+		}
+		if i < len(variants)-1 {
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
 // Add a new message type that will trigger quit after a delay.
 type QuitAfterDelayMsg struct{}
 
@@ -475,7 +513,12 @@ func main() {
 			} else {
 				// No command, no help, no version - invalid usage
 				fmt.Println("Error: Invalid arguments or flags provided without a command name.")
-				fmt.Println("Run `ng --help` for usage.")
+				_, variants := cliNameVariants()
+				if len(variants) > 0 {
+					fmt.Printf("Run `%s --help` for usage.\n", variants[0])
+				} else {
+					fmt.Println("Run `ng --help` for usage.")
+				}
 				os.Exit(1)
 			}
 		}
@@ -597,7 +640,11 @@ func main() {
 // displayGeneralHelp prints the top-level help message.
 func displayGeneralHelp() {
 	fmt.Println("NextGen Go CLI - Help")
-	fmt.Println("Usage: ng [command] [variables...] [--flags...]")
+	fmt.Println("Usage:")
+	_, variants := cliNameVariants()
+	for _, n := range variants {
+		fmt.Printf("  %s [command] [variables...] [--flags...]\n", n)
+	}
 	fmt.Println("Run without arguments to enter interactive mode.")
 
 	allCmds := args_pkg.GetAllCommands()
@@ -609,7 +656,9 @@ func displayGeneralHelp() {
 		for _, cmd := range allCmds {
 			fmt.Printf("  %-15s %s\n", cmd.Name(), cmd.Description())
 		}
-		fmt.Println("\nRun 'ng [command] --help' for more information on a specific command.")
+		if len(variants) > 0 {
+			fmt.Printf("\nRun '%s [command] --help' for more information on a specific command.\n", variants[0])
+		}
 	} else {
 		fmt.Println("\nNo commands registered yet.")
 	}
@@ -626,7 +675,9 @@ func displayCommandHelp(commandName string) {
 	}
 
 	// Display detailed help for the command
-	fmt.Printf("Usage: ng %s %s\n\n", cmd.Name(), cmd.Usage())
+	fmt.Println("Usage:")
+	usageSig := strings.TrimSpace(fmt.Sprintf("%s %s", cmd.Name(), cmd.Usage()))
+	fmt.Println(formatUsageBoth("", usageSig))
 	fmt.Printf("  %s\n", cmd.Description())
 
 	args := cmd.ExpectedArgs()
@@ -740,7 +791,7 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 			fmt.Printf("DEBUG: Executing command '%s' as user-saved native command...\n", commandName)
 		}
 		fmt.Printf("  Command: %s\n  Args: %v\n", commandString, commandArgs)
-		execErr = runShellCommand(commandString, commandArgs, projectPath)
+		execErr = runShellCommand(commandString, commandArgs, projectPath) // nolint:SA4006 -- value is used after branching
 
 	} else if registry != nil && registry.ClipboardCommands != nil && registry.ClipboardCommands[commandName].Template != "" {
 		// 3. Try executing as a Clipboard Command
@@ -755,8 +806,8 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 			for i, k := range keys {
 				usageParts[i] = fmt.Sprintf("<%s>", k)
 			}
-			usage := fmt.Sprintf("ng %s %s", commandName, strings.Join(usageParts, " "))
-			execErr = fmt.Errorf("clipboard command '%s' requires %d argument(s): %s\nUsage: %s",
+			usage := formatUsageBoth(commandName, strings.Join(usageParts, " "))
+			return fmt.Errorf("clipboard command '%s' requires %d argument(s): %s\nUsage: %s",
 				commandName, len(keys), strings.Join(keys, ", "), usage)
 		} else {
 			varsMap := make(map[string]string)
@@ -769,7 +820,7 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 			}
 			template_cmds.CreatedFiles = []string{}
 			template_cmds.EditedIndexers = make(map[string]bool)
-			execErr = template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
+			execErr = template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders) // nolint:SA4006 -- value is used after branching
 		}
 
 	} else {
@@ -810,8 +861,8 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 										for i, k := range keys {
 											usageParts[i] = fmt.Sprintf("<%s>", k)
 										}
-										usage := fmt.Sprintf("ng %s %s", commandName, strings.Join(usageParts, " "))
-										execErr = fmt.Errorf(
+										usage := formatUsageBoth(commandName, strings.Join(usageParts, " "))
+										return fmt.Errorf(
 											"command '%s' requires %d argument(s): %s\nUsage: %s",
 											commandName, len(keys), strings.Join(keys, ", "), usage,
 										)
@@ -856,8 +907,8 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 							for i, k := range keys {
 								usageParts[i] = fmt.Sprintf("<%s>", k)
 							}
-							usage := fmt.Sprintf("ng %s %s", commandName, strings.Join(usageParts, " "))
-							execErr = fmt.Errorf("command '%s' requires %d argument(s): %s\nUsage: %s",
+							usage := formatUsageBoth(commandName, strings.Join(usageParts, " "))
+							return fmt.Errorf("command '%s' requires %d argument(s): %s\nUsage: %s",
 								commandName, len(keys), strings.Join(keys, ", "), usage)
 						} else {
 							varsMap := make(map[string]string)
