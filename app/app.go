@@ -28,12 +28,14 @@ const (
 	ScreenNativeActions
 	ScreenProjectCommandsList
 	ScreenProjectCommandActions
+	ScreenChoicePrompt
 )
 
 // Model is the primary application state shared by all screens.
 type Model struct {
-	CurrentScreen Screen
-	IsLoggedIn    bool
+	CurrentScreen    Screen
+	IsLoggedIn       bool
+	LoginFlowStarted bool
 
 	// --- Navigation/Selection State ---
 	MainScreenFocus              string // "action" or "list"
@@ -78,6 +80,16 @@ type Model struct {
 	CurrentPreviewType string // "file-tree", "stats", or "none"
 	FileTreePreview    string // Holds the generated file tree preview string.
 	StatsPreview       string // Holds the generated project stats preview string.
+
+	// Choice prompt state
+	ChoiceIndex       int
+	ChoiceOptionNames []string
+	ChoiceTargetSlugs []string
+	ChoiceForwardVars [][]string
+	// Auto-browse state for multi-level folder choices
+	ChoiceBrowseRoot   string
+	ChoiceBrowsePrefix string
+	ChoiceIsDir        []bool
 
 	// NEW: Terminal dimensions (updated via tea.WindowSizeMsg)
 	TerminalWidth  int

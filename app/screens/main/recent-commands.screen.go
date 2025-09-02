@@ -30,6 +30,75 @@ var excluded = map[string]bool{
 	"paste from clipboard":     true, // Special handling, not listed directly
 }
 
+// truncateWithEllipsis limits s to max runes and appends … if truncated.
+func truncateWithEllipsis(s string, max int) string {
+	r := []rune(s)
+	if max <= 0 {
+		return ""
+	}
+	if len(r) <= max {
+		return s
+	}
+	if max <= 1 {
+		return "…"
+	}
+	return string(r[:max-1]) + "…"
+}
+
+// relativeTimeShort returns a short relative time string without "ago".
+func relativeTimeShort(ts int64) string {
+	if ts == 0 {
+		return "now"
+	}
+	d := time.Since(time.Unix(ts, 0))
+	if d < 0 {
+		d = -d
+	}
+	if d < time.Minute {
+		s := int(d.Seconds())
+		if s <= 0 {
+			return "now"
+		}
+		if s == 1 {
+			return "1 sec"
+		}
+		return fmt.Sprintf("%d sec", s)
+	}
+	if d < time.Hour {
+		m := int(d.Minutes())
+		if m == 1 {
+			return "1 min"
+		}
+		return fmt.Sprintf("%d min", m)
+	}
+	if d < 24*time.Hour {
+		h := int(d.Hours())
+		if h == 1 {
+			return "1 hour"
+		}
+		return fmt.Sprintf("%d hours", h)
+	}
+	if d < 30*24*time.Hour {
+		days := int(d.Hours() / 24)
+		if days == 1 {
+			return "1 day"
+		}
+		return fmt.Sprintf("%d days", days)
+	}
+	if d < 365*24*time.Hour {
+		months := int(d.Hours() / (24 * 30))
+		if months <= 1 {
+			return "1 month"
+		}
+		return fmt.Sprintf("%d months", months)
+	}
+	years := int(d.Hours() / (24 * 365))
+	if years <= 1 {
+		return "1 year"
+	}
+	return fmt.Sprintf("%d years", years)
+}
+
 // UpdateScreenMain handles input for the main screen, now using pagination and focus.
 func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
 
@@ -137,9 +206,18 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 			if m.MainScreenFocus == "action" {
 				if m.ActionIndex >= 0 && m.ActionIndex < len(actionRow) {
 					itemName := actionRow[m.ActionIndex]
-					// Handle actions (view settings, paste)
-					if strings.ToLower(itemName) == "view settings" { // Renamed check
-						m.CurrentScreen = app.ScreenSettings // Navigate to new screen
+					// Handle actions (logout, history, paste)
+					if strings.ToLower(itemName) == "logout" {
+						cfg, _ := config.LoadConfig()
+						cfg.IsLoggedIn = false
+						cfg.Token = ""
+						_ = config.SaveConfig(cfg)
+						m.IsLoggedIn = false
+						m.CurrentScreen = app.ScreenLogin
+						return m, nil
+					} else if strings.ToLower(itemName) == "command history" {
+						m.CurrentScreen = app.ScreenCommandHistory
+						m.HistoryScreenIndex = 0
 						return m, nil
 					} else if strings.ToLower(itemName) == "paste from clipboard" {
 						m.PendingCommand = itemName
@@ -233,7 +311,7 @@ func updatePreview(m app.Model, registry *project.ProjectRegistry, selectedCmdNa
 	m.CurrentPreviewType = "none"
 
 	switch lowerCmd {
-	case "view settings": // Renamed
+	case "logout": // Renamed
 		// Use sharedScreens.RenderProjectInfoSection and append user info
 		base := sharedScreens.RenderProjectInfoSection(m, registry)
 		cfg, _ := config.LoadConfig()
@@ -282,6 +360,44 @@ func updatePreview(m app.Model, registry *project.ProjectRegistry, selectedCmdNa
 		}
 		m.StatsPreview = base + "\n" + userHeader + "  " + status + "\n"
 		m.CurrentPreviewType = "stats"
+	case "command history":
+		// Render a compact list of recent command history (generated files only), newest first
+		m.CurrentPreviewType = "stats"
+		header := app.SubtitleStyle.Render("Command History")
+		var lines []string
+		if registry != nil && m.ProjectPath != "" {
+			if projectInfo, found := registry.GetProject(m.ProjectPath); found {
+				hist := projectInfo.CommandHistory
+				type row struct {
+					when string
+					name string
+				}
+				rows := []row{}
+				for i := len(hist) - 1; i >= 0; i-- { // newest first if appended chronologically
+					h := hist[i]
+					if len(h.GeneratedFiles) == 0 {
+						continue
+					}
+					when := relativeTimeShort(h.Timestamp)
+					name := truncateWithEllipsis(h.Name, 42)
+					rows = append(rows, row{when: when, name: name})
+				}
+				max := 10
+				if len(rows) < max {
+					max = len(rows)
+				}
+				gray := lipgloss.NewStyle().Foreground(lipgloss.Color("#888"))
+				for i := 0; i < max; i++ {
+					lines = append(lines, gray.Render(rows[i].when)+"  "+rows[i].name)
+				}
+			}
+		}
+		if len(lines) == 0 {
+			lines = []string{lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render("No recent generated-file commands.")}
+		}
+		body := lipgloss.JoinVertical(lipgloss.Left, lines...)
+		m.StatsPreview = lipgloss.JoinVertical(lipgloss.Left, header, "", body)
+		return m
 	case "paste from clipboard":
 		// Generate preview based on clipboard content
 		// Use default placeholders as we don't have real input yet
@@ -313,6 +429,52 @@ func updatePreview(m app.Model, registry *project.ProjectRegistry, selectedCmdNa
 					return m
 				}
 				// If clipboard template preview fails, fall through to generic handling below
+			}
+		}
+
+		// If this is a composite command (args/run), preview the first invoked subcommand
+		if data, _, err := commands.LoadTemplateBytesForName(selectedCmdName, m.ProjectPath, registry); err == nil && commands.IsCompositeTemplate(data) {
+			slugs, _ := commands.GetCompositeRunSlugs(data)
+			if len(slugs) > 0 {
+				first := slugs[0]
+				keys, _ := commands.GetCommandVariableKeys(first, m.ProjectPath, registry)
+				var placeholderMap map[string]string
+				if len(keys) > 0 {
+					placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
+				} else {
+					placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+				}
+				if pv, perr := commands.GeneratePreviewFileTree(first, placeholderMap, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+					m.FileTreePreview = pv
+					m.CurrentPreviewType = "file-tree"
+					return m
+				}
+			}
+		}
+
+		// If this command is an auto-browse synthetic wrapper, preview the nearest JSON under its root
+		if data, _, err := commands.LoadTemplateBytesForName(selectedCmdName, m.ProjectPath, registry); err == nil {
+			var t struct {
+				AutoBrowseRoot string `json:"autoBrowseRoot"`
+			}
+			if json.Unmarshal(data, &t) == nil && strings.TrimSpace(t.AutoBrowseRoot) != "" {
+				root := strings.TrimSpace(t.AutoBrowseRoot)
+				if nearest, ok := commands.FindFirstJSONUnder(root); ok {
+					keys, _ := commands.GetCommandVariableKeys(nearest, m.ProjectPath, registry)
+					var placeholderMap map[string]string
+					if len(keys) > 0 {
+						placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
+					} else {
+						placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+					}
+					if b, rerr := commands.ReadEmbeddedTemplate(nearest); rerr == nil {
+						if pv, perr := commands.GeneratePreviewFileTreeFromBytes(b, placeholderMap, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+							m.FileTreePreview = pv
+							m.CurrentPreviewType = "file-tree"
+							return m
+						}
+					}
+				}
 			}
 		}
 
@@ -386,6 +548,7 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 		listBuilder.WriteString(" (No commands available)")
 	} else {
 		for i, cmdName := range paginatedCmds {
+			label := truncateWithEllipsis(cmdName, 48)
 			// Check favorite status
 			prefix := ""
 			if registry != nil {
@@ -400,9 +563,9 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 
 			// Only highlight if list has focus
 			if m.MainScreenFocus == "list" && i == m.SelectedIndex {
-				listBuilder.WriteString(app.HighlightStyle.Render(prefix+cmdName) + "\n")
+				listBuilder.WriteString(app.HighlightStyle.Render(prefix+label) + "\n")
 			} else {
-				listBuilder.WriteString(app.ChoiceStyle.Render(prefix+cmdName) + "\n")
+				listBuilder.WriteString(app.ChoiceStyle.Render(prefix+label) + "\n")
 			}
 		}
 	}
@@ -421,16 +584,8 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 	// Left panel rendering moved after height calculation
 
 	// --- Define Footer Content First (Without Paginator) ---
+	// Suppress history/status messages on the Recent Commands screen
 	var statusLine string
-	if m.HistorySaveStatus != "" {
-		// ... status line styling ...
-		if strings.HasPrefix(m.HistorySaveStatus, "Error:") {
-			statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.HistorySaveStatus)
-		} else {
-			statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render(m.HistorySaveStatus)
-		}
-		statusLine += "\n"
-	}
 	footerHelp := app.HelpStyle.Render("Use ↑/↓/←/→ to navigate, Enter to select, q quits.")
 	footerContent := statusLine + footerHelp // Paginator is removed from here
 
@@ -502,7 +657,7 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 }
 
 // actionRow defines the dedicated Action Row commands.
-var actionRow = []string{"paste from clipboard", "View Settings"}
+var actionRow = []string{"paste from clipboard", "Command History", "Logout"}
 
 // renderStaticActionBar creates the interactive action bar.
 func renderStaticActionBar(items []string, selectedIndex int, hasFocus bool) string {
@@ -512,8 +667,10 @@ func renderStaticActionBar(items []string, selectedIndex int, hasFocus bool) str
 		icon := "?"
 		if lowerVal == "paste from clipboard" {
 			icon = "Paste"
-		} else if lowerVal == "view settings" {
-			icon = "Settings"
+		} else if lowerVal == "command history" {
+			icon = "History"
+		} else if lowerVal == "logout" {
+			icon = "Logout"
 		}
 		// Apply highlight if this item has focus
 		itemText := icon // Default text is just the icon
@@ -533,28 +690,9 @@ func renderStaticActionBar(items []string, selectedIndex int, hasFocus bool) str
 
 // getPrioritizedCommandList retrieves and orders the list of commands for the main screen.
 func getPrioritizedCommandList(m *app.Model, registry *project.ProjectRegistry) []string {
-	const maxRecent = 4 // Show top 4 recent commands
-
 	// Maps to track added commands and avoid duplicates
 	added := make(map[string]bool)
 	resultList := []string{}
-
-	// --- 1. Top 4 Recent Commands ---
-	recentCount := 0
-	for _, cmd := range commands.RecentUsed {
-		if recentCount >= maxRecent {
-			break
-		}
-		lower := strings.ToLower(cmd)
-		if excluded[lower] { // Skip excluded actions like settings, paste, etc.
-			continue
-		}
-		if !added[cmd] {
-			resultList = append(resultList, cmd)
-			added[cmd] = true
-			recentCount++
-		}
-	}
 
 	// --- Prepare lists for remaining commands ---
 	var allFavorites []string
@@ -578,6 +716,11 @@ func getPrioritizedCommandList(m *app.Model, registry *project.ProjectRegistry) 
 	nativeNames := commands.AllCommandNames()
 	for _, name := range nativeNames {
 		if !added[name] && !excluded[strings.ToLower(name)] {
+			// Hide commands that are not visible for this project
+			spec := commands.GetCommandSpec(name)
+			if spec.Name != "" && !commands.IsCommandVisible(spec, m.ProjectPath) {
+				continue
+			}
 			if isFav, ok := registry.FavoriteNativeCommands[name]; ok && isFav {
 				allFavorites = append(allFavorites, name)
 			} else {

@@ -17,6 +17,264 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// UpdateScreenChoicePrompt handles a simple two-option choice with preview and back.
+func UpdateScreenChoicePrompt(m app.Model, keyMsg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
+	switch keyMsg.String() {
+	case "esc":
+		m.CurrentScreen = app.ScreenMain
+		m.FileTreePreview = ""
+		m.CurrentPreviewType = "none"
+		return m, nil
+	case "up", "k":
+		if m.PromptOptionFocused {
+			// Stay on Back when pressing up
+			return m, nil
+		}
+		if m.ChoiceIndex == 0 {
+			// Move focus to Back when at top of list
+			m.PromptOptionFocused = true
+		} else if m.ChoiceIndex > 0 {
+			m.ChoiceIndex--
+		}
+	case "down", "j":
+		if m.PromptOptionFocused {
+			// From Back, return focus to the list (first item stays selected)
+			m.PromptOptionFocused = false
+			return m, nil
+		}
+		if m.ChoiceIndex < len(m.ChoiceOptionNames)-1 {
+			m.ChoiceIndex++
+		}
+	case "enter":
+		if m.PromptOptionFocused {
+			m.CurrentScreen = app.ScreenMain
+			m.FileTreePreview = ""
+			m.CurrentPreviewType = "none"
+			return m, nil
+		}
+		// Picked subcommand; go to filename prompt
+		if m.ChoiceIndex >= 0 && m.ChoiceIndex < len(m.ChoiceTargetSlugs) {
+			target := m.ChoiceTargetSlugs[m.ChoiceIndex]
+			// Auto-browse: if target looks like an embedded folder (ends with '/'), drill down
+			if strings.HasSuffix(target, "/") && strings.HasPrefix(target, "native-commands/") {
+				prefix := strings.TrimSuffix(target, "/")
+				children, err := commands.ListNativeChildren(prefix)
+				if err == nil && len(children) > 0 {
+					// If only one child and it's a dir, auto-drill further
+					if len(children) == 1 && children[0].IsDir {
+						m.ChoiceOptionNames = []string{children[0].Name + "/"}
+						m.ChoiceTargetSlugs = []string{children[0].Path + "/"}
+						m.ChoiceIndex = 0
+						return m, nil
+					}
+					m.ChoiceOptionNames = []string{}
+					m.ChoiceTargetSlugs = []string{}
+					for _, c := range children {
+						if c.IsDir {
+							m.ChoiceOptionNames = append(m.ChoiceOptionNames, c.Name+"/")
+							m.ChoiceTargetSlugs = append(m.ChoiceTargetSlugs, c.Path+"/")
+						} else {
+							// JSON file: proceed to prompt
+							m.PendingCommand = c.Path
+							keys, _ := commands.GetCommandVariableKeys(c.Path, m.ProjectPath, registry)
+							m.MultipleVariables = len(keys) > 1
+							m.VariableKeys = keys
+							m.CurrentVariableIndex = 0
+							m.Variables = make(map[string]string)
+							m.TempFilename = ""
+							m.CurrentScreen = app.ScreenFilenamePrompt
+							return m, cursor.Blink
+						}
+					}
+					m.ChoiceIndex = 0
+					return m, nil
+				}
+			}
+			m.PendingCommand = target
+			keys, _ := commands.GetCommandVariableKeys(target, m.ProjectPath, registry)
+			m.MultipleVariables = len(keys) > 1
+			m.VariableKeys = keys
+			m.CurrentVariableIndex = 0
+			m.Variables = make(map[string]string)
+			m.TempFilename = ""
+			m.CurrentScreen = app.ScreenFilenamePrompt
+			return m, cursor.Blink
+		}
+	}
+	// Update preview for current choice (only when list has focus)
+	if !m.PromptOptionFocused && m.ChoiceIndex >= 0 && m.ChoiceIndex < len(m.ChoiceTargetSlugs) {
+		sel := m.ChoiceTargetSlugs[m.ChoiceIndex]
+		// Folder path: preview nearest JSON inside
+		if strings.HasPrefix(sel, "native-commands/") && strings.HasSuffix(sel, "/") {
+			if nearest, ok := commands.FindFirstJSONUnder(strings.TrimSuffix(sel, "/")); ok {
+				keys, _ := commands.GetCommandVariableKeys(nearest, m.ProjectPath, registry)
+				var ph map[string]string
+				if len(keys) > 0 {
+					ph = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
+				} else {
+					ph = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+				}
+				if b, rerr := commands.ReadEmbeddedTemplate(nearest); rerr == nil {
+					if pv, perr := commands.GeneratePreviewFileTreeFromBytes(b, ph, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+						m.FileTreePreview = pv
+						m.CurrentPreviewType = "file-tree"
+						return m, nil
+					}
+				}
+			}
+		}
+		// File path in embedded tree
+		if strings.HasPrefix(sel, "native-commands/") && strings.HasSuffix(sel, ".json") {
+			keys, _ := commands.GetCommandVariableKeys(sel, m.ProjectPath, registry)
+			var ph map[string]string
+			if len(keys) > 0 {
+				ph = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
+			} else {
+				ph = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+			}
+			if b, rerr := commands.ReadEmbeddedTemplate(sel); rerr == nil {
+				if pv, perr := commands.GeneratePreviewFileTreeFromBytes(b, ph, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+					m.FileTreePreview = pv
+					m.CurrentPreviewType = "file-tree"
+					return m, nil
+				}
+			}
+		}
+		// Fallback as command name/slug
+		keys, _ := commands.GetCommandVariableKeys(sel, m.ProjectPath, registry)
+		var ph map[string]string
+		if len(keys) > 0 {
+			ph = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
+		} else {
+			ph = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+		}
+		pv, err := commands.GeneratePreviewFileTree(sel, ph, m.ProjectPath)
+		if err == nil && strings.TrimSpace(pv) != "" {
+			m.FileTreePreview = pv
+			m.CurrentPreviewType = "file-tree"
+		}
+	}
+	return m, nil
+}
+
+func ViewChoicePrompt(m app.Model, registry *project.ProjectRegistry) string {
+	// Left panel with [Back] above list; both bottom-aligned
+	var backBtn string
+	if m.PromptOptionFocused {
+		backBtn = app.HighlightStyle.Render("[Back]")
+	} else {
+		backBtn = app.HelpStyle.Render("[Back]")
+	}
+	var listBuilder strings.Builder
+	for i, name := range m.ChoiceOptionNames {
+		if !m.PromptOptionFocused && i == m.ChoiceIndex {
+			listBuilder.WriteString(app.HighlightStyle.Render(name) + "\n")
+		} else {
+			listBuilder.WriteString(app.ChoiceStyle.Render(name) + "\n")
+		}
+	}
+	leftPanelWidth := 50
+	// Footer and sizing similar to main screen
+	footer := app.HelpStyle.Render("Use ↑/↓/j/k to navigate, Enter to select, Esc to go back.")
+	footerHeight := lipgloss.Height(footer)
+	availableHeight := m.TerminalHeight - footerHeight - 1
+	if availableHeight < 10 {
+		availableHeight = 10
+	}
+
+	// Right panel: preview with header and truncation; bottom-left alignment
+	folderName := filepath.Base(m.ProjectPath)
+	previewHeader := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
+	rawPreview := m.FileTreePreview
+	if strings.TrimSpace(rawPreview) == "" {
+		// If we have multiple-choice slugs, preview the first
+		if len(m.ChoiceTargetSlugs) > 0 {
+			first := m.ChoiceTargetSlugs[0]
+			// If first is an embedded folder, preview nearest JSON
+			if strings.HasPrefix(first, "native-commands/") && strings.HasSuffix(first, "/") {
+				if nearest, ok := commands.FindFirstJSONUnder(strings.TrimSuffix(first, "/")); ok {
+					keys, _ := commands.GetCommandVariableKeys(nearest, m.ProjectPath, registry)
+					var ph map[string]string
+					if len(keys) > 0 {
+						ph = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
+					} else {
+						ph = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+					}
+					if b, rerr := commands.ReadEmbeddedTemplate(nearest); rerr == nil {
+						if pv, perr := commands.GeneratePreviewFileTreeFromBytes(b, ph, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+							rawPreview = pv
+						} else {
+							rawPreview = "No preview available for this command."
+						}
+					} else {
+						rawPreview = "No preview available for this command."
+					}
+				} else {
+					rawPreview = "No preview available for this command."
+				}
+			} else if strings.HasPrefix(first, "native-commands/") && strings.HasSuffix(first, ".json") {
+				// First is an embedded JSON path
+				keys, _ := commands.GetCommandVariableKeys(first, m.ProjectPath, registry)
+				var ph map[string]string
+				if len(keys) > 0 {
+					ph = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
+				} else {
+					ph = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+				}
+				if b, rerr := commands.ReadEmbeddedTemplate(first); rerr == nil {
+					if pv, perr := commands.GeneratePreviewFileTreeFromBytes(b, ph, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+						rawPreview = pv
+					} else {
+						rawPreview = "No preview available for this command."
+					}
+				} else {
+					rawPreview = "No preview available for this command."
+				}
+			} else {
+				// Fallback to name/slug based preview
+				keys, _ := commands.GetCommandVariableKeys(first, m.ProjectPath, registry)
+				var ph map[string]string
+				if len(keys) > 0 {
+					ph = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
+				} else {
+					ph = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+				}
+				if pv, perr := commands.GeneratePreviewFileTree(first, ph, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+					rawPreview = pv
+				} else {
+					rawPreview = "No preview available for this command."
+				}
+			}
+		} else {
+			rawPreview = "No preview available for this command."
+		}
+	}
+	headerHeight := 2
+	padding := 2
+	maxPreviewContent := availableHeight - headerHeight - padding
+	if maxPreviewContent < 1 {
+		maxPreviewContent = 1
+	}
+	lines := strings.Split(rawPreview, "\n")
+	if len(lines) > maxPreviewContent {
+		rawPreview = strings.Join(lines[:maxPreviewContent], "\n")
+	}
+	// Build left column: bottom-align a vertical stack [Back, list]
+	stack := lipgloss.JoinVertical(lipgloss.Left, backBtn, listBuilder.String())
+	leftPanel := lipgloss.NewStyle().Padding(0, 1).Render(stack)
+	leftPlaced := lipgloss.Place(leftPanelWidth, availableHeight, lipgloss.Left, lipgloss.Bottom, leftPanel)
+
+	rightInner := lipgloss.NewStyle().Padding(1, 1).Render(previewHeader + "\n\n" + rawPreview)
+	rightPanel := lipgloss.Place(lipgloss.Width(rightInner), availableHeight, lipgloss.Left, lipgloss.Bottom, rightInner)
+
+	combined := lipgloss.JoinHorizontal(lipgloss.Top, leftPlaced, " ", rightPanel)
+	final := lipgloss.JoinVertical(lipgloss.Left, combined, "\n", footer)
+	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, final)
+	}
+	return final
+}
+
 // UpdateScreenFilenamePrompt handles input for both single and multiple variables.
 // It now accepts the registry to pass down to RunCommand.
 func UpdateScreenFilenamePrompt(m app.Model, keyMsg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
@@ -225,7 +483,11 @@ func ViewFilenamePrompt(m app.Model, registry *project.ProjectRegistry) string {
 			prompt = fmt.Sprintf("Enter value for %s:\n> %s%s", currentKey, m.TempFilename, inputCursor)
 		}
 	} else {
-		prompt = fmt.Sprintf("Enter the new file/component name:\n> %s%s", m.TempFilename, inputCursor)
+		label := "Enter the new file/component name:"
+		if len(m.VariableKeys) > 0 {
+			label = fmt.Sprintf("Enter %s:", m.VariableKeys[0])
+		}
+		prompt = fmt.Sprintf("%s\n> %s%s", label, m.TempFilename, inputCursor)
 	}
 
 	// Build the input panel with a border that changes based on focus.

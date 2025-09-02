@@ -1,7 +1,9 @@
 package shared
 
 import (
+	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -274,6 +276,111 @@ func HandleCommandSelection(m *app.Model, registry *project.ProjectRegistry, ite
 		m.AllCmdsIndex = 0
 		m.AllCmdsTotal = len(commands.AllCommandNames()) + 1
 		return m, nil
+	}
+
+	// Detect composite commands (args/run) and route to a choice prompt
+	if data, _, err := commands.LoadTemplateBytesForName(itemName, m.ProjectPath, registry); err == nil {
+		if commands.IsCompositeTemplate(data) {
+			slugs, _ := commands.GetCompositeRunSlugs(data)
+			if len(slugs) > 0 {
+				m.ChoiceOptionNames = []string{}
+				m.ChoiceTargetSlugs = []string{}
+				for _, s := range slugs {
+					m.ChoiceOptionNames = append(m.ChoiceOptionNames, commands.ResolveCommandTitleBySlug(s))
+					m.ChoiceTargetSlugs = append(m.ChoiceTargetSlugs, s)
+				}
+				m.ChoiceIndex = 0
+				// Prefill preview for the first choice so it's visible immediately
+				if len(m.ChoiceTargetSlugs) > 0 {
+					first := m.ChoiceTargetSlugs[0]
+					if keys, err := commands.GetCommandVariableKeys(first, m.ProjectPath, registry); err == nil {
+						var ph map[string]string
+						if len(keys) > 0 {
+							ph = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
+						} else {
+							ph = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+						}
+						if pv, perr := commands.GeneratePreviewFileTree(first, ph, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+							m.FileTreePreview = pv
+							m.CurrentPreviewType = "file-tree"
+						}
+					}
+				}
+				m.CurrentScreen = app.ScreenChoicePrompt
+				return m, nil
+			}
+		}
+		// Check autoBrowseRoot
+		var t struct {
+			AutoBrowseRoot string `json:"autoBrowseRoot"`
+		}
+		if json.Unmarshal(data, &t) == nil && strings.TrimSpace(t.AutoBrowseRoot) != "" {
+			root := strings.TrimSpace(t.AutoBrowseRoot)
+			if children, e := commands.ListNativeChildren(root); e == nil && len(children) > 0 {
+				m.ChoiceOptionNames = []string{}
+				m.ChoiceTargetSlugs = []string{}
+				for _, c := range children {
+					if c.IsDir {
+						m.ChoiceOptionNames = append(m.ChoiceOptionNames, c.Name+"/")
+						m.ChoiceTargetSlugs = append(m.ChoiceTargetSlugs, c.Path+"/")
+					} else {
+						name := strings.TrimSuffix(c.Name, filepath.Ext(c.Name))
+						m.ChoiceOptionNames = append(m.ChoiceOptionNames, name)
+						m.ChoiceTargetSlugs = append(m.ChoiceTargetSlugs, c.Path)
+					}
+				}
+				m.ChoiceIndex = 0
+				// Prefill preview for the first target so it's visible immediately
+				if len(m.ChoiceTargetSlugs) > 0 {
+					first := m.ChoiceTargetSlugs[0]
+					if strings.HasPrefix(first, "native-commands/") && strings.HasSuffix(first, "/") {
+						if nearest, ok := commands.FindFirstJSONUnder(strings.TrimSuffix(first, "/")); ok {
+							keys, _ := commands.GetCommandVariableKeys(nearest, m.ProjectPath, registry)
+							var ph map[string]string
+							if len(keys) > 0 {
+								ph = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
+							} else {
+								ph = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+							}
+							if b, rerr := commands.ReadEmbeddedTemplate(nearest); rerr == nil {
+								if pv, perr := commands.GeneratePreviewFileTreeFromBytes(b, ph, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+									m.FileTreePreview = pv
+									m.CurrentPreviewType = "file-tree"
+								}
+							}
+						}
+					} else if strings.HasPrefix(first, "native-commands/") && strings.HasSuffix(first, ".json") {
+						keys, _ := commands.GetCommandVariableKeys(first, m.ProjectPath, registry)
+						var ph map[string]string
+						if len(keys) > 0 {
+							ph = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
+						} else {
+							ph = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+						}
+						if b, rerr := commands.ReadEmbeddedTemplate(first); rerr == nil {
+							if pv, perr := commands.GeneratePreviewFileTreeFromBytes(b, ph, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+								m.FileTreePreview = pv
+								m.CurrentPreviewType = "file-tree"
+							}
+						}
+					} else {
+						keys, _ := commands.GetCommandVariableKeys(first, m.ProjectPath, registry)
+						var ph map[string]string
+						if len(keys) > 0 {
+							ph = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
+						} else {
+							ph = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+						}
+						if pv, perr := commands.GeneratePreviewFileTree(first, ph, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+							m.FileTreePreview = pv
+							m.CurrentPreviewType = "file-tree"
+						}
+					}
+				}
+				m.CurrentScreen = app.ScreenChoicePrompt
+				return m, nil
+			}
+		}
 	}
 
 	// Check if the command requires variables using the updated function

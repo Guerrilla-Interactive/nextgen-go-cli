@@ -19,7 +19,7 @@ import (
 //
 // If you want to embed subfolders, you can say go:embed **/*.json
 //
-//go:embed native-commands/*.json
+//go:embed native-commands
 var commandFiles embed.FS
 
 // A registry to hold recognized JSON templates in memory
@@ -31,6 +31,8 @@ var placeholderRegex = regexp.MustCompile(`{{\s*\.\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*
 
 func init() {
 	// Walk the embedded FS and store each .json file in our registry map
+	// Also collect discovered JSON paths for synthesizing folder-level commands
+	discovered := []string{}
 	err := fs.WalkDir(commandFiles, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -42,11 +44,15 @@ func init() {
 			}
 			// Store file contents in the registry, keyed by filename (like "page-and-archive.json")
 			templateRegistry[path] = data
+			discovered = append(discovered, path)
 			// Populate Commands dynamically from embedded files
 			type minimal struct {
-				Title string `json:"title"`
-				Name  string `json:"name"`
-				Slug  string `json:"slug"`
+				Title     string             `json:"title"`
+				Name      string             `json:"name"`
+				Slug      string             `json:"slug"`
+				Show      *CommandVisibility `json:"show"`
+				FilePaths []any              `json:"filePaths"`
+				Run       []any              `json:"run"`
 			}
 			var m minimal
 			if json.Unmarshal(data, &m) != nil {
@@ -66,7 +72,10 @@ func init() {
 			if slug == "" {
 				slug = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 			}
-			Commands = append(Commands, CommandSpec{Name: name, Slug: slug, TemplatePath: path})
+			// Only register runnable commands (have filePaths or run)
+			if len(m.FilePaths) > 0 || len(m.Run) > 0 {
+				Commands = append(Commands, CommandSpec{Name: name, Slug: slug, TemplatePath: path, Visibility: m.Show})
+			}
 		}
 		return nil
 	})
@@ -75,8 +84,109 @@ func init() {
 		log.Fatalf("Failed to init command registry: %v", err)
 	}
 
+	// Synthesize folder-level commands for native-commands/<category>/<bundle>
+	dirsAdded := map[string]bool{}
+	for _, p := range discovered {
+		// Expect paths like native-commands/<category>/<bundle>/.../file.json
+		parts := strings.Split(p, "/")
+		if len(parts) < 4 {
+			continue
+		}
+		if parts[0] != "native-commands" {
+			continue
+		}
+		folderKey := strings.Join(parts[:3], "/") // native-commands/nextjs/add-index-and-slug
+		if dirsAdded[folderKey] {
+			continue
+		}
+		dirsAdded[folderKey] = true
+		// Build synthetic template bytes with autoBrowseRoot (for future browsing) or minimal marker
+		bundle := parts[2]
+		category := parts[1]
+		// Title derived from bundle
+		title := strings.ReplaceAll(bundle, "-", " ")
+		if !strings.HasPrefix(strings.ToLower(title), "add ") && !strings.HasPrefix(strings.ToLower(title), "remove ") {
+			title = "add " + title
+		}
+		slug := category + "-" + bundle
+		tmpl := fmt.Sprintf(`{"_type":"command","title":"%s","slug":"%s","autoBrowseRoot":"%s"}`, strings.Title(title), slug, folderKey)
+		key := "auto/" + slug + ".json"
+		templateRegistry[key] = []byte(tmpl)
+
+		// Assign visibility so synthetic commands only show when identified
+		vis := &CommandVisibility{
+			AnyOf: []CommandVisibilityClause{
+				{PackageJSONArrayContains: map[string]string{"nextgen-identifiers": category}},
+				{CommandPackagesContains: []string{category}},
+				{PackageJSON: map[string]string{"name": category}},
+			},
+		}
+		Commands = append(Commands, CommandSpec{Name: title, Slug: slug, TemplatePath: key, Visibility: vis})
+	}
+
 	// Ensure stable ordering for UI lists
 	sort.Slice(Commands, func(i, j int) bool { return Commands[i].Name < Commands[j].Name })
+}
+
+// FSChild represents a child entry in the embedded native-commands tree.
+type FSChild struct {
+	Name  string
+	Path  string
+	IsDir bool
+}
+
+// ListNativeChildren lists directories and .json files under the given embedded prefix path.
+// Example prefix: "native-commands/nextjs/add-index-and-slug".
+func ListNativeChildren(prefix string) ([]FSChild, error) {
+	entries, err := fs.ReadDir(commandFiles, prefix)
+	if err != nil {
+		return nil, err
+	}
+	var out []FSChild
+	for _, e := range entries {
+		p := filepath.ToSlash(filepath.Join(prefix, e.Name()))
+		if e.IsDir() {
+			out = append(out, FSChild{Name: e.Name(), Path: p, IsDir: true})
+			continue
+		}
+		if filepath.Ext(e.Name()) == ".json" {
+			out = append(out, FSChild{Name: e.Name(), Path: p, IsDir: false})
+		}
+	}
+	return out, nil
+}
+
+// ReadEmbeddedTemplate returns the raw bytes of an embedded template path.
+func ReadEmbeddedTemplate(path string) ([]byte, error) {
+	return commandFiles.ReadFile(path)
+}
+
+// FindFirstJSONUnder returns the path to the first JSON file found under prefix (depth-first).
+func FindFirstJSONUnder(prefix string) (string, bool) {
+	entries, err := fs.ReadDir(commandFiles, prefix)
+	if err != nil {
+		return "", false
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			if p, ok := FindFirstJSONUnder(filepath.ToSlash(filepath.Join(prefix, e.Name()))); ok {
+				return p, true
+			}
+		} else if filepath.Ext(e.Name()) == ".json" {
+			return filepath.ToSlash(filepath.Join(prefix, e.Name())), true
+		}
+	}
+	return "", false
+}
+
+// FindCommandByTemplatePath returns the registered CommandSpec for an embedded template path.
+func FindCommandByTemplatePath(path string) (CommandSpec, bool) {
+	for _, c := range Commands {
+		if c.TemplatePath == path {
+			return c, true
+		}
+	}
+	return CommandSpec{}, false
 }
 
 // LoadCommandTemplate retrieves the raw JSON template data from memory.
@@ -113,6 +223,7 @@ type CommandSpec struct {
 	Name         string
 	Slug         string
 	TemplatePath string
+	Visibility   *CommandVisibility
 }
 
 // Commands is our single authoritative list of all possible commands.
@@ -126,14 +237,6 @@ var NextSteps = []string{
 	"LogoutOrLoginPlaceholder",
 }
 
-// CommandIconMap associates non-add/remove commands with an icon.
-// The "add" and "remove" commands are now handled automatically.
-var CommandIconMap = map[string]string{
-	"paste from clipboard": "📋",
-	"view project stats":   "📦",
-	// Other commands that do not start with "add " or "remove " can be added here.
-}
-
 // CommandWithIcon returns a user-friendly label with an icon prefix.
 // It automatically assigns a plus sign (✚) for commands starting with "add "
 // and an X (✖) for commands starting with "remove ".
@@ -144,9 +247,6 @@ func CommandWithIcon(cmd string) string {
 	}
 	if strings.HasPrefix(lowerCmd, "remove ") {
 		return fmt.Sprintf("✖  %s", cmd)
-	}
-	if icon, ok := CommandIconMap[cmd]; ok {
-		return fmt.Sprintf("%s  %s", icon, cmd)
 	}
 	return fmt.Sprintf("•  %s", cmd)
 }
@@ -280,6 +380,12 @@ func GetCommandVariableKeys(cmdName, projectPath string, registry *project.Proje
 			return nil, fmt.Errorf("error loading built-in template %s: %w", spec.TemplatePath, err)
 		}
 		return getTemplateVariableKeysFromBytes(templateBytes)
+	}
+	// 2b. If cmdName looks like an embedded template path, try loading directly (auto-browse file)
+	if strings.HasSuffix(strings.ToLower(cmdName), ".json") {
+		if templateBytes, err := LoadCommandTemplate(cmdName); err == nil {
+			return getTemplateVariableKeysFromBytes(templateBytes)
+		}
 	}
 
 	// 3. Check project-local commands

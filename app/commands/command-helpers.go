@@ -143,7 +143,10 @@ func smartMerge(existingContent, templateContent string) (string, error) {
 
 // JSONCommandTemplate is the root structure of your template JSON file.
 type JSONCommandTemplate struct {
-	FilePaths []FilePathGroup `json:"filePaths"`
+	FilePaths      []FilePathGroup `json:"filePaths"`
+	Args           []ArgDef        `json:"args"`
+	Run            []RunStep       `json:"run"`
+	AutoBrowseRoot string          `json:"autoBrowseRoot"`
 }
 
 // FilePathGroup describes a target path in your project plus
@@ -166,6 +169,244 @@ type TreeNode struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
 	IsIndexer bool       `json:"isIndexer"` // even if false, we'll override if we see the marker in the code
+}
+
+// ArgDef describes a variable to ask the user for.
+type ArgDef struct {
+	Name         string   `json:"name"`
+	Type         string   `json:"type"` // text, select
+	Message      string   `json:"message"`
+	Choices      []Choice `json:"choices"`
+	Default      string   `json:"default"`
+	Required     bool     `json:"required"`
+	RequiredWhen *struct {
+		Var    string `json:"var"`
+		Equals string `json:"equals"`
+	} `json:"requiredWhen"`
+}
+
+type Choice struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// RunStep allows invoking a subcommand based on a condition.
+type RunStep struct {
+	Type        string   `json:"type"` // invoke
+	Slug        string   `json:"slug"`
+	When        string   `json:"when"`
+	ForwardVars []string `json:"forwardVars"`
+}
+
+// -----------------------------------------------------------------------------
+// Command visibility conditions
+// -----------------------------------------------------------------------------
+
+// CommandVisibility defines optional conditions for when a command should be shown.
+// Currently supports simple top-level package.json key equality checks.
+type CommandVisibility struct {
+	// PackageJSON matches top-level properties in package.json by exact string equality.
+	// Example: { "name": "nextjs" }
+	PackageJSON map[string]string `json:"packageJson"`
+	// PackageJSONArrayContains asserts that a top-level array contains a string.
+	// Example: { "nextgen-identifiers": "nextjs" }
+	PackageJSONArrayContains map[string]string `json:"packageJsonArrayContains"`
+	// AnyOf allows OR-combined clauses.
+	AnyOf []CommandVisibilityClause `json:"anyOf"`
+	// NextGen command packages file contains all of these identifiers (.nextgen/command-packages.json)
+	CommandPackagesContains []string `json:"commandPackagesContains"`
+}
+
+// CommandVisibilityClause represents a single OR clause.
+type CommandVisibilityClause struct {
+	PackageJSON              map[string]string `json:"packageJson"`
+	PackageJSONArrayContains map[string]string `json:"packageJsonArrayContains"`
+	CommandPackagesContains  []string          `json:"commandPackagesContains"`
+}
+
+// isPackageJSONMatch returns true if all expected top-level keys in package.json equal the provided values.
+func isPackageJSONMatch(projectPath string, expected map[string]string) bool {
+	if len(expected) == 0 {
+		return true
+	}
+	pkgPath := filepath.Join(projectPath, "package.json")
+	b, err := os.ReadFile(pkgPath)
+	if err != nil {
+		return false
+	}
+	var data map[string]any
+	if err := json.Unmarshal(b, &data); err != nil {
+		return false
+	}
+	for k, v := range expected {
+		if actual, ok := data[k]; ok {
+			switch t := actual.(type) {
+			case string:
+				if strings.TrimSpace(t) != strings.TrimSpace(v) {
+					return false
+				}
+			default:
+				if fmt.Sprint(t) != v {
+					return false
+				}
+			}
+		} else {
+			return false
+		}
+	}
+	return true
+}
+
+// isPackageJSONArrayContains returns true if each key names an array containing the wanted string.
+func isPackageJSONArrayContains(projectPath string, expected map[string]string) bool {
+	if len(expected) == 0 {
+		return true
+	}
+	pkgPath := filepath.Join(projectPath, "package.json")
+	b, err := os.ReadFile(pkgPath)
+	if err != nil {
+		return false
+	}
+	var data map[string]any
+	if err := json.Unmarshal(b, &data); err != nil {
+		return false
+	}
+	for key, want := range expected {
+		raw, ok := data[key]
+		if !ok {
+			return false
+		}
+		arr, ok := raw.([]any)
+		if !ok {
+			return false
+		}
+		found := false
+		for _, v := range arr {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) == strings.TrimSpace(want) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// isCommandPackagesContains returns true if .nextgen/command-packages.json contains all expected tokens.
+// Supported formats:
+// - ["nextjs", "react"]
+// - { "identifiers": ["nextjs", ...] }
+func isCommandPackagesContains(projectPath string, expected []string) bool {
+	if len(expected) == 0 {
+		return true
+	}
+	p := filepath.Join(projectPath, ".nextgen", "command-packages.json")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return false
+	}
+	trim := strings.TrimSpace(string(b))
+	if trim == "" {
+		return false
+	}
+	// Try array of strings first
+	var arr []string
+	if err := json.Unmarshal(b, &arr); err == nil && len(arr) > 0 {
+		set := make(map[string]bool, len(arr))
+		for _, s := range arr {
+			set[strings.TrimSpace(s)] = true
+		}
+		for _, want := range expected {
+			if !set[strings.TrimSpace(want)] {
+				return false
+			}
+		}
+		return true
+	}
+	// Try object with identifiers array
+	var obj map[string]any
+	if err := json.Unmarshal(b, &obj); err == nil {
+		collected := map[string]bool{}
+		if raw, ok := obj["identifiers"]; ok {
+			if a, ok2 := raw.([]any); ok2 {
+				for _, v := range a {
+					if s, ok3 := v.(string); ok3 {
+						collected[strings.TrimSpace(s)] = true
+					}
+				}
+			}
+		}
+		// Fallback: collect any string arrays in the object
+		if len(collected) == 0 {
+			for _, v := range obj {
+				if a, ok2 := v.([]any); ok2 {
+					for _, vv := range a {
+						if s, ok3 := vv.(string); ok3 {
+							collected[strings.TrimSpace(s)] = true
+						}
+					}
+				}
+			}
+		}
+		if len(collected) > 0 {
+			for _, want := range expected {
+				if !collected[strings.TrimSpace(want)] {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func matchesVisibilityClause(projectPath string, clause CommandVisibilityClause) bool {
+	if len(clause.PackageJSON) > 0 && !isPackageJSONMatch(projectPath, clause.PackageJSON) {
+		return false
+	}
+	if len(clause.PackageJSONArrayContains) > 0 && !isPackageJSONArrayContains(projectPath, clause.PackageJSONArrayContains) {
+		return false
+	}
+	if len(clause.CommandPackagesContains) > 0 && !isCommandPackagesContains(projectPath, clause.CommandPackagesContains) {
+		return false
+	}
+	return true
+}
+
+// IsCommandVisible evaluates whether a command should be shown for the given project path.
+func IsCommandVisible(spec CommandSpec, projectPath string) bool {
+	// No conditions implies visible
+	if spec.Visibility == nil {
+		return true
+	}
+	// AnyOf clauses (OR)
+	if len(spec.Visibility.AnyOf) > 0 {
+		for _, c := range spec.Visibility.AnyOf {
+			if matchesVisibilityClause(projectPath, c) {
+				return true
+			}
+		}
+		return false
+	}
+	// AND of top-level fields
+	if len(spec.Visibility.PackageJSON) > 0 {
+		if !isPackageJSONMatch(projectPath, spec.Visibility.PackageJSON) {
+			return false
+		}
+	}
+	if len(spec.Visibility.PackageJSONArrayContains) > 0 {
+		if !isPackageJSONArrayContains(projectPath, spec.Visibility.PackageJSONArrayContains) {
+			return false
+		}
+	}
+	if len(spec.Visibility.CommandPackagesContains) > 0 {
+		if !isCommandPackagesContains(projectPath, spec.Visibility.CommandPackagesContains) {
+			return false
+		}
+	}
+	return true
 }
 
 // Global variable to record created file paths.
@@ -446,16 +687,24 @@ func BuildAutoPlaceholders(vars map[string]string) map[string]string {
 // GeneratePreviewFileTree generates a string representation of the file tree
 // that *would* be created by a given command, without actually writing files.
 func GeneratePreviewFileTree(cmdName string, placeholders map[string]string, projectPath string) (string, error) {
-	// Load command spec.
+	// Load command spec or embedded template by path.
 	spec := GetCommandSpec(cmdName)
-	if spec.TemplatePath == "" {
-		return "", fmt.Errorf("command %q has no template", cmdName)
-	}
 
-	// Load raw template bytes.
-	data, err := LoadCommandTemplate(spec.TemplatePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to load template: %w", err)
+	var data []byte
+	var err error
+	if spec.TemplatePath != "" {
+		data, err = LoadCommandTemplate(spec.TemplatePath)
+		if err != nil {
+			return "", fmt.Errorf("failed to load template: %w", err)
+		}
+	} else if strings.HasSuffix(strings.ToLower(cmdName), ".json") {
+		// Allow previewing embedded templates by full path
+		data, err = LoadCommandTemplate(cmdName)
+		if err != nil {
+			return "", fmt.Errorf("failed to load template by path: %w", err)
+		}
+	} else {
+		return "", fmt.Errorf("command %q has no template", cmdName)
 	}
 
 	// Unmarshal into the JSONCommandTemplate structure using original data.
@@ -760,6 +1009,14 @@ func RunCommand(cmdName, projectPath string, placeholders map[string]string, reg
 				templateBytes = []byte(clipboardContent)
 				executionSource = "clipboard content"
 			}
+		} else if strings.HasSuffix(strings.ToLower(cmdName), ".json") {
+			// Execute embedded template by its full path
+			if embeddedBytes, readErr := LoadCommandTemplate(cmdName); readErr == nil {
+				templateBytes = embeddedBytes
+				executionSource = "embedded path"
+			} else {
+				err = fmt.Errorf("template path %s not found: %w", cmdName, readErr)
+			}
 		} else {
 			// --- Original Logic to Find Template ---
 			// 1. Check Clipboard Registry Commands (if registry is available)
@@ -843,4 +1100,81 @@ func UpsertClipboardCommand(registry *project.ProjectRegistry, name string, temp
 		Timestamp:  time.Now().Unix(),
 	}
 	return registry.Save()
+}
+
+func LoadTemplateBytesForName(cmdName, projectPath string, registry *project.ProjectRegistry) ([]byte, string, error) {
+	// 1. Clipboard registry
+	if registry != nil && registry.ClipboardCommands != nil {
+		if clipSpec, found := registry.ClipboardCommands[cmdName]; found {
+			return []byte(clipSpec.Template), "clipboard", nil
+		}
+	}
+	// 2. Project-local
+	if projectPath != "" && projectPath != "." {
+		localCmdPath := filepath.Join(projectPath, ".nextgen", "local-commands")
+		kebabName := ToKebabCase(cmdName)
+		cmdFilePath := filepath.Join(localCmdPath, kebabName+".json")
+		if _, statErr := os.Stat(cmdFilePath); statErr == nil {
+			fileBytes, readErr := os.ReadFile(cmdFilePath)
+			if readErr == nil {
+				return fileBytes, "project", nil
+			}
+			return nil, "", fmt.Errorf("error reading project command file %s: %w", cmdFilePath, readErr)
+		}
+	}
+	// 3. Built-in by name/slug
+	spec := GetCommandSpec(cmdName)
+	if spec.TemplatePath != "" {
+		embeddedBytes, readErr := LoadCommandTemplate(spec.TemplatePath)
+		if readErr == nil {
+			return embeddedBytes, "builtin", nil
+		}
+		return nil, "", fmt.Errorf("error reading embedded template %s: %w", spec.TemplatePath, readErr)
+	}
+	return nil, "", fmt.Errorf("template not found for %s", cmdName)
+}
+
+// IsCompositeTemplate returns true if the template JSON defines run steps without filePaths.
+func IsCompositeTemplate(templateBytes []byte) bool {
+	var t struct {
+		FilePaths []any     `json:"filePaths"`
+		Run       []RunStep `json:"run"`
+	}
+	if err := json.Unmarshal(templateBytes, &t); err != nil {
+		return false
+	}
+	return len(t.FilePaths) == 0 && len(t.Run) > 0
+}
+
+// GetCompositeRunSlugs returns the list of slugs referenced by run steps.
+func GetCompositeRunSlugs(templateBytes []byte) ([]string, error) {
+	var t struct {
+		Run []RunStep `json:"run"`
+	}
+	if err := json.Unmarshal(templateBytes, &t); err != nil {
+		return nil, err
+	}
+	var slugs []string
+	for _, s := range t.Run {
+		if strings.ToLower(s.Type) == "invoke" && strings.TrimSpace(s.Slug) != "" {
+			slugs = append(slugs, s.Slug)
+		}
+	}
+	return slugs, nil
+}
+
+// ResolveCommandTitleBySlug returns a friendly name for a command identified by slug or name.
+func ResolveCommandTitleBySlug(nameOrSlug string) string {
+	spec := GetCommandSpec(nameOrSlug)
+	if spec.Name != "" {
+		return spec.Name
+	}
+	// Fallback to capitalized slug
+	parts := strings.Split(ToKebabCase(nameOrSlug), "-")
+	for i := range parts {
+		if len(parts[i]) > 0 {
+			parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
+		}
+	}
+	return strings.Join(parts, " ")
 }

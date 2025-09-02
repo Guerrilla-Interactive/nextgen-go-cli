@@ -2,17 +2,109 @@ package history
 
 import (
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"path/filepath"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/utils"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+// truncateWithEllipsis limits s to max runes and appends … if truncated.
+func truncateWithEllipsis(s string, max int) string {
+	r := []rune(s)
+	if max <= 0 {
+		return ""
+	}
+	if len(r) <= max {
+		return s
+	}
+	if max <= 1 {
+		return "…"
+	}
+	return string(r[:max-1]) + "…"
+}
+
+// filterHistoryWithGeneratedFiles returns only history entries that generated files.
+func filterHistoryWithGeneratedFiles(history []project.HistoricCommand) []project.HistoricCommand {
+	filtered := []project.HistoricCommand{}
+	for _, h := range history {
+		if len(h.GeneratedFiles) > 0 {
+			filtered = append(filtered, h)
+		}
+	}
+	return filtered
+}
+
+// getFilteredSortedHistory returns filtered history sorted newest-first by timestamp.
+func getFilteredSortedHistory(history []project.HistoricCommand) []project.HistoricCommand {
+	filtered := filterHistoryWithGeneratedFiles(history)
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i].Timestamp > filtered[j].Timestamp
+	})
+	return filtered
+}
+
+// formatRelativeShort returns a short relative time string (without "ago").
+func formatRelativeShort(ts int64) string {
+	if ts == 0 {
+		return "now"
+	}
+	d := time.Since(time.Unix(ts, 0))
+	if d < 0 {
+		d = -d
+	}
+	if d < time.Minute {
+		s := int(d.Seconds())
+		if s <= 0 {
+			return "now"
+		}
+		if s == 1 {
+			return "1 sec"
+		}
+		return fmt.Sprintf("%d sec", s)
+	}
+	if d < time.Hour {
+		m := int(d.Minutes())
+		if m == 1 {
+			return "1 min"
+		}
+		return fmt.Sprintf("%d min", m)
+	}
+	if d < 24*time.Hour {
+		h := int(d.Hours())
+		if h == 1 {
+			return "1 hour"
+		}
+		return fmt.Sprintf("%d hours", h)
+	}
+	if d < 30*24*time.Hour {
+		days := int(d.Hours() / 24)
+		if days == 1 {
+			return "1 day"
+		}
+		return fmt.Sprintf("%d days", days)
+	}
+	if d < 365*24*time.Hour {
+		months := int(d.Hours() / (24 * 30))
+		if months <= 1 {
+			return "1 month"
+		}
+		return fmt.Sprintf("%d months", months)
+	}
+	years := int(d.Hours() / (24 * 365))
+	if years <= 1 {
+		return "1 year"
+	}
+	return fmt.Sprintf("%d years", years)
+}
 
 // updateHistoryPreview generates the file tree preview for the selected history item.
 func updateHistoryPreview(m app.Model, registry *project.ProjectRegistry) app.Model {
@@ -23,7 +115,7 @@ func updateHistoryPreview(m app.Model, registry *project.ProjectRegistry) app.Mo
 	}
 
 	if projectInfo, found := registry.GetProject(m.ProjectPath); found {
-		history := projectInfo.CommandHistory
+		history := getFilteredSortedHistory(projectInfo.CommandHistory)
 		totalCmds := len(history)
 		if totalCmds == 0 {
 			m.HistoryFileTreePreview = "(No command history)"
@@ -76,7 +168,7 @@ func updateHistoryPreview(m app.Model, registry *project.ProjectRegistry) app.Mo
 func UpdateScreenCommandHistory(m app.Model, msg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
 	var history []project.HistoricCommand
 	if projectInfo, found := registry.GetProject(m.ProjectPath); found {
-		history = projectInfo.CommandHistory
+		history = getFilteredSortedHistory(projectInfo.CommandHistory)
 	}
 	totalCmds := len(history)
 
@@ -140,15 +232,29 @@ func UpdateScreenCommandHistory(m app.Model, msg tea.KeyMsg, registry *project.P
 
 	case "enter":
 		if isBackSelected {
-			m.CurrentScreen = app.ScreenSettings
+			m.CurrentScreen = app.ScreenMain
 			m.HistoryScreenIndex = 0
 			m.HistoryFileTreePreview = ""
 			return m, nil
 		}
-		// Enter on history items still does nothing
+		// Enter on a history item: rerun the same command via shared selection logic
+		if totalCmds > 0 {
+			// Compute real index within filtered history list
+			realIndex := start + m.HistoryScreenIndex
+			if realIndex >= 0 && realIndex < totalCmds {
+				itemName := history[realIndex].Name
+				var selectCmd tea.Cmd
+				var updatedModel *app.Model
+				updatedModel, selectCmd = sharedScreens.HandleCommandSelection(&m, registry, itemName)
+				m = *updatedModel
+				m.CurrentPreviewType = "none"
+				m.HistoryFileTreePreview = ""
+				return m, tea.Batch(paginatorCmd, selectCmd)
+			}
+		}
 
-	case "esc", "b": // Go back to Settings
-		m.CurrentScreen = app.ScreenSettings
+	case "esc", "b": // Go back to Recent Commands
+		m.CurrentScreen = app.ScreenMain
 		m.HistoryScreenIndex = 0
 		m.HistoryFileTreePreview = ""
 		return m, nil
@@ -166,7 +272,7 @@ func ViewScreenCommandHistory(m app.Model, registry *project.ProjectRegistry) st
 	var projectFound bool
 	if registry != nil && m.ProjectPath != "" {
 		if projectInfo, found := registry.GetProject(m.ProjectPath); found {
-			history = projectInfo.CommandHistory
+			history = getFilteredSortedHistory(projectInfo.CommandHistory)
 			projectFound = true
 		}
 	}
@@ -189,79 +295,88 @@ func ViewScreenCommandHistory(m app.Model, registry *project.ProjectRegistry) st
 
 	// --- Left Pane: History List ---
 	var leftBuilder strings.Builder
-	leftBuilder.WriteString(app.SubtitleStyle.Render("Commands Run") + "\n\n")
 
 	if !projectFound {
 		leftBuilder.WriteString(app.ChoiceStyle.Render("  (Project history not available)"))
 	} else if totalCmds == 0 {
 		leftBuilder.WriteString(app.ChoiceStyle.Render("  (No commands recorded yet)"))
 	} else {
-		// Display paginated commands
+		// Display paginated commands with relative time prefix
 		for i, historicCmd := range paginatedCmds {
-			cmdName := historicCmd.Name
+			// Format relative time and style it subtly
+			rel := formatRelativeShort(historicCmd.Timestamp)
+			timePrefix := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(rel)
+			label := truncateWithEllipsis(historicCmd.Name, 42)
+			line := timePrefix + "  " + label
 			if i == m.HistoryScreenIndex { // Check against index on page
-				leftBuilder.WriteString(app.HighlightStyle.Render("> "+cmdName) + "\n")
+				leftBuilder.WriteString(app.HighlightStyle.Render(line) + "\n")
 			} else {
-				leftBuilder.WriteString(app.ChoiceStyle.Render("  "+cmdName) + "\n")
+				leftBuilder.WriteString(app.ChoiceStyle.Render(line) + "\n")
 			}
 		}
 	}
 
-	// --- Append Paginator and Back Button to Left Pane ---
-	leftBuilder.WriteString("\n") // Spacer
+	// Spacer and paginator
+	leftBuilder.WriteString("\n")
 	if paginatorView != "" {
-		// Remove MarginTop, just add the view and a newline
 		leftBuilder.WriteString(paginatorView + "\n")
 	}
-	if isBackSelected { // Highlight based on index on page
-		leftBuilder.WriteString(app.HighlightStyle.Render("> Back") + "\n")
+	// Back option
+	if isBackSelected {
+		leftBuilder.WriteString(app.HighlightStyle.Render("Back") + "\n")
 	} else {
-		leftBuilder.WriteString(app.ChoiceStyle.Render("  Back") + "\n")
+		leftBuilder.WriteString(app.ChoiceStyle.Render("Back") + "\n")
 	}
 
-	leftPanelWidth := 40 // Define fixed width for left panel
-	leftPanelStyle := lipgloss.NewStyle().
-		Width(leftPanelWidth). // Apply fixed width
-		Padding(1, 2).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62"))
-	leftPanel := leftPanelStyle.Render(leftBuilder.String())
+	// --- Define Layout similar to Recent screen (no borders, bottom-aligned) ---
+	leftPanelWidth := 50
+	leftPanelStyle := lipgloss.NewStyle().Padding(0, 1)
 
-	// --- Right Pane: File Tree Preview ---
+	// Footer (help only)
+	footer := app.HelpStyle.Render("Use ↑/↓/←/→ to navigate, Esc/b to go back.")
+	footerHeight := lipgloss.Height(footer)
+	availableHeightForPanes := m.TerminalHeight - footerHeight - 1
+	if availableHeightForPanes < 10 {
+		availableHeightForPanes = 10
+	}
+
+	// Right Pane: Preview
 	previewContent := m.HistoryFileTreePreview
 	if previewContent == "" {
 		previewContent = app.HelpStyle.Render("Select a command to see its generated file tree.")
 	}
 
-	// --- Truncate Preview Content ---
-	const maxPreviewLines = 12
+	// Truncate raw preview content BEFORE adding header/styling
+	folderHeaderHeight := 2 // "📦 folderName\n\n"
+	previewPadding := 2     // Top/bottom padding of 1 each
+	maxPreviewContentHeight := availableHeightForPanes - folderHeaderHeight - previewPadding
+	if maxPreviewContentHeight < 1 {
+		maxPreviewContentHeight = 1
+	}
 	lines := strings.Split(previewContent, "\n")
-	if len(lines) > maxPreviewLines {
-		previewContent = strings.Join(lines[:maxPreviewLines], "\n")
-		previewContent += "\n... (truncated)"
+	if len(lines) > maxPreviewContentHeight {
+		previewContent = strings.Join(lines[:maxPreviewContentHeight], "\n")
 	}
 
-	// Prepend header
+	// Prepend folder header
 	folderName := filepath.Base(m.ProjectPath)
-	headerPreview := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
-	previewContent = headerPreview + "\n\n" + previewContent // Use the potentially truncated content
+	previewHeader := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
+	previewContentWithHeader := previewHeader + "\n\n" + previewContent
 
-	// Define right panel style WITHOUT explicit width
-	rightPanelStyle := lipgloss.NewStyle().
-		Padding(1, 2).
-		Height(lipgloss.Height(leftPanel)). // Match height roughly
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62"))
-	rightPanel := rightPanelStyle.Render(previewContent)
+	// Build right panel and bottom-align
+	rightInner := lipgloss.NewStyle().Padding(1, 1).Render(previewContentWithHeader)
+	rightPanel := lipgloss.Place(lipgloss.Width(rightInner), availableHeightForPanes, lipgloss.Left, lipgloss.Bottom, rightInner)
 
-	// --- Combine & Footer ---
-	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
+	// Render left panel content and bottom-align
+	leftContentCombined := lipgloss.JoinVertical(lipgloss.Left, header, leftBuilder.String())
+	leftRendered := leftPanelStyle.Render(leftContentCombined)
+	leftPanel := lipgloss.Place(leftPanelWidth, availableHeightForPanes, lipgloss.Left, lipgloss.Bottom, leftRendered)
 
-	// Paginator View is now part of the left pane, remove from final join
-	footer := app.HelpStyle.Render("Use ↑/↓/←/→ to navigate, Esc/b to go back.")
-	finalView := lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer) // REMOVED paginatorView here
+	// Combine panes and footer
+	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, " ", rightPanel)
+	finalLayout := lipgloss.JoinVertical(lipgloss.Left, combinedPanes, "\n", footer)
 	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
-		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
+		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalLayout)
 	}
-	return finalView
+	return finalLayout
 }

@@ -210,6 +210,11 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return pm, nil
 
 	case HeartbeatMsg:
+		// Auto-start login flow when entering the Login screen (once)
+		if pm.M.CurrentScreen == app.ScreenLogin && !pm.M.IsLoggedIn && !pm.M.LoginFlowStarted {
+			pm.M.LoginFlowStarted = true
+			return pm, tea.Batch(loginScreen.StartLoginFlowCmd(), heartbeatTick())
+		}
 		// Periodic driver to allow screens to refresh state (e.g., clipboard preview)
 		if pm.M.CurrentScreen == app.ScreenMain {
 			updatedM, cmd := mainScreen.UpdateScreenMain(pm.M, typedMsg, pm.ProjectRegistry)
@@ -234,6 +239,10 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return pm, cmd
 		case app.ScreenFilenamePrompt:
 			updatedM, cmd := promptScreen.UpdateScreenFilenamePrompt(pm.M, typedMsg, pm.ProjectRegistry)
+			pm.M = updatedM
+			return pm, cmd
+		case app.ScreenChoicePrompt:
+			updatedM, cmd := promptScreen.UpdateScreenChoicePrompt(pm.M, typedMsg, pm.ProjectRegistry)
 			pm.M = updatedM
 			return pm, cmd
 		case app.ScreenInstallDetails:
@@ -345,6 +354,8 @@ func (pm ProgramModel) View() string {
 			fmt.Fprintf(os.Stderr, "DEBUG:   pm.ProjectRegistry == nil: %t\n", registryIsNil)
 		}
 		return projectCmdScreen.ViewScreenProjectCommandActions(pm.M, pm.ProjectRegistry)
+	case app.ScreenChoicePrompt:
+		return promptScreen.ViewChoicePrompt(pm.M, pm.ProjectRegistry)
 	}
 	return ""
 }
@@ -827,82 +838,84 @@ func executeDirectCommand(args cli.CommandArgs, registry *project.ProjectRegistr
 					}
 				}
 			}
-		}
 
-		// 5. If not executed as a project command, try executing as a Built-in Template Command
-		if !executedProject {
-			spec := template_cmds.GetCommandSpec(commandName)
-			if spec.TemplatePath != "" {
-				if cli.IsDebugEnabled() {
-					fmt.Printf("DEBUG: Executing command '%s' as built-in template command...\n", commandName)
-				}
-				templateBytes, loadErr := template_cmds.LoadCommandTemplate(spec.TemplatePath)
-				if loadErr != nil {
-					execErr = fmt.Errorf("failed to load template %s: %w", spec.TemplatePath, loadErr)
-				} else {
-					keys := template_cmds.InferVariableKeys(string(templateBytes))
-					if len(keys) != len(commandArgs) {
-						usageParts := make([]string, len(keys))
-						for i, k := range keys {
-							usageParts[i] = fmt.Sprintf("<%s>", k)
-						}
-						usage := fmt.Sprintf("ng %s %s", commandName, strings.Join(usageParts, " "))
-						execErr = fmt.Errorf("command '%s' requires %d argument(s): %s\nUsage: %s",
-							commandName, len(keys), strings.Join(keys, ", "), usage)
-					} else {
-						varsMap := make(map[string]string)
-						for i, key := range keys {
-							varsMap[key] = commandArgs[i]
-						}
-						placeholders = template_cmds.BuildPlaceholders(varsMap) // Store placeholders
-						if cli.IsDebugEnabled() {
-							fmt.Printf("DEBUG: Running template with placeholders: %+v\n", placeholders)
-						}
-						template_cmds.CreatedFiles = []string{}
-						template_cmds.EditedIndexers = make(map[string]bool)
-						execErr = template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
+			// 5. If not executed as a project command, try executing as a Built-in Template Command
+			if !executedProject {
+				spec := template_cmds.GetCommandSpec(commandName)
+				if spec.TemplatePath != "" {
+					if cli.IsDebugEnabled() {
+						fmt.Printf("DEBUG: Executing command '%s' as built-in template command...\n", commandName)
 					}
+					templateBytes, loadErr := template_cmds.LoadCommandTemplate(spec.TemplatePath)
+					if loadErr != nil {
+						execErr = fmt.Errorf("failed to load template %s: %w", spec.TemplatePath, loadErr)
+					} else {
+						keys := template_cmds.InferVariableKeys(string(templateBytes))
+						if len(keys) != len(commandArgs) {
+							usageParts := make([]string, len(keys))
+							for i, k := range keys {
+								usageParts[i] = fmt.Sprintf("<%s>", k)
+							}
+							usage := fmt.Sprintf("ng %s %s", commandName, strings.Join(usageParts, " "))
+							execErr = fmt.Errorf("command '%s' requires %d argument(s): %s\nUsage: %s",
+								commandName, len(keys), strings.Join(keys, ", "), usage)
+						} else {
+							varsMap := make(map[string]string)
+							for i, key := range keys {
+								varsMap[key] = commandArgs[i]
+							}
+							placeholders = template_cmds.BuildPlaceholders(varsMap) // Store placeholders
+							if cli.IsDebugEnabled() {
+								fmt.Printf("DEBUG: Running template with placeholders: %+v\n", placeholders)
+							}
+							template_cmds.CreatedFiles = []string{}
+							template_cmds.EditedIndexers = make(map[string]bool)
+							execErr = template_cmds.ExecuteJSONTemplateFromMemory(templateBytes, projectPath, placeholders)
+						}
+					}
+				} else {
+					// If not found in any category
+					return fmt.Errorf("unknown or unsupported command for direct execution: %s", commandName)
 				}
-			} else {
-				// If not found in any category
-				return fmt.Errorf("unknown or unsupported command for direct execution: %s", commandName)
 			}
 		}
-	}
 
-	// --- Record History (Centralized Logic) ---
-	if execErr == nil { // Only record history if execution was successful
-		historicCmd := project.HistoricCommand{
-			Name:           commandName,
-			Variables:      placeholders, // Will be nil for non-template commands, which is fine
-			Timestamp:      time.Now().Unix(),
-			GeneratedFiles: append([]string{}, template_cmds.CreatedFiles...), // Copy generated files
-		}
-		if err := registry.RecordCommandHistory(projectPath, historicCmd); err != nil {
-			fmt.Printf("Warning: Failed to record command history for '%s': %v\n", commandName, err)
-			// Don't return this error, as the command itself succeeded
-		}
-	} else {
-		return execErr // Return the original execution error
-	}
-
-	// --- Print File Tree on Success (Only for Template Commands) ---
-	if len(template_cmds.CreatedFiles) > 0 { // Check if files were generated
-		fmt.Println("\n--- Files Created --- ")
-		relPaths := make([]string, len(template_cmds.CreatedFiles))
-		for i, p := range template_cmds.CreatedFiles {
-			if rel, err := filepath.Rel(projectPath, filepath.Join(projectPath, p)); err == nil {
-				relPaths[i] = rel
-			} else {
-				relPaths[i] = p
+		// --- Record History (Centralized Logic) ---
+		if execErr == nil { // Only record history if execution was successful
+			historicCmd := project.HistoricCommand{
+				Name:           commandName,
+				Variables:      placeholders, // Will be nil for non-template commands, which is fine
+				Timestamp:      time.Now().Unix(),
+				GeneratedFiles: append([]string{}, template_cmds.CreatedFiles...), // Copy generated files
 			}
+			if err := registry.RecordCommandHistory(projectPath, historicCmd); err != nil {
+				fmt.Printf("Warning: Failed to record command history for '%s': %v\n", commandName, err)
+				// Don't return this error, as the command itself succeeded
+			}
+		} else {
+			return execErr // Return the original execution error
 		}
-		treeRoot := utils.BuildFileTree(relPaths)
-		treeString := utils.RenderFileTree(treeRoot, "", false, false, nil)
-		fmt.Println(treeString)
+
+		// --- Print File Tree on Success (Only for Template Commands) ---
+		if len(template_cmds.CreatedFiles) > 0 { // Check if files were generated
+			fmt.Println("\n--- Files Created --- ")
+			relPaths := make([]string, len(template_cmds.CreatedFiles))
+			for i, p := range template_cmds.CreatedFiles {
+				if rel, err := filepath.Rel(projectPath, filepath.Join(projectPath, p)); err == nil {
+					relPaths[i] = rel
+				} else {
+					relPaths[i] = p
+				}
+			}
+			treeRoot := utils.BuildFileTree(relPaths)
+			treeString := utils.RenderFileTree(treeRoot, "", false, false, nil)
+			fmt.Println(treeString)
+		}
+
+		return nil // Overall success
 	}
 
-	return nil // Overall success
+	return nil
 }
 
 // Helper function to run a shell command

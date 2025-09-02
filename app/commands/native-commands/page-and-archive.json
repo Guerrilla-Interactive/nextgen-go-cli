@@ -3,6 +3,11 @@
   "_id": "sample-command",
   "_rev": "YjFIo1g1LQZHJZg27Qr5gp",
   "_type": "command",
+  "show": { "anyOf": [
+    { "packageJson": { "name": "never" } },
+    { "packageJsonArrayContains": { "nextgen-identifiers": "never" } },
+    { "commandPackagesContains": ["never"] }
+  ] },
   "filePaths": [
     {
       "_key": "1737299481494-rnbgurbgq",

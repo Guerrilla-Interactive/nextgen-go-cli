@@ -14,8 +14,8 @@ import (
 
 // UpdateScreenSettings handles input on the Settings screen.
 func UpdateScreenSettings(m app.Model, msg tea.KeyMsg, registry *project.ProjectRegistry) (app.Model, tea.Cmd) {
-	// Updated categories: Project Info, Command History, Manage Commands, Logout, Back
-	numOptions := 5
+	// Updated categories: Project Info, Manage Commands, Logout, Back
+	numOptions := 4
 
 	switch msg.String() {
 	case "ctrl+c", "q":
@@ -33,15 +33,11 @@ func UpdateScreenSettings(m app.Model, msg tea.KeyMsg, registry *project.Project
 		switch m.SettingsScreenIndex {
 		case 0: // Project Info (now covers old 0, 1, 2)
 			// No action, just shows combined view
-		case 1: // Command History (new index 1, old 3)
-			m.CurrentScreen = app.ScreenCommandHistory
-			m.HistoryScreenIndex = 0 // Reset index for the target screen
-			return m, nil
-		case 2: // Manage Commands (new index 2, old 4)
+		case 1: // Manage Commands
 			m.CurrentScreen = app.ScreenCommandsCategory
 			m.CommandsCategoryIndex = 0 // Reset index for the target screen
 			return m, nil
-		case 3: // Logout (new index 3)
+		case 2: // Logout
 			cfg, _ := config.LoadConfig()
 			cfg.IsLoggedIn = false
 			cfg.Token = ""
@@ -50,7 +46,7 @@ func UpdateScreenSettings(m app.Model, msg tea.KeyMsg, registry *project.Project
 			m.CurrentScreen = app.ScreenLogin
 			m.SettingsScreenIndex = 0
 			return m, nil
-		case 4: // Back (new index 4)
+		case 3: // Back
 			m.CurrentScreen = app.ScreenMain
 			m.SettingsScreenIndex = 0 // Reset index for this screen
 			return m, nil
@@ -71,8 +67,8 @@ func ViewSettingsScreen(m app.Model, registry *project.ProjectRegistry) string {
 	leftHeader := app.TitleStyle.Render("Settings")
 
 	// --- Left Pane: Navigation ---\
-	// Updated navigation items
-	navItems := []string{"Project Info", "Command History", "Manage Commands", "Logout", "Back"}
+	// Updated navigation items (Command History moved to Recent screen)
+	navItems := []string{"Project Info", "Manage Commands", "Logout", "Back"}
 	var leftBuilder strings.Builder
 
 	for i, item := range navItems {
@@ -96,7 +92,7 @@ func ViewSettingsScreen(m app.Model, registry *project.ProjectRegistry) string {
 	var previewContent string
 	// Use SettingsScreenIndex with updated logic
 	switch m.SettingsScreenIndex {
-	case 0: // Project Info (now covers old 0, 1, 2)
+	case 0: // Project Info
 		var combinedBuilder strings.Builder
 		// Project Info (Path, Type)
 		combinedBuilder.WriteString(app.SubtitleStyle.Render("Project Overview") + "\n\n")
@@ -133,13 +129,11 @@ func ViewSettingsScreen(m app.Model, registry *project.ProjectRegistry) string {
 			combinedBuilder.WriteString(app.ChoiceStyle.Render("  (Registry or Project Path not available)\n"))
 		}
 		previewContent = combinedBuilder.String()
-	case 1: // Command History Preview (new index 1, old 3)
-		previewContent = app.HelpStyle.Render("View the history of commands run in this project.")
-	case 2: // Manage Commands Preview (new index 2, old 4)
+	case 1: // Manage Commands
 		previewContent = app.HelpStyle.Render("Manage saved clipboard, native, and project-specific commands.")
-	case 3: // Logout Preview
+	case 2: // Logout
 		previewContent = app.HelpStyle.Render("Log out of your Clerk session and return to the login screen.")
-	case 4: // Back Preview (new index 4)
+	case 3: // Back
 		previewContent = app.HelpStyle.Render("Return to the main command screen.")
 	default:
 		previewContent = "" // Should not happen

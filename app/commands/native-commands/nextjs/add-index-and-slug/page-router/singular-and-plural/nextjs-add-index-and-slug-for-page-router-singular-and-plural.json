@@ -1,0 +1,78 @@
+{
+  "_type": "command",
+  "title": "PageType for Index + Slug (Singular + Plural) [Page Router]",
+  "slug": "page-type-index-and-slug-singular-and-plural-page-router",
+  "choiceName": "Singular + Plural (Pages/Router)",
+  "show": { "anyOf": [
+    { "packageJson": { "name": "never" } },
+    { "packageJsonArrayContains": { "nextgen-identifiers": "never" } },
+    { "commandPackagesContains": ["never"] }
+  ] },
+  "filePaths": [
+    {
+      "_type": "filePathGroup",
+      "id": "shared-data-json",
+      "path": "/",
+      "nodes": [
+        {
+          "_type": "treeNode",
+          "type": "folder",
+          "name": "data",
+          "children": [
+            {
+              "_type": "treeNode",
+              "type": "file",
+              "name": "{{.KebabCaseSingular}}-data.json",
+              "code": "[\n  { \"title\": \"Example A\", \"slug\": \"example-a\", \"excerpt\": \"Short description for A.\" },\n  { \"title\": \"Example B\", \"slug\": \"example-b\", \"excerpt\": \"Short description for B.\" },\n  { \"title\": \"Example C\", \"slug\": \"example-c\", \"excerpt\": \"Short description for C.\" }\n]\n"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "_type": "filePathGroup",
+      "id": "pages-router-structure",
+      "path": "/pages",
+      "nodes": [
+        {
+          "_type": "treeNode",
+          "type": "folder",
+          "name": "{{.KebabCasePlural}}",
+          "children": [
+            {
+              "_type": "treeNode",
+              "type": "file",
+              "name": "index.tsx",
+              "code": "// seed: {{.Singular}} {{.Plural}}\nimport Head from \"next/head\";\nimport Link from \"next/link\";\nimport Image from \"next/image\";\nimport items from \"../../data/{{.KebabCaseSingular}}-data.json\";\n\nexport default function {{.PascalCasePlural}}IndexPage() {\n  return (\n    <div className=\"font-sans grid grid-rows-[20px_1fr] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20\">\n      <Head>\n        <title>{{.PascalCasePlural}}</title>\n        <meta name=\"description\" content=\"Index page for {{.KebabCasePlural}}\" />\n      </Head>\n      <main className=\"flex flex-col gap-[32px] row-start-2 items-center sm:items-start w-full max-w-3xl\">\n        <Image className=\"dark:invert\" src=\"/next.svg\" alt=\"Next.js logo\" width={180} height={38} priority />\n        <div className=\"w-full\">\n          <h1 className=\"text-2xl font-bold tracking-tight\">{{.PascalCasePlural}}</h1>\n          <p className=\"text-sm/6 opacity-70 mt-1\">Data from <code className=\"bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded\">/data/{{.KebabCaseSingular}}-data.json</code></p>\n        </div>\n        <ul className=\"w-full grid gap-4\">\n          {items.map((item) => (\n            <li key={item.slug} className=\"rounded-2xl border border-black/[.08] dark:border-white/[.145] p-4 sm:p-5 transition-colors hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a]\">\n              <div className=\"flex items-center justify-between gap-3\">\n                <div>\n                  <h2 className=\"font-medium tracking-[-.01em]\">\n                    <Link href=\"/{{.KebabCaseSingular}}/\" as={`/{{.KebabCaseSingular}}/${item.slug}`}>{item.title}</Link>\n                  </h2>\n                  {item.excerpt ? <p className=\"text-sm/6 opacity-80 mt-1\">{item.excerpt}</p> : null}\n                </div>\n                <Link className=\"rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm h-10 px-4 whitespace-nowrap\" href={`/{{.KebabCaseSingular}}/${item.slug}`}>View →</Link>\n              </div>\n            </li>\n          ))}\n        </ul>\n      </main>\n    </div>\n  );\n}\n"
+            }
+          ]
+        },
+        {
+          "_type": "treeNode",
+          "type": "folder",
+          "name": "{{.KebabCaseSingular}}",
+          "children": [
+            {
+              "_type": "treeNode",
+              "type": "file",
+              "name": "index.tsx",
+              "code": "import type { GetServerSideProps } from \"next\";\n\nexport const getServerSideProps: GetServerSideProps = async () => {\n  return {\n    redirect: {\n      destination: \"/{{.KebabCasePlural}}\",\n      permanent: false\n    }\n  };\n};\n\nexport default function {{.PascalCaseSingular}}RedirectPage() {\n  return null;\n}\n"
+            },
+            {
+              "_type": "treeNode",
+              "type": "file",
+              "name": "[slug].tsx",
+              "code": "import Head from \"next/head\";\nimport Image from \"next/image\";\nimport Link from \"next/link\";\nimport type { GetStaticPaths, GetStaticProps } from \"next\";\nimport items from \"../../data/{{.KebabCaseSingular}}-data.json\";\n\ntype Entry = typeof items[number];\n\ntype PageProps = { entry: Entry | null };\n\nexport const getStaticPaths: GetStaticPaths = async () => {\n  const paths = items.map((i) => ({ params: { slug: i.slug } }));\n  return { paths, fallback: \"blocking\" };\n};\n\nexport const getStaticProps: GetStaticProps<PageProps> = async ({ params }) => {\n  const slug = String(params?.slug || \"\");\n  const entry = items.find((i) => i.slug === slug) || null;\n  if (!entry) {\n    return { notFound: true };\n  }\n  return { props: { entry }, revalidate: 60 };\n};\n\nexport default function {{.PascalCaseSingular}}SlugPage({ entry }: PageProps) {\n  if (!entry) return null;\n  return (\n    <div className=\"font-sans grid grid-rows-[20px_1fr] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20\">\n      <Head>\n        <title>{entry.title} | {{.PascalCasePlural}}</title>\n        <meta name=\"description\" content={entry.excerpt || entry.title} />\n      </Head>\n      <main className=\"flex flex-col gap-[32px] row-start-2 items-center sm:items-start w-full max-w-3xl\">\n        <Image className=\"dark:invert\" src=\"/next.svg\" alt=\"Next.js logo\" width={180} height={38} priority />\n        <div className=\"w-full\">\n          <Link href=\"/{{.KebabCasePlural}}\" className=\"text-sm hover:underline hover:underline-offset-4\">← Back to {{.LowerCasePlural}}</Link>\n          <h1 className=\"text-2xl font-bold tracking-tight mt-2\">{entry.title}</h1>\n          {entry.excerpt ? <p className=\"text-sm/6 opacity-80 mt-1\">{entry.excerpt}</p> : null}\n        </div>\n        <pre className=\"w-full rounded-2xl border border-black/[.08] dark:border-white/[.145] p-4 overflow-auto text-xs opacity-80\">{JSON.stringify(entry, null, 2)}</pre>\n      </main>\n    </div>\n  );\n}\n"
+            }
+          ]
+        },
+        {
+          "_type": "treeNode",
+          "type": "file",
+          "name": "404.tsx",
+          "code": "import Head from \"next/head\";\nimport Image from \"next/image\";\nimport Link from \"next/link\";\n\nexport default function NotFound() {\n  return (\n    <div className=\"font-sans grid grid-rows-[20px_1fr] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20\">\n      <Head>\n        <title>Not found</title>\n      </Head>\n      <main className=\"flex flex-col gap-[32px] row-start-2 items-center sm:items-start w-full max-w-3xl\">\n        <Image className=\"dark:invert\" src=\"/next.svg\" alt=\"Next.js logo\" width={180} height={38} priority />\n        <h1 className=\"text-2xl font-bold tracking-tight\">Not found</h1>\n        <p className=\"text-sm/6 opacity-80\">The page you’re looking for doesn’t exist.</p>\n        <Link href=\"/\" className=\"rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm h-10 px-4\">Back home</Link>\n      </main>\n    </div>\n  );\n}\n"
+        }
+      ]
+    }
+  ]
+}

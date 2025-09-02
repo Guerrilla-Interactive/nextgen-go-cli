@@ -43,9 +43,9 @@ func UpdateScreenLogin(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
 func ViewScreenLogin(m app.Model) string {
 	// Simple instructions with styling consistent with other screens
 	title := app.TitleStyle.Render("Login")
-	body := "\nPress Enter to open the browser and sign in with Clerk.\n" +
+	body := "\nOpening your browser to sign in with Clerk...\n" +
 		"After signing in, you'll be redirected back to complete login.\n\n" +
-		"Instance: " + app.LinkStyle.Render("https://smooth-vervet-76.accounts.dev/") + "\n" +
+		"Instance: " + app.LinkStyle.Render("https://www.nextgen-cli.com/sign-in") + "\n" +
 		"Callback: " + app.PathStyle.Render("http://localhost:4455/callback") + "\n\n" +
 		app.HelpStyle.Render("Press q to quit")
 	// Append status if available
@@ -109,7 +109,13 @@ func startBrowserLoginFlow() tea.Cmd {
 		}()
 
 		// Open your app's cli-bridge which will fetch a Clerk token and redirect to our callback
-		loginURL := appUtils.GetBaseURL() + "/cli-bridge?redirect=" + url.QueryEscape("http://localhost:4455/callback")
+		// Normalize to scheme+host only in case NEXTGEN_BASE_URL includes a path like /sign-in
+		base := appUtils.GetBaseURL()
+		hostBase := base
+		if u, err := url.Parse(base); err == nil && u.Scheme != "" && u.Host != "" {
+			hostBase = u.Scheme + "://" + u.Host
+		}
+		loginURL := hostBase + "/cli-bridge?redirect=" + url.QueryEscape("http://localhost:4455/callback")
 
 		// Open the browser
 		if err := openBrowser(loginURL); err != nil {
@@ -199,4 +205,9 @@ func openBrowser(url string) error {
 		cmd = exec.Command("xdg-open", url)
 	}
 	return cmd.Start()
+}
+
+// StartLoginFlowCmd is an exported wrapper to initiate the login flow immediately.
+func StartLoginFlowCmd() tea.Cmd {
+	return startBrowserLoginFlow()
 }

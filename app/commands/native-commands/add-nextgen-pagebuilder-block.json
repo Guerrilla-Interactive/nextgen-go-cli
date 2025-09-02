@@ -3,6 +3,11 @@
   "_type": "command",
   "title": "Add Nextgen Pagebuilder Block",
   "slug": "add-nextgen-pagebuilder-block",
+  "show": { "anyOf": [
+    { "packageJson": { "name": "nextgen-theme" } },
+    { "packageJsonArrayContains": { "nextgen-identifiers": "nextgen-theme" } },
+    { "commandPackagesContains": ["nextgen-theme"] }
+  ] },
   "filePaths": [
     {
       "_key": "1738868072581-yljmao56m",

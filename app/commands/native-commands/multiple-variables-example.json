@@ -3,6 +3,11 @@
   "_type": "command",
   "title": "Multiple Variables Example Command",
   "slug": "multiple-variables-example",
+  "show": { "anyOf": [
+    { "packageJson": { "name": "never" } },
+    { "packageJsonArrayContains": { "nextgen-identifiers": "never" } },
+    { "commandPackagesContains": ["never"] }
+  ] },
   "filePaths": [
     {
       "_key": "grp-1",
