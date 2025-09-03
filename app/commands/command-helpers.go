@@ -29,6 +29,134 @@ var (
 	addMarkerRegex   = regexp.MustCompile(`^\s*//\s*ADD\s+(.+?)\s+(BELOW|ABOVE)\s*$`)
 )
 
+// hasAnySnippetMarkers returns true if the content already includes any snippet
+// markers (START/END/ADD). Used to avoid inserting duplicates.
+func hasAnySnippetMarkers(content string) bool {
+	return startMarkerRegex.MatchString(content) || endMarkerRegex.MatchString(content) || addMarkerRegex.MatchString(content)
+}
+
+// autoInsertIndexerMarkers heuristically inserts insertion markers into an
+// existing indexer file that lacks them. It places markers for snippet keys:
+// - Keys containing "import" go after the last import/require.
+// - Keys containing "export" go above the first export default/module.exports.
+// - Others are appended to the end of the file.
+// It returns the modified content and whether any markers were inserted.
+func autoInsertIndexerMarkers(existingContent string, snippetKeys []string) (string, bool) {
+	if len(snippetKeys) == 0 {
+		return existingContent, false
+	}
+	if hasAnySnippetMarkers(existingContent) {
+		return existingContent, false
+	}
+
+	lines := strings.Split(existingContent, "\n")
+
+	importRegex := regexp.MustCompile(`^\s*(import\s|const\s+\w+\s*=\s*require\(|var\s+\w+\s*=\s*require\()`) // JS/TS common
+	exportRegex := regexp.MustCompile(`^\s*(export\s|module\.exports\s*=|exports\.)`)                         // JS/TS common (default|const|named)
+	listItemRegex := regexp.MustCompile(`^\s*[_$a-zA-Z][_$a-zA-Z0-9]*\s*,\s*$`)                               // e.g. "  myType,"
+
+	lastImportIdx := -1
+	firstExportIdx := -1
+	lastListItemIdx := -1
+	for i, ln := range lines {
+		if importRegex.MatchString(ln) {
+			lastImportIdx = i
+		}
+		if firstExportIdx == -1 && exportRegex.MatchString(ln) {
+			firstExportIdx = i
+		}
+		if listItemRegex.MatchString(ln) {
+			lastListItemIdx = i
+		}
+	}
+
+	// Group keys by intent
+	var importKeys, exportKeys, tailKeys []string
+	for _, k := range snippetKeys {
+		kl := strings.ToLower(strings.TrimSpace(k))
+		switch {
+		case strings.Contains(kl, "import"):
+			importKeys = append(importKeys, k)
+		case strings.Contains(kl, "export"):
+			exportKeys = append(exportKeys, k)
+		default:
+			tailKeys = append(tailKeys, k)
+		}
+	}
+
+	inserted := 0
+
+	// Helper to insert a line into a slice at index i
+	insertLine := func(sl []string, idx int, val string) []string {
+		if idx < 0 {
+			idx = 0
+		}
+		if idx > len(sl) {
+			idx = len(sl)
+		}
+		sl = append(sl[:idx], append([]string{val}, sl[idx:]...)...)
+		return sl
+	}
+
+	// After last import
+	if lastImportIdx >= 0 && len(importKeys) > 0 {
+		pos := lastImportIdx + 1
+		for _, k := range importKeys {
+			marker := fmt.Sprintf("// ADD %s BELOW", k)
+			lines = insertLine(lines, pos, marker)
+			pos++
+			inserted++
+		}
+	}
+
+	// Above first export
+	if firstExportIdx >= 0 && len(exportKeys) > 0 {
+		pos := firstExportIdx // ABOVE => insert before
+		for _, k := range exportKeys {
+			marker := fmt.Sprintf("// ADD %s ABOVE", k)
+			lines = insertLine(lines, pos, marker)
+			pos++ // keep relative order
+			inserted++
+		}
+	}
+
+	// Place tail keys near likely list of exported items, else above export, else at EOF
+	if len(tailKeys) > 0 {
+		if lastListItemIdx >= 0 {
+			pos := lastListItemIdx + 1
+			for _, k := range tailKeys {
+				marker := fmt.Sprintf("// ADD %s BELOW", k)
+				lines = insertLine(lines, pos, marker)
+				pos++
+				inserted++
+			}
+		} else if firstExportIdx >= 0 {
+			pos := firstExportIdx
+			for _, k := range tailKeys {
+				marker := fmt.Sprintf("// ADD %s ABOVE", k)
+				lines = insertLine(lines, pos, marker)
+				pos++
+				inserted++
+			}
+		} else {
+			// Ensure file ends with a newline for cleaner appends
+			if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) != "" {
+				lines = append(lines, "")
+			}
+			for _, k := range tailKeys {
+				marker := fmt.Sprintf("// ADD %s BELOW", k)
+				lines = append(lines, marker)
+				inserted++
+			}
+		}
+	}
+
+	if inserted == 0 {
+		return existingContent, false
+	}
+	return strings.Join(lines, "\n"), true
+}
+
 // removeSnippetMarkers removes the marker lines (START/END) from the
 // provided content while keeping the snippet's code intact. This is used
 // when creating a new file.
@@ -97,37 +225,127 @@ func smartMerge(existingContent, templateContent string) (string, error) {
 	}
 
 	lines := strings.Split(existingContent, "\n")
+	// Precompute a normalized representation of the existing content for robust contains checks.
+	normalizeForContains := func(s string) string {
+		parts := strings.Split(s, "\n")
+		for i := range parts {
+			parts[i] = strings.TrimSpace(parts[i])
+		}
+		return strings.Join(parts, "\n")
+	}
+	normalizeNoSpaces := func(s string) string {
+		// Remove all whitespace to compare tokens loosely
+		return strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(s), "\t", ""), " ", ""), "\r", "")
+	}
+	existingNormalized := normalizeForContains(existingContent)
+	// Build a set of no-space lines for quick single-line membership tests
+	existingLineSetNoSpaces := map[string]bool{}
+	for _, ln := range lines {
+		existingLineSetNoSpaces[normalizeNoSpaces(ln)] = true
+	}
+
 	var mergedLines []string
+	insertedForKey := map[string]bool{}
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 		// Check if this line is an insertion marker.
 		if matches := addMarkerRegex.FindStringSubmatch(line); matches != nil {
 			key := strings.TrimSpace(matches[1])    // e.g. "VALUE 1"
 			position := strings.ToUpper(matches[2]) // either "BELOW" or "ABOVE"
+			// If we've already inserted for this key during this merge, drop duplicate marker.
+			if insertedForKey[key] {
+				continue
+			}
 			// If the new snippet was defined in the template then add it.
 			if snippet, ok := snippetMap[key]; ok && snippet != "" {
 				snippetLines := strings.Split(snippet, "\n")
+				snippetNormalized := normalizeForContains(snippet)
+				// Skip insertion if snippet content already exists anywhere in the file (idempotency)
+				alreadyPresent := strings.Contains(existingNormalized, snippetNormalized)
+				// Additional resilient checks for common cases
+				if !alreadyPresent && len(snippetLines) > 0 {
+					first := strings.TrimSpace(snippetLines[0])
+					firstNoSpaces := normalizeNoSpaces(first)
+					// Case A: single-line array item like "myType," present ignoring spacing
+					if strings.HasSuffix(first, ",") && existingLineSetNoSpaces[firstNoSpaces] {
+						alreadyPresent = true
+					}
+					// Case B: import present for same module path
+					if !alreadyPresent && (strings.HasPrefix(first, "import ") || strings.Contains(first, "require(")) {
+						// try to extract module path from "from '...';" or require('...')
+						modPath := ""
+						if idx := strings.Index(first, " from "); idx != -1 {
+							q := first[idx+6:]
+							q = strings.TrimSpace(q)
+							if len(q) > 0 && (q[0] == '\'' || q[0] == '"') {
+								// strip quotes and trailing semicolon
+								end := strings.LastIndex(q, string(q[0]))
+								if end > 0 {
+									modPath = q[1:end]
+								}
+							}
+						} else if strings.Contains(first, "require(") {
+							// require('...')
+							start := strings.Index(first, "require(")
+							if start >= 0 {
+								rest := first[start+8:]
+								rest = strings.TrimSpace(rest)
+								if len(rest) > 0 && (rest[0] == '\'' || rest[0] == '"') {
+									end := strings.Index(rest[1:], string(rest[0]))
+									if end >= 0 {
+										modPath = rest[1 : 1+end]
+									}
+								}
+							}
+						}
+						if modPath != "" {
+							// If any existing line imports from same module path, treat as present
+							impRegex := regexp.MustCompile(`(?m)^\s*(import\s+.*from\s+['"]` + regexp.QuoteMeta(modPath) + `['"]|.*require\(['"]` + regexp.QuoteMeta(modPath) + `['"]\))`)
+							if impRegex.FindStringIndex(existingContent) != nil {
+								alreadyPresent = true
+							}
+						}
+					}
+				}
 				if position == "BELOW" {
 					mergedLines = append(mergedLines, line)
-					// (A simple check is performed here to try and avoid duplicate insertions.)
-					if i+1 < len(lines) && strings.TrimSpace(lines[i+1]) == strings.TrimSpace(snippetLines[0]) {
-						// Assume the snippet has already been inserted.
-					} else {
-						for _, s := range snippetLines {
-							mergedLines = append(mergedLines, s)
+					if alreadyPresent {
+						insertedForKey[key] = true
+						continue
+					}
+					// Local adjacency check: if the next lines already match the snippet, skip
+					if i+1+len(snippetLines) <= len(lines) {
+						window := normalizeForContains(strings.Join(lines[i+1:i+1+len(snippetLines)], "\n"))
+						if window == snippetNormalized {
+							insertedForKey[key] = true
+							continue
 						}
 					}
+					for _, s := range snippetLines {
+						mergedLines = append(mergedLines, s)
+					}
+					insertedForKey[key] = true
 					continue // skip adding the marker again
 				} else if position == "ABOVE" {
-					// For ABOVE, insert the snippet lines just before the marker.
-					if len(mergedLines) > 0 && strings.TrimSpace(mergedLines[len(mergedLines)-1]) == strings.TrimSpace(snippetLines[len(snippetLines)-1]) {
+					// Local adjacency check: if the previous lines already match the snippet, skip
+					if alreadyPresent {
 						mergedLines = append(mergedLines, line)
-					} else {
-						for _, s := range snippetLines {
-							mergedLines = append(mergedLines, s)
-						}
-						mergedLines = append(mergedLines, line)
+						insertedForKey[key] = true
+						continue
 					}
+					if len(mergedLines) >= len(snippetLines) {
+						window := normalizeForContains(strings.Join(mergedLines[len(mergedLines)-len(snippetLines):], "\n"))
+						if window == snippetNormalized {
+							mergedLines = append(mergedLines, line)
+							insertedForKey[key] = true
+							continue
+						}
+					}
+					for _, s := range snippetLines {
+						mergedLines = append(mergedLines, s)
+					}
+					mergedLines = append(mergedLines, line)
+					insertedForKey[key] = true
 					continue
 				}
 			}
@@ -135,6 +353,65 @@ func smartMerge(existingContent, templateContent string) (string, error) {
 		mergedLines = append(mergedLines, line)
 	}
 	return strings.Join(mergedLines, "\n"), nil
+}
+
+// cleanupIndexerContent removes duplicate import statements by module path and
+// duplicate array item lines (like "myType,") ignoring whitespace. It keeps
+// the first occurrence and drops subsequent duplicates to avoid duplication
+// after repeated runs.
+func cleanupIndexerContent(content string) string {
+	lines := strings.Split(content, "\n")
+	importFromRegex := regexp.MustCompile(`^\s*import\s+.*from\s+['"]([^'\"]+)['"]`)
+	requireRegex := regexp.MustCompile(`^\s*(?:const|let|var)\s+\w+\s*=\s*require\(['"]([^'\"]+)['"]\)`) // basic CJS
+	arrayItemRegex := regexp.MustCompile(`^\s*[_$a-zA-Z][_$a-zA-Z0-9]*\s*,\s*$`)
+
+	seenImport := map[string]bool{}
+	seenItem := map[string]bool{}
+
+	var out []string
+	for _, ln := range lines {
+		trim := strings.TrimSpace(ln)
+		if trim == "" {
+			out = append(out, ln)
+			continue
+		}
+		// Preserve markers as-is
+		if startMarkerRegex.MatchString(ln) || endMarkerRegex.MatchString(ln) || addMarkerRegex.MatchString(ln) {
+			out = append(out, ln)
+			continue
+		}
+		// Handle imports
+		if m := importFromRegex.FindStringSubmatch(ln); m != nil {
+			mod := m[1]
+			if seenImport[mod] {
+				continue
+			}
+			seenImport[mod] = true
+			out = append(out, ln)
+			continue
+		}
+		if m := requireRegex.FindStringSubmatch(ln); m != nil {
+			mod := m[1]
+			if seenImport[mod] {
+				continue
+			}
+			seenImport[mod] = true
+			out = append(out, ln)
+			continue
+		}
+		// Handle array item lines
+		if arrayItemRegex.MatchString(ln) {
+			key := strings.ReplaceAll(strings.ReplaceAll(trim, "\t", ""), " ", "")
+			if seenItem[key] {
+				continue
+			}
+			seenItem[key] = true
+			out = append(out, ln)
+			continue
+		}
+		out = append(out, ln)
+	}
+	return strings.Join(out, "\n")
 }
 
 // -----------------------------------------------------------------------------
@@ -497,10 +774,28 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 					if readErr != nil {
 						return fmt.Errorf("failed to read existing file %s: %w", currentPath, readErr)
 					}
-					mergedContent, mergeErr := smartMerge(string(existingContentBytes), code)
+					existingContent := string(existingContentBytes)
+					// Attempt to auto-insert markers if the existing indexer lacks them
+					if !hasAnySnippetMarkers(existingContent) {
+						if snippetMap, _ := extractSnippets(code); len(snippetMap) > 0 {
+							var keys []string
+							for k := range snippetMap {
+								keys = append(keys, k)
+							}
+							if modified, inserted := autoInsertIndexerMarkers(existingContent, keys); inserted {
+								existingContent = modified
+								if cli.IsVerboseEnabled() {
+									fmt.Printf("ℹ️  Inserted %d indexer markers into %s.\n", len(keys), currentPath)
+								}
+							}
+						}
+					}
+					mergedContent, mergeErr := smartMerge(existingContent, code)
 					if mergeErr != nil {
 						return fmt.Errorf("failed to merge file %s: %w", currentPath, mergeErr)
 					}
+					// Final cleanup to remove duplicates that may remain after merge
+					mergedContent = cleanupIndexerContent(mergedContent)
 					if err := os.WriteFile(currentPath, []byte(mergedContent), 0644); err != nil {
 						return fmt.Errorf("failed to write merged file %s: %w", currentPath, err)
 					}
