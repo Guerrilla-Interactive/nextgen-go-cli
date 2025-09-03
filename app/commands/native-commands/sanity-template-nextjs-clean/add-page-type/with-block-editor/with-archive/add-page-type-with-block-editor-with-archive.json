@@ -1,20 +1,19 @@
 {
-    "_id": "add-page-type-with-block-editor-with-archive",
+    "_id": "qd5046XO76IFlZBVN0RGYU",
     "_type": "command",
-    "title": "Add PageType with Block Editor with Archive",
+    "title": "add-page-type-with-block-editor-with-archive",
     "slug": "add-page-type-with-block-editor-with-archive",
-    "show": {
-      "anyOf": [
+    "show": { "anyOf": [
         { "packageJson": { "name": "never" } },
         { "packageJsonArrayContains": { "nextgen-identifiers": "never" } },
         { "commandPackagesContains": ["never"] }
-      ]
-    },
+      ] },
+
     "filePaths": [
       {
-        "_key": "20250903-front-routes",
+        "_key": "1756910010585-9ttbdndja",
         "_type": "filePathGroup",
-        "id": "frontend-routes",
+        "id": "path-1756910010585-wrneo06",
         "path": "frontend/app",
         "nodes": [
           {
@@ -27,66 +26,66 @@
             "isIndexer": false,
             "children": [
               {
-                "_key": "20250903-front-index-folder",
-                "_type": "treeNode",
-                "id": "folder-frontend-index",
-                "name": "{{.KebabCasePlural}}",
-                "type": "folder",
-                "code": "",
-                "isIndexer": false,
-                "children": [
-                  {
-                    "_key": "20250903-front-index-file",
-                    "_type": "treeNode",
-                    "id": "file-frontend-index",
-                    "name": "page.tsx",
-                    "type": "file",
-                    "isIndexer": false,
-                    "children": [],
-                    "code": "import Link from \"next/link\";\nimport type { Metadata } from \"next\";\nimport { client } from \"@/sanity/lib/client\";\nimport { all{{.PascalCasePlural}}Query } from \"@/sanity/lib/{{.KebabCasePageType}}.queries\";\n\nexport const metadata: Metadata = {\n  title: \"{{.PascalCasePlural}}\",\n  description: \"All {{.LowerCasePlural}}\"\n};\n\nexport default async function {{.PascalCasePageType}}IndexPage() {\n  const items = await client.fetch(all{{.PascalCasePlural}}Query);\n\n  if (!items?.length) {\n    return (\n      <main className=\"container mx-auto p-6\">\n        <h1 className=\"text-2xl font-semibold\">{{.PascalCasePlural}}</h1>\n        <p className=\"opacity-70 mt-2\">No {{.LowerCasePlural}} yet.</p>\n      </main>\n    );\n  }\n\n  return (\n    <main className=\"container mx-auto p-6\">\n      <h1 className=\"text-2xl font-semibold mb-6\">{{.PascalCasePlural}}</h1>\n      <ul className=\"space-y-4\">\n        {items.map((it: any) => (\n          <li key={it._id} className=\"border rounded-lg p-4\">\n            <h2 className=\"text-lg font-medium\">\n              <Link href={`/{{.KebabCasePageType}}/${it.slug}`}>{it.title}</Link>\n            </h2>\n            {it.excerpt && <p className=\"opacity-80 mt-1\">{it.excerpt}</p>}\n          </li>\n        ))}\n      </ul>\n    </main>\n  );\n}\n"
-                  }
-                ]
-              },
-              {
                 "_key": "20250903-front-slug-folder",
                 "_type": "treeNode",
-                "id": "folder-frontend-slug-root",
-                "name": "{{.KebabCasePageType}}",
-                "type": "folder",
-                "code": "",
-                "isIndexer": false,
                 "children": [
                   {
                     "_key": "20250903-front-slug-param",
                     "_type": "treeNode",
-                    "id": "folder-frontend-slug",
-                    "name": "[slug]",
-                    "type": "folder",
-                    "code": "",
-                    "isIndexer": false,
                     "children": [
                       {
                         "_key": "20250903-front-slug-page",
                         "_type": "treeNode",
-                        "id": "file-frontend-slug-page",
-                        "name": "page.tsx",
-                        "type": "file",
-                        "isIndexer": false,
                         "children": [],
-                        "code": "import type {Metadata, ResolvingMetadata} from 'next'\nimport {notFound} from 'next/navigation'\nimport {type PortableTextBlock} from 'next-sanity'\nimport {Suspense} from 'react'\n\nimport Avatar from '@/app/components/Avatar'\nimport CoverImage from '@/app/components/CoverImage'\nimport {MorePosts} from '@/app/components/Posts'\nimport PortableText from '@/app/components/PortableText'\nimport {sanityFetch} from '@/sanity/lib/live'\nimport { {{.LowerCasePageType}}Slugs, {{.LowerCasePageType}}BySlugQuery } from '@/sanity/lib/{{.KebabCasePageType}}.queries'\nimport {resolveOpenGraphImage} from '@/sanity/lib/utils'\n\nexport type Props = { params: Promise<{slug: string}> }\n\nexport async function generateStaticParams() {\n  const {data} = await sanityFetch({\n    query: {{.LowerCasePageType}}Slugs,\n    perspective: 'published',\n    stega: false,\n  })\n  return data\n}\n\nexport async function generateMetadata(props: Props, parent: ResolvingMetadata): Promise<Metadata> {\n  const params = await props.params\n  const {data: doc} = await sanityFetch({\n    query: {{.LowerCasePageType}}BySlugQuery,\n    params,\n    stega: false,\n  })\n\n  const previousImages = (await parent).openGraph?.images || []\n  const ogImage = resolveOpenGraphImage(doc?.coverImage)\n\n  return {\n    authors:\n      doc?.author?.firstName && doc?.author?.lastName\n        ? [{name: `${doc.author.firstName} ${doc.author.lastName}`}] \n        : [],\n    title: doc?.title,\n    description: doc?.excerpt,\n    openGraph: {\n      images: ogImage ? [ogImage, ...previousImages] : previousImages,\n    },\n  } satisfies Metadata\n}\n\nexport default async function {{.PascalCasePageType}}Page(props: Props) {\n  const params = await props.params\n  const [{data: doc}] = await Promise.all([\n    sanityFetch({ query: {{.LowerCasePageType}}BySlugQuery, params })\n  ])\n\n  if (!doc?._id) {\n    return notFound()\n  }\n\n  return (\n    <>\n      <div className=\"\">\n        <div className=\"container my-12 lg:my-24 grid gap-12\">\n          <div>\n            <div className=\"pb-6 grid gap-6 mb-6 border-b border-gray-100\">\n              <div className=\"max-w-3xl flex flex-col gap-6\">\n                <h2 className=\"text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-7xl\">\n                  {doc.title}\n                </h2>\n              </div>\n              <div className=\"max-w-3xl flex gap-4 items-center\">\n                {doc.author && doc.author.firstName && doc.author.lastName && (\n                  <Avatar person={doc.author} date={doc.date} />\n                )}\n              </div>\n            </div>\n            <article className=\"gap-6 grid max-w-4xl\">\n              <div className=\"\">\n                {doc?.coverImage && <CoverImage image={doc.coverImage} priority />}\n              </div>\n              {doc?.content?.length ? (\n                <PortableText className=\"max-w-2xl\" value={doc.content as PortableTextBlock[]} />\n              ) : null}\n            </article>\n          </div>\n        </div>\n      </div>\n      <div className=\"border-t border-gray-100 bg-gray-50\">\n        <div className=\"container py-12 lg:py-24 grid gap-12\">\n          <aside>\n            <Suspense>{await MorePosts({skip: doc._id, limit: 2})}</Suspense>\n          </aside>\n        </div>\n      </div>\n    </>\n  )\n}\n"
+                        "code": "import type {Metadata, ResolvingMetadata} from 'next'\nimport {notFound} from 'next/navigation'\nimport {type PortableTextBlock} from 'next-sanity'\nimport {Suspense} from 'react'\n\nimport Avatar from '@/app/components/Avatar'\nimport CoverImage from '@/app/components/CoverImage'\nimport {MorePosts} from '@/app/components/Posts'\nimport PortableText from '@/app/components/PortableText'\nimport {sanityFetch} from '@/sanity/lib/live'\nimport { {{.LowerCasePageType}}Slugs, {{.LowerCasePageType}}BySlugQuery } from '@/sanity/lib/{{.KebabCasePageType}}.queries'\nimport {resolveOpenGraphImage} from '@/sanity/lib/utils'\n\nexport type Props = { params: Promise<{slug: string}> }\n\nexport async function generateStaticParams() {\n  const {data} = await sanityFetch({\n    query: {{.LowerCasePageType}}Slugs,\n    perspective: 'published',\n    stega: false,\n  })\n  return data\n}\n\nexport async function generateMetadata(props: Props, parent: ResolvingMetadata): Promise<Metadata> {\n  const params = await props.params\n  const {data: doc} = await sanityFetch({\n    query: {{.LowerCasePageType}}BySlugQuery,\n    params,\n    stega: false,\n  })\n\n  const previousImages = (await parent).openGraph?.images || []\n  const ogImage = resolveOpenGraphImage(doc?.coverImage)\n\n  return {\n    authors:\n      doc?.author?.firstName && doc?.author?.lastName\n        ? [{name: `${doc.author.firstName} ${doc.author.lastName}`}] \n        : [],\n    title: doc?.title,\n    description: doc?.excerpt,\n    openGraph: {\n      images: ogImage ? [ogImage, ...previousImages] : previousImages,\n    },\n  } satisfies Metadata\n}\n\nexport default async function {{.PascalCasePageType}}Page(props: Props) {\n  const params = await props.params\n  const [{data: doc}] = await Promise.all([\n    sanityFetch({ query: {{.LowerCasePageType}}BySlugQuery, params })\n  ])\n\n  if (!doc?._id) {\n    return notFound()\n  }\n\n  return (\n    <>\n      <div className=\"\">\n        <div className=\"container my-12 lg:my-24 grid gap-12\">\n          <div>\n            <div className=\"pb-6 grid gap-6 mb-6 border-b border-gray-100\">\n              <div className=\"max-w-3xl flex flex-col gap-6\">\n                <h2 className=\"text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-7xl\">\n                  {doc.title}\n                </h2>\n              </div>\n              <div className=\"max-w-3xl flex gap-4 items-center\">\n                {doc.author && doc.author.firstName && doc.author.lastName && (\n                  <Avatar person={doc.author} date={doc.date} />\n                )}\n              </div>\n            </div>\n            <article className=\"gap-6 grid max-w-4xl\">\n              <div className=\"\">\n                {doc?.coverImage && <CoverImage image={doc.coverImage} priority />}\n              </div>\n              {doc?.content?.length ? (\n                <PortableText className=\"max-w-2xl\" value={doc.content as PortableTextBlock[]} />\n              ) : null}\n            </article>\n          </div>\n        </div>\n      </div>\n      <div className=\"border-t border-gray-100 bg-gray-50\">\n        <div className=\"container py-12 lg:py-24 grid gap-12\">\n          <aside>\n            <Suspense>{await MorePosts({skip: doc._id, limit: 2})}</Suspense>\n          </aside>\n        </div>\n      </div>\n    </>\n  )\n}\n",
+                        "id": "file-frontend-slug-page",
+                        "isIndexer": false,
+                        "name": "page.tsx",
+                        "type": "file"
                       }
-                    ]
+                    ],
+                    "code": "",
+                    "id": "folder-frontend-slug",
+                    "isIndexer": false,
+                    "name": "[slug]",
+                    "type": "folder"
                   }
-                ]
+                ],
+                "code": "",
+                "id": "folder-frontend-slug-root",
+                "isIndexer": false,
+                "name": "{{.KebabCasePageType}}",
+                "type": "folder"
+              },
+              {
+                "_key": "20250903-front-index-folder",
+                "_type": "treeNode",
+                "children": [
+                  {
+                    "_key": "20250903-front-index-file",
+                    "_type": "treeNode",
+                    "children": [],
+                    "code": "import Link from \"next/link\";\nimport type { Metadata } from \"next\";\nimport { client } from \"@/sanity/lib/client\";\nimport { all{{.PascalCasePlural}}Query } from \"@/sanity/lib/{{.KebabCasePageType}}.queries\";\n\nexport const metadata: Metadata = {\n  title: \"{{.PascalCasePlural}}\",\n  description: \"All {{.LowerCasePlural}}\"\n};\n\nexport default async function {{.PascalCasePageType}}IndexPage() {\n  const items = await client.fetch(all{{.PascalCasePlural}}Query);\n\n  if (!items?.length) {\n    return (\n      <main className=\"container mx-auto p-6\">\n        <h1 className=\"text-2xl font-semibold\">{{.PascalCasePlural}}</h1>\n        <p className=\"opacity-70 mt-2\">No {{.LowerCasePlural}} yet.</p>\n      </main>\n    );\n  }\n\n  return (\n    <main className=\"container mx-auto p-6\">\n      <h1 className=\"text-2xl font-semibold mb-6\">{{.PascalCasePlural}}</h1>\n      <ul className=\"space-y-4\">\n        {items.map((it: any) => (\n          <li key={it._id} className=\"border rounded-lg p-4\">\n            <h2 className=\"text-lg font-medium\">\n              <Link href={`/{{.KebabCasePageType}}/${it.slug}`}>{it.title}</Link>\n            </h2>\n            {it.excerpt && <p className=\"opacity-80 mt-1\">{it.excerpt}</p>}\n          </li>\n        ))}\n      </ul>\n    </main>\n  );\n}\n",
+                    "id": "file-frontend-index",
+                    "isIndexer": false,
+                    "name": "page.tsx",
+                    "type": "file"
+                  }
+                ],
+                "code": "",
+                "id": "folder-frontend-index",
+                "isIndexer": false,
+                "name": "{{.KebabCasePlural}}",
+                "type": "folder"
               }
             ]
           }
         ]
       },
       {
-        "_key": "20250903-front-queries",
+        "_key": "1756910010585-v96qm9f3v",
         "_type": "filePathGroup",
-        "id": "frontend-queries",
+        "id": "path-1756910010585-3xq0wiv",
         "path": "frontend/sanity/lib",
         "nodes": [
           {
@@ -95,16 +94,16 @@
             "id": "file-frontend-queries",
             "name": "{{.KebabCasePageType}}.queries.ts",
             "type": "file",
+            "code": "import { defineQuery } from \"next-sanity\";\nimport { linkReference, postFields } from \"./queries\";\n\n\nexport const all{{.PascalCasePlural}}Query = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageType}}BySlugQuery = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && slug.current == $slug] [0] {\n    content[]{\n    ...,\n    markDefs[]{\n      ...,\n      ${linkReference}\n    }\n  },\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageType}}Slugs = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`);\n",
             "isIndexer": false,
-            "children": [],
-            "code": "import { defineQuery } from \"next-sanity\";\n\nconst postFields = /* groq */ `\n  _id,\n  \"status\": select(_originalId in path(\"drafts.**\") => \"draft\", \"published\"),\n  \"title\": coalesce(title, \"Untitled\"),\n  \"slug\": slug.current,\n  excerpt,\n  coverImage,\n  \"date\": coalesce(date, _updatedAt),\n  \"author\": author->{firstName, lastName, picture},\n`;\n\nconst linkReference = /* groq */ `\n  _type == \"link\" => {\n    \"page\": page->slug.current,\n    \"post\": post->slug.current\n  }\n`;\n\nconst linkFields = /* groq */ `\n  link {\n      ...,\n      ${linkReference}\n      }\n`;\n\nexport const all{{.PascalCasePlural}}Query = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageType}}BySlugQuery = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && slug.current == $slug] [0] {\n    content[]{\n    ...,\n    markDefs[]{\n      ...,\n      ${linkReference}\n    }\n  },\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageType}}Slugs = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`);\n"
+            "children": []
           }
         ]
       },
       {
-        "_key": "20250903-studio-schema",
+        "_key": "1756910010585-7vkhg6dmi",
         "_type": "filePathGroup",
-        "id": "studio-schema",
+        "id": "path-1756910010585-cf0a4l4",
         "path": "studio/src/schemaTypes/documents",
         "nodes": [
           {
@@ -113,16 +112,16 @@
             "id": "file-studio-schema",
             "name": "{{.KebabCasePageType}}.ts",
             "type": "file",
+            "code": "import {DocumentTextIcon} from '@sanity/icons'\nimport {format, parseISO} from 'date-fns'\nimport {defineField, defineType} from 'sanity'\n\nexport const {{.LowerCasePageType}} = defineType({\n  name: '{{.LowerCasePageType}}',\n  title: '{{.PascalCasePageType}}',\n  icon: DocumentTextIcon,\n  type: 'document',\n  fields: [\n    defineField({\n      name: 'title',\n      title: 'Title',\n      type: 'string',\n      validation: (rule) => rule.required(),\n    }),\n    defineField({\n      name: 'slug',\n      title: 'Slug',\n      type: 'slug',\n      description: 'A slug is required for the page to show up in the preview',\n      options: {\n        source: 'title',\n        maxLength: 96,\n        isUnique: (value, context) => context.defaultIsUnique(value, context),\n      },\n      validation: (rule) => rule.required(),\n    }),\n    defineField({\n      name: 'content',\n      title: 'Content',\n      type: 'blockContent',\n    }),\n    defineField({\n      name: 'excerpt',\n      title: 'Excerpt',\n      type: 'text',\n    }),\n    defineField({\n      name: 'coverImage',\n      title: 'Cover Image',\n      type: 'image',\n      options: {\n        hotspot: true,\n        aiAssist: {\n          imageDescriptionField: 'alt',\n        },\n      },\n      fields: [\n        {\n          name: 'alt',\n          type: 'string',\n          title: 'Alternative text',\n          description: 'Important for SEO and accessibility.',\n          validation: (rule) => {\n            // Custom validation to ensure alt text is provided if the image is present. https://www.sanity.io/docs/validation\n            return rule.custom((alt, context) => {\n              if ((context.document?.coverImage as any)?.asset?._ref && !alt) {\n                return 'Required'\n              }\n              return true\n            })\n          },\n        },\n      ],\n      validation: (rule) => rule.required(),\n    }),\n    defineField({\n      name: 'date',\n      title: 'Date',\n      type: 'datetime',\n      initialValue: () => new Date().toISOString(),\n    }),\n    defineField({\n      name: 'author',\n      title: 'Author',\n      type: 'reference',\n      to: [{type: 'person'}],\n    }),\n  ],\n  // List preview configuration. https://www.sanity.io/docs/previews-list-views\n  preview: {\n    select: {\n      title: 'title',\n      authorFirstName: 'author.firstName',\n      authorLastName: 'author.lastName',\n      date: 'date',\n      media: 'coverImage',\n    },\n    prepare({title, media, authorFirstName, authorLastName, date}) {\n      const subtitles = [\n        authorFirstName && authorLastName && `by ${authorFirstName} ${authorLastName}`,\n        date && `on ${format(parseISO(date), 'LLL d, yyyy')}`,\n      ].filter(Boolean)\n\n      return {title, media, subtitle: subtitles.join(' ')}\n    },\n  },\n})\n",
             "isIndexer": false,
-            "children": [],
-            "code": "import {DocumentTextIcon} from '@sanity/icons'\nimport {format, parseISO} from 'date-fns'\nimport {defineField, defineType} from 'sanity'\n\nexport const {{.LowerCasePageType}} = defineType({\n  name: '{{.LowerCasePageType}}',\n  title: '{{.PascalCasePageType}}',\n  icon: DocumentTextIcon,\n  type: 'document',\n  fields: [\n    defineField({\n      name: 'title',\n      title: 'Title',\n      type: 'string',\n      validation: (rule) => rule.required(),\n    }),\n    defineField({\n      name: 'slug',\n      title: 'Slug',\n      type: 'slug',\n      description: 'A slug is required for the page to show up in the preview',\n      options: {\n        source: 'title',\n        maxLength: 96,\n        isUnique: (value, context) => context.defaultIsUnique(value, context),\n      },\n      validation: (rule) => rule.required(),\n    }),\n    defineField({\n      name: 'content',\n      title: 'Content',\n      type: 'blockContent',\n    }),\n    defineField({\n      name: 'excerpt',\n      title: 'Excerpt',\n      type: 'text',\n    }),\n    defineField({\n      name: 'coverImage',\n      title: 'Cover Image',\n      type: 'image',\n      options: {\n        hotspot: true,\n        aiAssist: {\n          imageDescriptionField: 'alt',\n        },\n      },\n      fields: [\n        {\n          name: 'alt',\n          type: 'string',\n          title: 'Alternative text',\n          description: 'Important for SEO and accessibility.',\n          validation: (rule) => {\n            // Custom validation to ensure alt text is provided if the image is present. https://www.sanity.io/docs/validation\n            return rule.custom((alt, context) => {\n              if ((context.document?.coverImage as any)?.asset?._ref && !alt) {\n                return 'Required'\n              }\n              return true\n            })\n          },\n        },\n      ],\n      validation: (rule) => rule.required(),\n    }),\n    defineField({\n      name: 'date',\n      title: 'Date',\n      type: 'datetime',\n      initialValue: () => new Date().toISOString(),\n    }),\n    defineField({\n      name: 'author',\n      title: 'Author',\n      type: 'reference',\n      to: [{type: 'person'}],\n    }),\n  ],\n  // List preview configuration. https://www.sanity.io/docs/previews-list-views\n  preview: {\n    select: {\n      title: 'title',\n      authorFirstName: 'author.firstName',\n      authorLastName: 'author.lastName',\n      date: 'date',\n      media: 'coverImage',\n    },\n    prepare({title, media, authorFirstName, authorLastName, date}) {\n      const subtitles = [\n        authorFirstName && authorLastName && `by ${authorFirstName} ${authorLastName}`,\n        date && `on ${format(parseISO(date), 'LLL d, yyyy')}`,\n      ].filter(Boolean)\n\n      return {title, media, subtitle: subtitles.join(' ')}\n    },\n  },\n})\n"
+            "children": []
           }
         ]
       },
       {
-        "_key": "20250903-studio-indexer-group",
+        "_key": "1756910010585-qbjt3ype1",
         "_type": "filePathGroup",
-        "id": "studio-indexer",
+        "id": "path-1756910010585-qntg5zw",
         "path": "studio/src/schemaTypes",
         "nodes": [
           {
@@ -131,12 +130,11 @@
             "id": "file-studio-indexer",
             "name": "index.ts",
             "type": "file",
-            "isIndexer": true,
-            "children": [],
-            "code": "// THIS IS AN INDEXER FILE\n\n// START OF DOCUMENT IMPORT\nimport { {{.LowerCasePageType}} } from './documents/{{.KebabCasePageType}}'\n// END OF DOCUMENT IMPORT\n\n// START OF DOCUMENT ARRAY ITEM\n  {{.LowerCasePageType}},\n// END OF DOCUMENT ARRAY ITEM\n"
+            "code": "// THIS IS AN INDEXER FILE\n\n// START OF DOCUMENT IMPORT\nimport { {{.LowerCasePageType}} } from './documents/{{.KebabCasePageType}}'\n// END OF DOCUMENT IMPORT\n\n// START OF DOCUMENT ARRAY ITEM\n  {{.LowerCasePageType}},\n// END OF DOCUMENT ARRAY ITEM\n",
+            "isIndexer": false,
+            "children": []
           }
         ]
       }
     ]
   }
-  

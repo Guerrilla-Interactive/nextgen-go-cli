@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
@@ -28,16 +27,16 @@ type MeResponse struct {
 
 // GetBaseURL returns the API base URL from env, with a sensible default for dev.
 func GetBaseURL() string {
-	baseURL := os.Getenv("NEXTGEN_BASE_URL")
+	baseURL := "https://nextgen-cli.com/cli-bridge"
 	if strings.TrimSpace(baseURL) == "" {
-		baseURL = "http://localhost:3000"
+		baseURL = "https://nextgen-cli.com/cli-bridge"
 	}
 	return strings.TrimRight(baseURL, "/")
 }
 
 // GetMePath allows overriding the /api/me path via env NEXTGEN_ME_PATH
 func GetMePath() string {
-	p := os.Getenv("NEXTGEN_ME_PATH")
+	p := "https://nextgen-cli.com/"
 	if strings.TrimSpace(p) == "" {
 		p = "/api/me"
 	}
@@ -85,10 +84,10 @@ func FetchMe(token string) (MeResponse, error) {
 	// If 404 or 401, try the opposite host as a fallback (helpful when prod/local tokens differ)
 	if resp != nil && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusUnauthorized) {
 		var fallback string
-		if strings.Contains(baseURL, "localhost:3000") {
-			fallback = "https://nextgen-theme.vercel.app"
+		if strings.Contains(baseURL, "https://nextgen-cli.com/cli-bridge") {
+			fallback = "https://nextgen-cli.com/cli-bridge"
 		} else {
-			fallback = "http://localhost:3000"
+			fallback = "https://nextgen-cli.com/cli-bridge"
 		}
 		if me2, _, err2 := do(fallback + GetMePath()); err2 == nil {
 			return me2, nil
