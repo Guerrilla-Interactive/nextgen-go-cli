@@ -122,8 +122,19 @@ func init() {
 		key := "auto/" + slug + ".json"
 		templateRegistry[key] = []byte(tmpl)
 
-		// Always visible so users can browse bundles regardless of project markers
-		Commands = append(Commands, CommandSpec{Name: title, Slug: slug, TemplatePath: key, Visibility: nil})
+		// Restrict visibility of bundle wrappers to projects that declare the category
+		// either in .nextgen/command-packages.json or package.json nextgen-identifiers
+		Commands = append(Commands, CommandSpec{
+			Name:         title,
+			Slug:         slug,
+			TemplatePath: key,
+			Visibility: &CommandVisibility{
+				AnyOf: []CommandVisibilityClause{
+					{CommandPackagesContains: []string{category}},
+					{PackageJSONArrayContains: map[string]string{"nextgen-identifiers": category}},
+				},
+			},
+		})
 	}
 
 	// Ensure stable ordering for UI lists

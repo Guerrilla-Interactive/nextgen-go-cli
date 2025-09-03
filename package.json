@@ -2,7 +2,6 @@
   "name": "nextgen-go-cli",
   "version": "1.0.88",
   "nextgen-identifiers": [
-    "nextjs",
     "sanity-template-nextjs-clean"
   ],
   "description": "A CLI tool built in Go",
