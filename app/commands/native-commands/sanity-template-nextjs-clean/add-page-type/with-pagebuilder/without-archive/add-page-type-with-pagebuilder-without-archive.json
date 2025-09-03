@@ -86,12 +86,11 @@
             "target": "_type == \"link\" => {",  
             "behaviour": "insertAfter"
             }
-          },
-          
+          },     
           {"mark":"SITEMAP TYPES", "fallback":{
             "target": "&& defined(slug.current)] | order(_type asc)",
             "behaviour": "insertBeforeInline",
-            "content": "&&_type == \"{{.LowerCasePageType}}\"",
+            "content": " &&_type == \"{{.LowerCasePageType}}\"",
             "fallbackOnly": true
           }}],
           "name": "queries.ts",

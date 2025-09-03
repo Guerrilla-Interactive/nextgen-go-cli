@@ -97,6 +97,28 @@
             "code": "import { defineQuery } from \"next-sanity\";\nimport { linkReference, postFields } from \"./queries\";\n\n\nexport const all{{.PascalCasePlural}}Query = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageType}}BySlugQuery = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && slug.current == $slug] [0] {\n    content[]{\n    ...,\n    markDefs[]{\n      ...,\n      ${linkReference}\n    }\n  },\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageType}}Slugs = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`);\n",
             "isIndexer": false,
             "children": []
+          },
+          {
+            "_key": "1756919951450-hqircx415",
+            "_type": "treeNode",
+            "id": "file-1756919951450",
+            "markers": 
+            [{"mark":"LINK REFERENCES", "fallback":{
+              "target": "_type == \"link\" => {",  
+              "behaviour": "insertAfter"
+              }
+            },     
+            {"mark":"SITEMAP TYPES", "fallback":{
+              "target": "&& defined(slug.current)] | order(_type asc)",
+              "behaviour": "insertBeforeInline",
+              "content": " &&_type == \"{{.LowerCasePageType}}\"",
+              "fallbackOnly": true
+            }}],
+            "name": "queries.ts",
+            "type": "file",
+            "code": "//THIS IS AN INDEXER FILE \nimport {defineQuery} from 'next-sanity'\r\n\r\nexport const settingsQuery = defineQuery(`*[_type == \"settings\"][0]`)\r\n\r\nexport const postFields = /* groq */ `\r\n  _id,\r\n  \"status\": select(_originalId in path(\"drafts.**\") => \"draft\", \"published\"),\r\n  \"title\": coalesce(title, \"Untitled\"),\r\n  \"slug\": slug.current,\r\n  excerpt,\r\n  coverImage,\r\n  \"date\": coalesce(date, _updatedAt),\r\n  \"author\": author->{firstName, lastName, picture},\r\n`\r\n\r\nexport const linkReference = /* groq */ `\r\n  _type == \"link\" => {\r\n    \"page\": page->slug.current,\r\n    \"post\": post->slug.current,\r\n    // START OF LINK REFERENCES \r\n    \"{{.LowerCasePageType}}\": {{.LowerCasePageType}}->slug.current,\r\n    // END OF LINK REFERENCES IMPORT\r\n\r\n  }\r\n`\r\n\r\nexport const linkFields = /* groq */ `\r\n  link {\r\n      ...,\r\n      ${linkReference}\r\n      }\r\n`\r\n\r\nexport const pageBuilderFields = /* groq */ `\r\n  ...,\r\n  _type == \"callToAction\" => {\r\n    ${linkFields},\r\n  },\r\n  _type == \"infoSection\" => {\r\n    content[]{\r\n      ...,\r\n      markDefs[]{\r\n        ...,\r\n        ${linkReference}\r\n      }\r\n    }\r\n  }\r\n`\r\n\r\nexport const getPageQuery = defineQuery(`\r\n  *[_type == 'page' && slug.current == $slug][0]{\r\n    _id,\r\n    _type,\r\n    name,\r\n    slug,\r\n    heading,\r\n    subheading,\r\n    \"pageBuilder\": pageBuilder[]{\r\n      ${pageBuilderFields}\r\n    },\r\n  }\r\n`)\r\n\r\n\r\n\r\nexport const sitemapData = defineQuery(`\r\n  *[_type == \"page\" || _type == \"post\" && // START OF SITEMAP TYPES ITEM && _type == \"{{.LowerCasePageType}}\" && // END OF SITEMAP TYPES ITEM defined(slug.current)] | order(_type asc) {\r\n    \"slug\": slug.current,\r\n    _type,\r\n    _updatedAt,\r\n  }\r\n`)\r\n\r\nexport const allPostsQuery = defineQuery(`\r\n  *[_type == \"post\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\r\n    ${postFields}\r\n  }\r\n`)\r\n\r\nexport const morePostsQuery = defineQuery(`\r\n  *[_type == \"post\" && _id != $skip && defined(slug.current)] | order(date desc, _updatedAt desc) [0...$limit] {\r\n    ${postFields}\r\n  }\r\n`)\r\n\r\nexport const postQuery = defineQuery(`\r\n  *[_type == \"post\" && slug.current == $slug] [0] {\r\n    content[]{\r\n    ...,\r\n    markDefs[]{\r\n      ...,\r\n      ${linkReference}\r\n    }\r\n  },\r\n    ${postFields}\r\n  }\r\n`)\r\n\r\nexport const postPagesSlugs = defineQuery(`\r\n  *[_type == \"post\" && defined(slug.current)]\r\n  {\"slug\": slug.current}\r\n`)\r\n\r\nexport const pagesSlugs = defineQuery(`\r\n  *[_type == \"page\" && defined(slug.current)]\r\n  {\"slug\": slug.current}\r\n`)\r\n",
+            "isIndexer": true,
+            "children": []
           }
         ]
       },
