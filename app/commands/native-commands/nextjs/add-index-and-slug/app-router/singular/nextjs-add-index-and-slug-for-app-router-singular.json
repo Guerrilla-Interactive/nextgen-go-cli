@@ -1,8 +1,8 @@
 {
     "_type": "command",
-    "title": "PageType for Index + Slug (Singular Only)",
+    "title": "Nextjs Add Index and Slug for App Router Singular",
     "choiceName": "Singular Only",
-    "slug": "page-type-index-and-slug-singular",
+    "slug": "nextjs-add-index-and-slug-for-app-router-singular",
     "show": { "anyOf": [
       { "packageJson": { "name": "never" } },
       { "packageJsonArrayContains": { "nextgen-identifiers": "never" } },

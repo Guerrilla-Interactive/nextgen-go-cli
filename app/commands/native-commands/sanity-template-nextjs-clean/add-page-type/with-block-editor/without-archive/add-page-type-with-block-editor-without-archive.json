@@ -1,0 +1,120 @@
+{
+  "_id": "add-page-type-with-block-editor-without-archive",
+  "_type": "command",
+  "title": "Add PageType with Block Editor without Archive",
+  "slug": "add-page-type-with-block-editor-without-archive",
+  "show": {
+    "anyOf": [
+      { "packageJson": { "name": "sanity-template-nextjs-clean" } },
+      { "packageJsonArrayContains": { "nextgen-identifiers": "sanity-template-nextjs-clean" } },
+      { "commandPackagesContains": ["sanity-template-nextjs-clean"] }
+    ]
+  },
+  "filePaths": [
+    {
+      "_key": "20250903-front-routes",
+      "_type": "filePathGroup",
+      "id": "frontend-routes",
+      "path": "frontend/app",
+      "nodes": [
+        {
+          "_key": "20250903-front-routes-group",
+          "_type": "treeNode",
+          "id": "folder-frontend-routes-group",
+          "name": "({{.KebabCasePageType}}-route)",
+          "type": "folder",
+          "code": "",
+          "isIndexer": false,
+          "children": [
+            {
+              "_key": "20250903-front-slug-folder",
+              "_type": "treeNode",
+              "id": "folder-frontend-slug-root",
+              "name": "{{.KebabCasePageType}}",
+              "type": "folder",
+              "code": "",
+              "isIndexer": false,
+              "children": [
+                {
+                  "_key": "20250903-front-slug-param",
+                  "_type": "treeNode",
+                  "id": "folder-frontend-slug",
+                  "name": "[slug]",
+                  "type": "folder",
+                  "code": "",
+                  "isIndexer": false,
+                  "children": [
+                    {
+                      "_key": "20250903-front-slug-page",
+                      "_type": "treeNode",
+                      "id": "file-frontend-slug-page",
+                      "name": "page.tsx",
+                      "type": "file",
+                      "isIndexer": false,
+                      "children": [],
+                      "code": "import type {Metadata, ResolvingMetadata} from 'next'\nimport {notFound} from 'next/navigation'\nimport {type PortableTextBlock} from 'next-sanity'\nimport {Suspense} from 'react'\n\nimport Avatar from '@/app/components/Avatar'\nimport CoverImage from '@/app/components/CoverImage'\nimport {MorePosts} from '@/app/components/Posts'\nimport PortableText from '@/app/components/PortableText'\nimport {sanityFetch} from '@/sanity/lib/live'\nimport { {{.LowerCasePageType}}Slugs, {{.LowerCasePageType}}BySlugQuery } from '@/sanity/lib/{{.KebabCasePageType}}.queries'\nimport {resolveOpenGraphImage} from '@/sanity/lib/utils'\n\nexport type Props = { params: Promise<{slug: string}> }\n\nexport async function generateStaticParams() {\n  const {data} = await sanityFetch({\n    query: {{.LowerCasePageType}}Slugs,\n    perspective: 'published',\n    stega: false,\n  })\n  return data\n}\n\nexport async function generateMetadata(props: Props, parent: ResolvingMetadata): Promise<Metadata> {\n  const params = await props.params\n  const {data: doc} = await sanityFetch({\n    query: {{.LowerCasePageType}}BySlugQuery,\n    params,\n    stega: false,\n  })\n\n  const previousImages = (await parent).openGraph?.images || []\n  const ogImage = resolveOpenGraphImage(doc?.coverImage)\n\n  return {\n    authors:\n      doc?.author?.firstName && doc?.author?.lastName\n        ? [{name: `${doc.author.firstName} ${doc.author.lastName}`}] \n        : [],\n    title: doc?.title,\n    description: doc?.excerpt,\n    openGraph: {\n      images: ogImage ? [ogImage, ...previousImages] : previousImages,\n    },\n  } satisfies Metadata\n}\n\nexport default async function {{.PascalCasePageType}}Page(props: Props) {\n  const params = await props.params\n  const [{data: doc}] = await Promise.all([\n    sanityFetch({ query: {{.LowerCasePageType}}BySlugQuery, params })\n  ])\n\n  if (!doc?._id) {\n    return notFound()\n  }\n\n  return (\n    <>\n      <div className=\"\">\n        <div className=\"container my-12 lg:my-24 grid gap-12\">\n          <div>\n            <div className=\"pb-6 grid gap-6 mb-6 border-b border-gray-100\">\n              <div className=\"max-w-3xl flex flex-col gap-6\">\n                <h2 className=\"text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-7xl\">\n                  {doc.title}\n                </h2>\n              </div>\n              <div className=\"max-w-3xl flex gap-4 items-center\">\n                {doc.author && doc.author.firstName && doc.author.lastName && (\n                  <Avatar person={doc.author} date={doc.date} />\n                )}\n              </div>\n            </div>\n            <article className=\"gap-6 grid max-w-4xl\">\n              <div className=\"\">\n                {doc?.coverImage && <CoverImage image={doc.coverImage} priority />}\n              </div>\n              {doc?.content?.length ? (\n                <PortableText className=\"max-w-2xl\" value={doc.content as PortableTextBlock[]} />\n              ) : null}\n            </article>\n          </div>\n        </div>\n      </div>\n      <div className=\"border-t border-gray-100 bg-gray-50\">\n        <div className=\"container py-12 lg:py-24 grid gap-12\">\n          <aside>\n            <Suspense>{await MorePosts({skip: doc._id, limit: 2})}</Suspense>\n          </aside>\n        </div>\n      </div>\n    </>\n  )\n}\n"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "_key": "20250903-front-queries",
+      "_type": "filePathGroup",
+      "id": "frontend-queries",
+      "path": "frontend/sanity/lib",
+      "nodes": [
+        {
+          "_key": "20250903-front-queries-file",
+          "_type": "treeNode",
+          "id": "file-frontend-queries",
+          "name": "{{.KebabCasePageType}}.queries.ts",
+          "type": "file",
+          "isIndexer": false,
+          "children": [],
+          "code": "import { defineQuery } from \"next-sanity\";\n\nexport const fields = /* groq */ `\n  _id,\n  \"title\": coalesce(title, \"Untitled\"),\n  \"slug\": slug.current,\n  excerpt,\n  hero,\n  content\n`;\n\n// List (plural)\nexport const all{{.PascalCasePlural}}Query = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)] | order(_updatedAt desc) {\n    ${fields}\n  }\n`);\n\n// By slug (singular)\nexport const {{.LowerCasePageType}}BySlugQuery = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && slug.current == $slug][0] {\n    ${fields}\n  }\n`);\n\n// Slugs only\nexport const {{.LowerCasePageType}}Slugs = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)]{ \"slug\": slug.current }\n`);\n"
+        }
+      ]
+    },
+    {
+      "_key": "20250903-studio-schema",
+      "_type": "filePathGroup",
+      "id": "studio-schema",
+      "path": "studio/src/schemaTypes/documents",
+      "nodes": [
+        {
+          "_key": "20250903-studio-schema-file",
+          "_type": "treeNode",
+          "id": "file-studio-schema",
+          "name": "{{.KebabCasePageType}}.ts",
+          "type": "file",
+          "isIndexer": false,
+          "children": [],
+          "code": "import {defineField, defineType} from 'sanity'\nimport { DocumentIcon } from '@sanity/icons'\n\nexport const {{.LowerCasePageType}} = defineType({\n  name: '{{.LowerCasePageType}}',\n  title: '{{.PascalCasePageType}}',\n  type: 'document',\n  icon: DocumentIcon,\n  fields: [\n    defineField({ name: 'title', title: 'Title', type: 'string', validation: r => r.required() }),\n    defineField({ name: 'slug', title: 'Slug', type: 'slug', options: { source: 'title', maxLength: 96 }, validation: r => r.required() }),\n    defineField({ name: 'excerpt', title: 'Excerpt', type: 'text' }),\n    defineField({\n      name: 'hero', title: 'Hero image', type: 'image', options: { hotspot: true, aiAssist: { imageDescriptionField: 'alt' } },\n      fields: [\n        defineField({ name: 'alt', title: 'Alt text', type: 'string', description: 'Important for SEO and accessibility.', validation: rule => rule.custom((alt, ctx) => { if ((ctx.document?.hero as any)?.asset?._ref && !alt) return 'Required'; return true; }) })\n      ]\n    }),\n    defineField({ name: 'content', title: 'Content', type: 'blockContent' }),\n  ],\n  preview: {\n    select: { title: 'title', media: 'hero' },\n    prepare({ title, media }) { return { title, media } }\n  }\n})\n"
+        }
+      ]
+    },
+    {
+      "_key": "20250903-studio-indexer-group",
+      "_type": "filePathGroup",
+      "id": "studio-indexer",
+      "path": "studio/src/schemaTypes",
+      "nodes": [
+        {
+          "_key": "20250903-studio-indexer-file",
+          "_type": "treeNode",
+          "id": "file-studio-indexer",
+          "name": "index.ts",
+          "type": "file",
+          "isIndexer": true,
+          "children": [],
+          "code": "// THIS IS AN INDEXER FILE\n\n// START OF DOCUMENT IMPORT\nimport { {{.LowerCasePageType}} } from './documents/{{.KebabCasePageType}}'\n// END OF DOCUMENT IMPORT\n\n// START OF DOCUMENT ARRAY ITEM\n  {{.LowerCasePageType}},\n// END OF DOCUMENT ARRAY ITEM\n"
+        }
+      ]
+    }
+  ]
+}

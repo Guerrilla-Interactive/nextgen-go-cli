@@ -55,9 +55,7 @@ func init() {
 				Run       []any              `json:"run"`
 			}
 			var m minimal
-			if json.Unmarshal(data, &m) != nil {
-				// ignore parse error for title extraction; fallback to filename
-			}
+			_ = json.Unmarshal(data, &m) // ignore parse error for title extraction; fallback to filename
 			name := strings.TrimSpace(m.Title)
 			if name == "" {
 				base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
@@ -86,6 +84,8 @@ func init() {
 
 	// Synthesize folder-level commands for native-commands/<category>/<bundle>
 	dirsAdded := map[string]bool{}
+	// Also synthesize category-level commands for native-commands/<category>
+	categoriesAdded := map[string]bool{}
 	for _, p := range discovered {
 		// Expect paths like native-commands/<category>/<bundle>/.../file.json
 		parts := strings.Split(p, "/")
@@ -95,6 +95,15 @@ func init() {
 		if parts[0] != "native-commands" {
 			continue
 		}
+
+		// --- Category-level synthetic command: native-commands/<category>
+		// Category folders are identifiers only; do not register as commands
+		categoryKey := strings.Join(parts[:2], "/") // native-commands/<category>
+		category := parts[1]
+		if !categoriesAdded[categoryKey] {
+			categoriesAdded[categoryKey] = true
+		}
+
 		folderKey := strings.Join(parts[:3], "/") // native-commands/nextjs/add-index-and-slug
 		if dirsAdded[folderKey] {
 			continue
@@ -102,7 +111,7 @@ func init() {
 		dirsAdded[folderKey] = true
 		// Build synthetic template bytes with autoBrowseRoot (for future browsing) or minimal marker
 		bundle := parts[2]
-		category := parts[1]
+		category = parts[1]
 		// Title derived from bundle
 		title := strings.ReplaceAll(bundle, "-", " ")
 		if !strings.HasPrefix(strings.ToLower(title), "add ") && !strings.HasPrefix(strings.ToLower(title), "remove ") {
@@ -113,15 +122,8 @@ func init() {
 		key := "auto/" + slug + ".json"
 		templateRegistry[key] = []byte(tmpl)
 
-		// Assign visibility so synthetic commands only show when identified
-		vis := &CommandVisibility{
-			AnyOf: []CommandVisibilityClause{
-				{PackageJSONArrayContains: map[string]string{"nextgen-identifiers": category}},
-				{CommandPackagesContains: []string{category}},
-				{PackageJSON: map[string]string{"name": category}},
-			},
-		}
-		Commands = append(Commands, CommandSpec{Name: title, Slug: slug, TemplatePath: key, Visibility: vis})
+		// Always visible so users can browse bundles regardless of project markers
+		Commands = append(Commands, CommandSpec{Name: title, Slug: slug, TemplatePath: key, Visibility: nil})
 	}
 
 	// Ensure stable ordering for UI lists

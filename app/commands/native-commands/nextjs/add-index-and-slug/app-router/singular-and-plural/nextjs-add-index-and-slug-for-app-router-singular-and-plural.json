@@ -1,8 +1,8 @@
 {
     "_type": "command",
-    "title": "PageType for Index + Slug (Singular + Plural)",
+    "title": "Nextjs Add Index and Slug for App Router Singular and Plural",
     "choiceName": "Singular + Plural",
-    "slug": "page-type-index-and-slug-singular-and-plural",
+    "slug": "nextjs-add-index-and-slug-for-app-router-singular-and-plural",
     "show": { "anyOf": [
       { "packageJson": { "name": "never" } },
       { "packageJsonArrayContains": { "nextgen-identifiers": "never" } },

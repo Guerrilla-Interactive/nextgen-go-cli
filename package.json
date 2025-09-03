@@ -1,8 +1,9 @@
 {
   "name": "nextgen-go-cli",
-  "version": "1.0.86",
+  "version": "1.0.80",
   "nextgen-identifiers": [
-    "nextjs"
+    "nextjs",
+    "sanity-template-nextjs-clean"
   ],
   "description": "A CLI tool built in Go",
   "keywords": [],
@@ -16,7 +17,7 @@
     "deploy": "node scripts/deploy.js",
     "postinstall": "node scripts/postinstall.js",
     "tag-release": "node scripts/tag-and-push-version.js"
-  },
+  },,
   "files": [
     "dist/nextgen-go-cli_darwin_amd64_v1/nextgen-go-cli",
     "dist/nextgen-go-cli_linux_amd64_v1/nextgen-go-cli",
