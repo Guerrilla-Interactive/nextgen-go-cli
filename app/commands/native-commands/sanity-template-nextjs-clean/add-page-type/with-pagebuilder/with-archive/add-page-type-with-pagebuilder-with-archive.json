@@ -5,9 +5,9 @@
     "slug": "add-page-type-with-pagebuilder-with-archive",
     "show": {
       "anyOf": [
-        { "packageJson": { "name": "sanity-template-nextjs-clean" } },
-        { "packageJsonArrayContains": { "nextgen-identifiers": "sanity-template-nextjs-clean" } },
-        { "commandPackagesContains": ["sanity-template-nextjs-clean"] }
+        { "packageJson": { "name": "never" } },
+        { "packageJsonArrayContains": { "nextgen-identifiers": "never" } },
+        { "commandPackagesContains": ["never"] }
       ]
     },
     "filePaths": [
