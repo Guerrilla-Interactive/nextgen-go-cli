@@ -157,6 +157,326 @@ func autoInsertIndexerMarkers(existingContent string, snippetKeys []string) (str
 	return strings.Join(lines, "\n"), true
 }
 
+// markerForKeyExists returns true if there is already an ADD marker for the given key
+// in the existing content (either ABOVE or BELOW).
+func markerForKeyExists(content, key string) bool {
+	// Build a regex that matches either ABOVE or BELOW for the specific key
+	pattern := regexp.MustCompile(`(?m)^\s*//\s*ADD\s+` + regexp.QuoteMeta(key) + `\s+(?:BELOW|ABOVE)\s*$`)
+	return pattern.FindStringIndex(content) != nil
+}
+
+// insertAddMarkerAfterFallback finds the provided fallback snippet (which can be multi-line)
+// in the existing content and inserts a marker line immediately after the fallback block.
+// The inserted marker is of the form "// ADD <key> BELOW" and reuses the indentation of
+// the last line of the fallback block. Returns the modified content and whether an insertion occurred.
+func insertAddMarkerAfterFallback(existingContent, key, fallback string) (string, bool) {
+	if strings.TrimSpace(fallback) == "" {
+		return existingContent, false
+	}
+
+	lines := strings.Split(existingContent, "\n")
+	want := strings.Split(strings.TrimSuffix(fallback, "\n"), "\n")
+	// Trim trailing empty lines in want to improve matching resilience
+	for len(want) > 0 && strings.TrimSpace(want[len(want)-1]) == "" {
+		want = want[:len(want)-1]
+	}
+	if len(want) == 0 {
+		return existingContent, false
+	}
+
+	lastMatchEnd := -1
+	lastIndent := ""
+	// Search for the last occurrence to place marker near the end of similar blocks
+	for i := 0; i+len(want) <= len(lines); i++ {
+		matched := true
+		for j := 0; j < len(want); j++ {
+			if strings.TrimSpace(lines[i+j]) != strings.TrimSpace(want[j]) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			lastMatchEnd = i + len(want) - 1
+			// capture indentation of the last line of the matched block
+			ln := lines[lastMatchEnd]
+			idx := 0
+			for idx < len(ln) && (ln[idx] == ' ' || ln[idx] == '\t') {
+				idx++
+			}
+			lastIndent = ln[:idx]
+		}
+	}
+	if lastMatchEnd == -1 {
+		// Fallback not found; try heuristic anchors based on key
+		upperKey := strings.ToUpper(strings.TrimSpace(key))
+		anchorIdx := -1
+		// Helper to compute indentation from a line index
+		getIndent := func(idx int) string {
+			if idx < 0 || idx >= len(lines) {
+				return ""
+			}
+			ln := lines[idx]
+			i := 0
+			for i < len(ln) && (ln[i] == ' ' || ln[i] == '\t') {
+				i++
+			}
+			return ln[:i]
+		}
+		// Heuristic 1: LINK REFERENCES → place after post->slug.current or page->slug.current
+		if strings.Contains(upperKey, "LINK REFERENCES") {
+			rePost := regexp.MustCompile(`(?m)^.*"post"\s*:\s*post->slug\.current.*$`)
+			rePage := regexp.MustCompile(`(?m)^.*"page"\s*:\s*page->slug\.current.*$`)
+			content := strings.Join(lines, "\n")
+			if loc := rePost.FindStringIndex(content); loc != nil {
+				upto := content[:loc[1]]
+				anchorIdx = strings.Count(upto, "\n") - 1
+			} else if loc := rePage.FindStringIndex(content); loc != nil {
+				upto := content[:loc[1]]
+				anchorIdx = strings.Count(upto, "\n") - 1
+			}
+			if anchorIdx >= 0 {
+				lastIndent = getIndent(anchorIdx)
+				marker := lastIndent + "// ADD " + key + " BELOW"
+				insertAt := anchorIdx + 1
+				if insertAt < 0 {
+					insertAt = 0
+				}
+				if insertAt > len(lines) {
+					insertAt = len(lines)
+				}
+				lines = append(lines[:insertAt], append([]string{marker}, lines[insertAt:]...)...)
+				return strings.Join(lines, "\n"), true
+			}
+		}
+		// Heuristic 2: SITEMAP TYPES → place near defined(slug.current)
+		if strings.Contains(upperKey, "SITEMAP TYPES") {
+			reDef := regexp.MustCompile(`(?m)^.*defined\(slug\.current\).*$`)
+			content := strings.Join(lines, "\n")
+			if loc := reDef.FindStringIndex(content); loc != nil {
+				upto := content[:loc[1]]
+				anchorIdx = strings.Count(upto, "\n") - 1
+				lastIndent = getIndent(anchorIdx)
+				marker := lastIndent + "// ADD " + key + " BELOW"
+				insertAt := anchorIdx + 1
+				if insertAt < 0 {
+					insertAt = 0
+				}
+				if insertAt > len(lines) {
+					insertAt = len(lines)
+				}
+				lines = append(lines[:insertAt], append([]string{marker}, lines[insertAt:]...)...)
+				return strings.Join(lines, "\n"), true
+			}
+		}
+		// Fallback: append to end using indentation of last non-empty line
+		for i := len(lines) - 1; i >= 0; i-- {
+			if strings.TrimSpace(lines[i]) != "" {
+				ln := lines[i]
+				idx := 0
+				for idx < len(ln) && (ln[idx] == ' ' || ln[idx] == '\t') {
+					idx++
+				}
+				lastIndent = ln[:idx]
+				break
+			}
+		}
+		marker := lastIndent + "// ADD " + key + " BELOW"
+		lines = append(lines, marker)
+		return strings.Join(lines, "\n"), true
+	}
+
+	// Insert the marker on the next line after the matched block
+	marker := lastIndent + "// ADD " + key + " BELOW"
+	insertAt := lastMatchEnd + 1
+	if insertAt < 0 {
+		insertAt = 0
+	}
+	if insertAt > len(lines) {
+		insertAt = len(lines)
+	}
+	lines = append(lines[:insertAt], append([]string{marker}, lines[insertAt:]...)...)
+	return strings.Join(lines, "\n"), true
+}
+
+// insertAddMarkerRelativeToTarget inserts an ADD marker relative to the first/last
+// line that contains the provided target substring, following the specified behaviour
+// ("insertAfter" or "insertBefore"). It preserves the indentation of the anchor line.
+func insertAddMarkerRelativeToTarget(existingContent, key, target, behaviour string) (string, bool) {
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return existingContent, false
+	}
+	behaviour = strings.ToLower(strings.TrimSpace(behaviour))
+	if behaviour != "insertbefore" && behaviour != "insertafter" {
+		// Default to insertAfter if unspecified or invalid
+		behaviour = "insertafter"
+	}
+	lines := strings.Split(existingContent, "\n")
+	anchorIdx := -1
+	// Find the last occurrence to bias towards the most local context
+	for i := 0; i < len(lines); i++ {
+		if strings.Contains(lines[i], target) {
+			anchorIdx = i
+		}
+	}
+	if anchorIdx == -1 {
+		return existingContent, false
+	}
+	// Compute indentation from anchor line
+	ln := lines[anchorIdx]
+	j := 0
+	for j < len(ln) && (ln[j] == ' ' || ln[j] == '\t') {
+		j++
+	}
+	indent := ln[:j]
+	marker := indent + "// ADD " + key + " "
+	if behaviour == "insertafter" {
+		marker += "BELOW"
+		insertAt := anchorIdx + 1
+		if insertAt < 0 {
+			insertAt = 0
+		}
+		if insertAt > len(lines) {
+			insertAt = len(lines)
+		}
+		lines = append(lines[:insertAt], append([]string{marker}, lines[insertAt:]...)...)
+	} else {
+		marker += "ABOVE"
+		insertAt := anchorIdx
+		if insertAt < 0 {
+			insertAt = 0
+		}
+		if insertAt > len(lines) {
+			insertAt = len(lines)
+		}
+		lines = append(lines[:insertAt], append([]string{marker}, lines[insertAt:]...)...)
+	}
+	return strings.Join(lines, "\n"), true
+}
+
+// findSnippetForKeyGlobal exposes fuzzy snippet lookup used by smartMerge as a reusable helper.
+func findSnippetForKeyGlobal(snippetMap map[string]string, key string) (string, bool) {
+	sanitize := func(s string) string {
+		s = strings.ToUpper(strings.TrimSpace(s))
+		var b strings.Builder
+		for i := 0; i < len(s); i++ {
+			c := s[i]
+			if (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+				b.WriteByte(c)
+			}
+		}
+		return b.String()
+	}
+	if sn, ok := snippetMap[key]; ok && strings.TrimSpace(sn) != "" {
+		return sn, true
+	}
+	target := sanitize(key)
+	type cand struct {
+		k  string
+		sn string
+	}
+	var contains []cand
+	for sk, sn := range snippetMap {
+		if strings.TrimSpace(sn) == "" {
+			continue
+		}
+		skSan := sanitize(sk)
+		if skSan == target {
+			return sn, true
+		}
+		if strings.Contains(skSan, target) {
+			contains = append(contains, cand{sk, sn})
+		}
+	}
+	if len(contains) == 1 {
+		return contains[0].sn, true
+	}
+	if len(contains) > 1 {
+		best := contains[0]
+		for _, c := range contains[1:] {
+			if len(c.k) < len(best.k) {
+				best = c
+			}
+		}
+		return best.sn, true
+	}
+	for sk, sn := range snippetMap {
+		if strings.TrimSpace(sn) == "" {
+			continue
+		}
+		skSan := sanitize(sk)
+		if strings.Contains(target, skSan) {
+			return sn, true
+		}
+	}
+	return "", false
+}
+
+// insertSnippetInlineRelativeToTarget inserts snippet directly before/after the
+// first/last occurrence of target within a single line (inline). It avoids
+// adding any markers. Returns modified content and whether insertion occurred.
+func insertSnippetInlineRelativeToTarget(existingContent, snippet, target, behaviour string) (string, bool) {
+	target = strings.TrimSpace(target)
+	if target == "" || strings.TrimSpace(snippet) == "" {
+		return existingContent, false
+	}
+	// Normalize snippet to single-line for inline insertion
+	compressWS := func(s string) string {
+		// Replace any CRLF with LF, then collapse whitespace sequences to single space
+		s = strings.ReplaceAll(s, "\r\n", "\n")
+		s = strings.ReplaceAll(s, "\r", "\n")
+		fields := strings.Fields(s)
+		return strings.Join(fields, " ")
+	}
+	snippetInline := compressWS(snippet)
+	behaviour = strings.ToLower(strings.TrimSpace(behaviour))
+	if behaviour != "insertbeforeinline" && behaviour != "insertafterinline" {
+		// Default to before-inline for safety when specified inline behaviour is off
+		behaviour = "insertbeforeinline"
+	}
+	lines := strings.Split(existingContent, "\n")
+	// Find anchor line index and column for last occurrence of target
+	anchorLine := -1
+	anchorCol := -1
+	for i := 0; i < len(lines); i++ {
+		if idx := strings.LastIndex(lines[i], target); idx >= 0 {
+			anchorLine = i
+			anchorCol = idx
+		}
+	}
+	if anchorLine == -1 {
+		return existingContent, false
+	}
+	line := lines[anchorLine]
+	// Check idempotency: if snippet already exists inline before/after target on the same line
+	if behaviour == "insertbeforeinline" {
+		// If the content immediately before target already ends with snippetInline, skip
+		before := line[:anchorCol]
+		if strings.Contains(before, snippetInline) {
+			return existingContent, false
+		}
+		// Insert snippet before target, preserving spacing: ensure a space separator if needed
+		sep := ""
+		if anchorCol > 0 && !strings.HasSuffix(before, " ") {
+			sep = " "
+		}
+		line = before + sep + snippetInline + " " + line[anchorCol:]
+	} else { // insertafterinline
+		afterIdx := anchorCol + len(target)
+		after := line[afterIdx:]
+		if strings.Contains(after, snippetInline) {
+			return existingContent, false
+		}
+		sep := ""
+		if len(after) > 0 && !strings.HasPrefix(after, " ") {
+			sep = " "
+		}
+		line = line[:afterIdx] + sep + snippetInline + " " + after
+	}
+	lines[anchorLine] = line
+	return strings.Join(lines, "\n"), true
+}
+
 // removeSnippetMarkers removes the marker lines (START/END) from the
 // provided content while keeping the snippet's code intact. This is used
 // when creating a new file.
@@ -213,6 +533,117 @@ func extractSnippets(content string) (map[string]string, error) {
 	return result, nil
 }
 
+// removeSnippetsByKeys removes snippet groups delimited by START/END markers
+// for the provided keys from the given content. It returns the modified content.
+func removeSnippetsByKeys(content string, keys []string) string {
+	if len(keys) == 0 {
+		return content
+	}
+	keySet := map[string]bool{}
+	for _, k := range keys {
+		keySet[strings.TrimSpace(k)] = true
+	}
+	lines := strings.Split(content, "\n")
+	var out []string
+	skipping := false
+	currentKey := ""
+	for _, ln := range lines {
+		if m := startMarkerRegex.FindStringSubmatch(ln); m != nil {
+			k := strings.TrimSpace(m[1])
+			if keySet[k] {
+				skipping = true
+				currentKey = k
+				continue
+			}
+		}
+		if skipping {
+			if m := endMarkerRegex.FindStringSubmatch(ln); m != nil {
+				if strings.TrimSpace(m[1]) == currentKey {
+					skipping = false
+					currentKey = ""
+				}
+			}
+			continue
+		}
+		out = append(out, ln)
+	}
+	return strings.Join(out, "\n")
+}
+
+// augmentTemplateWithFallbackSnippets ensures that for each explicit marker
+// provided on the node, there is a corresponding snippet group in the template
+// content. If a suitable snippet is not already present, it appends a
+// "START/END OF <Mark>" block using the marker's Fallback text (with
+// placeholders already applied by caller).
+func augmentTemplateWithFallbackSnippets(templateContent string, markers []InsertionMarker, placeholders map[string]string) string {
+	if len(markers) == 0 {
+		return templateContent
+	}
+	existing, _ := extractSnippets(templateContent)
+	sanitize := func(s string) string {
+		s = strings.ToUpper(strings.TrimSpace(s))
+		var b strings.Builder
+		for i := 0; i < len(s); i++ {
+			c := s[i]
+			if (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+				b.WriteByte(c)
+			}
+		}
+		return b.String()
+	}
+	hasSnippetFor := func(key string) bool {
+		if _, ok := existing[key]; ok {
+			return true
+		}
+		tgt := sanitize(key)
+		// Try fuzzy match across existing snippet keys
+		for k := range existing {
+			ks := sanitize(k)
+			if ks == tgt || strings.Contains(ks, tgt) || strings.Contains(tgt, ks) {
+				return true
+			}
+		}
+		return false
+	}
+
+	var builder strings.Builder
+	builder.WriteString(templateContent)
+	if !strings.HasSuffix(templateContent, "\n") {
+		builder.WriteString("\n")
+	}
+	appended := 0
+	for _, m := range markers {
+		mk := strings.TrimSpace(m.Mark)
+		if mk == "" {
+			continue
+		}
+		if hasSnippetFor(mk) {
+			continue
+		}
+		// Only legacy string fallback provides snippet body; skip otherwise
+		if strings.TrimSpace(m.Fallback.Raw) == "" {
+			continue
+		}
+		body := replacePlaceholders(m.Fallback.Raw, placeholders)
+		// Ensure body ends with newline to keep structure clean
+		if !strings.HasSuffix(body, "\n") {
+			body += "\n"
+		}
+		builder.WriteString("// START OF ")
+		builder.WriteString(mk)
+		builder.WriteString("\n")
+		builder.WriteString(body)
+		builder.WriteString("// END OF ")
+		builder.WriteString(mk)
+		builder.WriteString("\n")
+		appended++
+	}
+	if appended == 0 {
+		return templateContent
+	}
+	return builder.String()
+}
+
 // smartMerge takes an existing file's content and the new template content,
 // extracts snippet(s) from the new content, and then looks for any insertion
 // markers (like "// ADD VALUE 1 BELOW") in the existing file. When found, the
@@ -222,6 +653,70 @@ func smartMerge(existingContent, templateContent string) (string, error) {
 	snippetMap, err := extractSnippets(templateContent)
 	if err != nil {
 		return "", fmt.Errorf("failed to extract snippets: %w", err)
+	}
+
+	// Helper: try to find a snippet by a marker key using fuzzy matching.
+	// This allows markers like "LINK REFERENCES" to match snippet keys like
+	// "LINK REFERENCES IMPORT" or "LINK REFERENCES ITEM".
+	sanitize := func(s string) string {
+		s = strings.ToUpper(strings.TrimSpace(s))
+		// Remove non-alphanumeric characters to normalize keys
+		var b strings.Builder
+		for i := 0; i < len(s); i++ {
+			c := s[i]
+			if (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+				b.WriteByte(c)
+			}
+		}
+		return b.String()
+	}
+	findSnippetForKey := func(key string) (string, bool) {
+		if sn, ok := snippetMap[key]; ok && strings.TrimSpace(sn) != "" {
+			return sn, true
+		}
+		// Fuzzy strategies
+		target := sanitize(key)
+		type cand struct {
+			k  string
+			sn string
+		}
+		var contains []cand
+		for sk, sn := range snippetMap {
+			if strings.TrimSpace(sn) == "" {
+				continue
+			}
+			skSan := sanitize(sk)
+			if skSan == target {
+				return sn, true
+			}
+			if strings.Contains(skSan, target) {
+				contains = append(contains, cand{sk, sn})
+			}
+		}
+		if len(contains) == 1 {
+			return contains[0].sn, true
+		}
+		if len(contains) > 1 {
+			// Prefer the shortest key that contains the target (usually minimal suffix like IMPORT/ITEM)
+			best := contains[0]
+			for _, c := range contains[1:] {
+				if len(c.k) < len(best.k) {
+					best = c
+				}
+			}
+			return best.sn, true
+		}
+		// Last resort: try prefix match of target containing key
+		for sk, sn := range snippetMap {
+			if strings.TrimSpace(sn) == "" {
+				continue
+			}
+			skSan := sanitize(sk)
+			if strings.Contains(target, skSan) {
+				return sn, true
+			}
+		}
+		return "", false
 	}
 
 	lines := strings.Split(existingContent, "\n")
@@ -256,8 +751,8 @@ func smartMerge(existingContent, templateContent string) (string, error) {
 			if insertedForKey[key] {
 				continue
 			}
-			// If the new snippet was defined in the template then add it.
-			if snippet, ok := snippetMap[key]; ok && snippet != "" {
+			// Locate snippet content for the marker key (supports fuzzy matching).
+			if snippet, ok := findSnippetForKey(key); ok && snippet != "" {
 				snippetLines := strings.Split(snippet, "\n")
 				snippetNormalized := normalizeForContains(snippet)
 				// Skip insertion if snippet content already exists anywhere in the file (idempotency)
@@ -439,13 +934,66 @@ type FilePathGroup struct {
 // TreeNode describes either a directory (with children)
 // or a file (with code). The FileAction concept has been removed.
 type TreeNode struct {
-	Key       string     `json:"_key"`
-	Type      string     `json:"_type"`
-	Children  []TreeNode `json:"children"`
-	Code      string     `json:"code"`
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	IsIndexer bool       `json:"isIndexer"` // even if false, we'll override if we see the marker in the code
+	Key       string            `json:"_key"`
+	Type      string            `json:"_type"`
+	Children  []TreeNode        `json:"children"`
+	Code      string            `json:"code"`
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	IsIndexer bool              `json:"isIndexer"` // even if false, we'll override if we see the marker in the code
+	Markers   []InsertionMarker `json:"markers"`
+}
+
+// InsertionMarker describes a desired insertion marker and a fallback anchor
+// text to locate where to place the marker in an existing file if it is absent.
+type InsertionMarker struct {
+	Mark     string         `json:"mark"`
+	Fallback MarkerFallback `json:"fallback"`
+}
+
+// MarkerFallback supports legacy string fallbacks and structured object fallbacks
+// specifying an anchor target and relative insertion behaviour.
+type MarkerFallback struct {
+	// Raw holds legacy string fallback content used as snippet body (older templates)
+	Raw string
+	// Spec holds structured fallback information (new templates)
+	Spec *MarkerFallbackSpec
+}
+
+type MarkerFallbackSpec struct {
+    Target       string `json:"target"`
+    Behaviour    string `json:"behaviour"` // insertAfter | insertBefore | insertBeforeInline | insertAfterInline
+    Content      string `json:"content"`
+    FallbackOnly bool   `json:"fallbackOnly"`
+}
+
+// UnmarshalJSON allows MarkerFallback to be a string or an object.
+func (m *MarkerFallback) UnmarshalJSON(b []byte) error {
+	// Trim spaces
+	s := strings.TrimSpace(string(b))
+	if len(s) == 0 || s == "null" {
+		return nil
+	}
+	if s[0] == '"' { // string form
+		var v string
+		if err := json.Unmarshal(b, &v); err != nil {
+			return err
+		}
+		m.Raw = v
+		m.Spec = nil
+		return nil
+	}
+	if s[0] == '{' { // object form
+		var spec MarkerFallbackSpec
+		if err := json.Unmarshal(b, &spec); err != nil {
+			return err
+		}
+		m.Spec = &spec
+		m.Raw = ""
+		return nil
+	}
+	// Unknown format, ignore gracefully
+	return nil
 }
 
 // ArgDef describes a variable to ask the user for.
@@ -760,25 +1308,23 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 
 			// Check for indexer marker in the code and register file as an indexer file.
 			isIndexer := node.IsIndexer
-			if !isIndexer && strings.Contains(code, "// THIS IS AN INDEXER FILE") {
-				isIndexer = true
-				if cli.IsVerboseEnabled() {
-					fmt.Printf("ℹ️  Detected indexer marker in file %s, registering as an indexer file.\n", currentPath)
+			if !isIndexer {
+				// Accept variations like "//THIS IS AN INDEXER FILE" (without space)
+				indexerMarker := regexp.MustCompile(`(?m)^\s*//\s*THIS\s+IS\s+AN\s+INDEXER\s+FILE`)
+				if indexerMarker.FindStringIndex(code) != nil || strings.Contains(code, "// THIS IS AN INDEXER FILE") {
+					isIndexer = true
+					if cli.IsVerboseEnabled() {
+						fmt.Printf("ℹ️  Detected indexer marker in file %s, registering as an indexer file.\n", currentPath)
+					}
 				}
 			}
 
-			// Heuristic: if template includes known indexer snippet keys, treat as indexer
+			// Heuristic: if template includes any snippet groups, treat as indexer
 			if !isIndexer {
 				if snippetMap, _ := extractSnippets(code); len(snippetMap) > 0 {
-					for k := range snippetMap {
-						kk := strings.ToUpper(strings.TrimSpace(k))
-						if strings.Contains(kk, "DOCUMENT IMPORT") || strings.Contains(kk, "DOCUMENT ARRAY ITEM") {
-							isIndexer = true
-							if cli.IsVerboseEnabled() {
-								fmt.Printf("ℹ️  Heuristically treating %s as indexer based on snippet keys.\n", currentPath)
-							}
-							break
-						}
+					isIndexer = true
+					if cli.IsVerboseEnabled() {
+						fmt.Printf("ℹ️  Treating %s as indexer based on presence of snippet groups.\n", currentPath)
 					}
 				}
 			}
@@ -791,22 +1337,115 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 						return fmt.Errorf("failed to read existing file %s: %w", currentPath, readErr)
 					}
 					existingContent := string(existingContentBytes)
-					// Attempt to auto-insert markers if the existing indexer lacks them
-					if !hasAnySnippetMarkers(existingContent) {
-						if snippetMap, _ := extractSnippets(code); len(snippetMap) > 0 {
-							var keys []string
-							for k := range snippetMap {
-								keys = append(keys, k)
+
+					// Ensure any explicit node markers exist; if missing, insert via fallback.
+					if len(node.Markers) > 0 {
+						// Pre-extract snippets from template code for inline fallbacks
+						tmplSnippets, _ := extractSnippets(code)
+						for _, m := range node.Markers {
+							mk := strings.TrimSpace(m.Mark)
+							if mk == "" {
+								continue
 							}
-							if modified, inserted := autoInsertIndexerMarkers(existingContent, keys); inserted {
-								existingContent = modified
-								if cli.IsVerboseEnabled() {
-									fmt.Printf("ℹ️  Inserted %d indexer markers into %s.\n", len(keys), currentPath)
+							// If behaviour requests inline insertion or fallbackOnly, inject snippet directly without markers
+                            if m.Fallback.Spec != nil && (strings.EqualFold(m.Fallback.Spec.Behaviour, "insertBeforeInline") || strings.EqualFold(m.Fallback.Spec.Behaviour, "insertAfterInline") || m.Fallback.Spec.FallbackOnly) {
+                                // Determine snippet body: prefer explicit fallback content, else template snippet
+                                var snip string
+                                if strings.TrimSpace(m.Fallback.Spec.Content) != "" {
+                                    snip = replacePlaceholders(m.Fallback.Spec.Content, placeholders)
+                                } else {
+                                    var ok bool
+                                    snip, ok = findSnippetForKeyGlobal(tmplSnippets, mk)
+                                    if !ok || strings.TrimSpace(snip) == "" {
+                                        continue
+                                    }
+                                }
+                                target := replacePlaceholders(m.Fallback.Spec.Target, placeholders)
+                                behaviour := m.Fallback.Spec.Behaviour
+                                if behaviour == "" {
+                                    behaviour = "insertBeforeInline"
+                                }
+                                if modified, inserted := insertSnippetInlineRelativeToTarget(existingContent, snip, target, behaviour); inserted {
+                                    existingContent = modified
+                                    if cli.IsVerboseEnabled() {
+                                        fmt.Printf("✓ Injected inline snippet for '%s' in %s.\n", mk, currentPath)
+                                    }
+                                }
+                                // Skip marker insertion for inline mode
+                                continue
+                            }
+							// Otherwise, insert a marker if missing (either via raw fallback block or target+behaviour line-based).
+							if !markerForKeyExists(existingContent, mk) {
+								var modified string
+								var inserted bool
+								if m.Fallback.Raw != "" {
+									modified, inserted = insertAddMarkerAfterFallback(existingContent, mk, replacePlaceholders(m.Fallback.Raw, placeholders))
+								} else if m.Fallback.Spec != nil {
+									target := replacePlaceholders(m.Fallback.Spec.Target, placeholders)
+									behaviour := m.Fallback.Spec.Behaviour
+									modified, inserted = insertAddMarkerRelativeToTarget(existingContent, mk, target, behaviour)
+								}
+								if inserted {
+									existingContent = modified
+									if cli.IsVerboseEnabled() {
+										fmt.Printf("ℹ️  Inserted missing marker for '%s' in %s using fallback.\n", mk, currentPath)
+									}
 								}
 							}
 						}
 					}
-					mergedContent, mergeErr := smartMerge(existingContent, code)
+                    // Attempt to auto-insert markers if the existing indexer lacks them
+                    if !hasAnySnippetMarkers(existingContent) {
+                        if snippetMap, _ := extractSnippets(code); len(snippetMap) > 0 {
+                            // Filter out snippet keys for which the node markers request inline or fallbackOnly behaviour (markless)
+                            sanitize := func(s string) string {
+                                s = strings.ToUpper(strings.TrimSpace(s))
+                                var b strings.Builder
+                                for i := 0; i < len(s); i++ {
+                                    c := s[i]
+                                    if (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+                                        b.WriteByte(c)
+                                    }
+                                }
+                                return b.String()
+                            }
+                            // Build list of sanitized marks to skip
+                            var skipMarks []string
+                            for _, mm := range node.Markers {
+                                if mm.Fallback.Spec != nil && (strings.Contains(strings.ToLower(mm.Fallback.Spec.Behaviour), "inline") || mm.Fallback.Spec.FallbackOnly) {
+                                    if mks := strings.TrimSpace(mm.Mark); mks != "" {
+                                        skipMarks = append(skipMarks, sanitize(mks))
+                                    }
+                                }
+                            }
+                            var keys []string
+                            for k := range snippetMap {
+                                ks := sanitize(k)
+                                skip := false
+                                for _, sm := range skipMarks {
+                                    if ks == sm || strings.Contains(ks, sm) || strings.Contains(sm, ks) {
+                                        skip = true
+                                        break
+                                    }
+                                }
+                                if !skip {
+                                    keys = append(keys, k)
+                                }
+                            }
+                            if len(keys) == 0 {
+                                // Nothing to add
+                            } else if modified, inserted := autoInsertIndexerMarkers(existingContent, keys); inserted {
+                                existingContent = modified
+                                if cli.IsVerboseEnabled() {
+                                    fmt.Printf("ℹ️  Inserted %d indexer markers into %s.\n", len(keys), currentPath)
+                                }
+                            }
+                        }
+                    }
+					// Keep full template snippets available so newly inserted markers can be filled.
+					// Augment template code with fallback snippets for markers missing snippet groups
+					codeWithFallbackSnippets := augmentTemplateWithFallbackSnippets(code, node.Markers, placeholders)
+					mergedContent, mergeErr := smartMerge(existingContent, codeWithFallbackSnippets)
 					if mergeErr != nil {
 						return fmt.Errorf("failed to merge file %s: %w", currentPath, mergeErr)
 					}
@@ -843,7 +1482,8 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 				if isIndexer {
 					// Build a default indexer scaffold and merge snippet content into place
 					base := generateDefaultIndexerScaffold()
-					mergedContent, mergeErr := smartMerge(base, code)
+					codeWithFallbackSnippets := augmentTemplateWithFallbackSnippets(code, node.Markers, placeholders)
+					mergedContent, mergeErr := smartMerge(base, codeWithFallbackSnippets)
 					if mergeErr != nil {
 						return fmt.Errorf("failed to build new indexer %s: %w", currentPath, mergeErr)
 					}
