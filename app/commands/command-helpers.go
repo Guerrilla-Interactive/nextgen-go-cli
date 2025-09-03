@@ -767,6 +767,22 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 				}
 			}
 
+			// Heuristic: if template includes known indexer snippet keys, treat as indexer
+			if !isIndexer {
+				if snippetMap, _ := extractSnippets(code); len(snippetMap) > 0 {
+					for k := range snippetMap {
+						kk := strings.ToUpper(strings.TrimSpace(k))
+						if strings.Contains(kk, "DOCUMENT IMPORT") || strings.Contains(kk, "DOCUMENT ARRAY ITEM") {
+							isIndexer = true
+							if cli.IsVerboseEnabled() {
+								fmt.Printf("ℹ️  Heuristically treating %s as indexer based on snippet keys.\n", currentPath)
+							}
+							break
+						}
+					}
+				}
+			}
+
 			// If file already exists then we introduce smart merge behavior.
 			if _, err := os.Stat(currentPath); err == nil {
 				if isIndexer {
@@ -823,10 +839,27 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 					RecordCreatedFile(currentPath)
 				}
 			} else {
-				// New file: remove the snippet start/end markers (but keep the "ADD VALUE" markers).
-				newContent := removeSnippetMarkers(code)
-				if err := os.WriteFile(currentPath, []byte(newContent), 0644); err != nil {
-					return fmt.Errorf("failed to write file %s: %w", currentPath, err)
+				// New file
+				if isIndexer {
+					// Build a default indexer scaffold and merge snippet content into place
+					base := generateDefaultIndexerScaffold()
+					mergedContent, mergeErr := smartMerge(base, code)
+					if mergeErr != nil {
+						return fmt.Errorf("failed to build new indexer %s: %w", currentPath, mergeErr)
+					}
+					mergedContent = cleanupIndexerContent(mergedContent)
+					if err := os.WriteFile(currentPath, []byte(mergedContent), 0644); err != nil {
+						return fmt.Errorf("failed to write new indexer file %s: %w", currentPath, err)
+					}
+					if cli.IsVerboseEnabled() {
+						fmt.Printf("✓ Created new indexer file %s.\n", currentPath)
+					}
+				} else {
+					// Non-indexer: remove the snippet start/end markers (but keep any ADD markers).
+					newContent := removeSnippetMarkers(code)
+					if err := os.WriteFile(currentPath, []byte(newContent), 0644); err != nil {
+						return fmt.Errorf("failed to write file %s: %w", currentPath, err)
+					}
 				}
 				// Record the created file using a relative path if possible.
 				if rel, err := filepath.Rel(projectPath, currentPath); err == nil {
@@ -838,6 +871,23 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 		}
 	}
 	return nil
+}
+
+// generateDefaultIndexerScaffold returns a minimal indexer file body with
+// well-known ADD markers that future merges can target.
+func generateDefaultIndexerScaffold() string {
+	return strings.Join([]string{
+		"// THIS IS AN INDEXER FILE",
+		"",
+		"// ADD DOCUMENT IMPORT BELOW",
+		"",
+		"// Export an array of all the schema types.  This is used in the Sanity Studio configuration. https://www.sanity.io/docs/schema-types",
+		"",
+		"export const schemaTypes = [",
+		"// ADD DOCUMENT ARRAY ITEM BELOW",
+		"]",
+		"",
+	}, "\n")
 }
 
 // replacePlaceholders walks through the placeholders map and replaces
