@@ -10,6 +10,16 @@
   ] },
   "filePaths": [
     {
+      "_key": "20250903-front-queries-file",
+      "_type": "treeNode",
+      "id": "file-frontend-queries",
+      "name": "{{.KebabCasePageType}}.queries.ts",
+      "type": "file",
+      "code": "import { defineQuery } from \"next-sanity\";\nimport { linkReference, postFields } from \"./queries\";\n\n\nexport const all{{.PascalCasePlural}}Query = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageType}}BySlugQuery = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && slug.current == $slug] [0] {\n    content[]{\n    ...,\n    markDefs[]{\n      ...,\n      ${linkReference}\n    }\n  },\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageType}}Slugs = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`);\n",
+      "isIndexer": false,
+      "children": []
+    },
+    {
       "_key": "1740238526203-3i9le8otf",
       "_type": "filePathGroup",
       "id": "path-1740238526203",

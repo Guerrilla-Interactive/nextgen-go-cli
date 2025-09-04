@@ -19,7 +19,7 @@
             [{"mark":"PAGETYPE ARCHIVE LINK", "fallback":{
               "target": "<Link href",
               "behaviour": "insertBefore",
-              "content": "<Link href=\"{{.LowerCasePlural}}\" className=\"hover:underline\"></Link>"
+              "content": "<Link href=\"/{{.LowerCasePlural}}\" className=\"hover:underline\">{{.UpperCasePlural}}</Link>"
             }
         }],
             "type": "file",
