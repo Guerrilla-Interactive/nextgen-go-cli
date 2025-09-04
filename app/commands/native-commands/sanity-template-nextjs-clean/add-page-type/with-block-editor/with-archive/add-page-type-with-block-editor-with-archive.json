@@ -31,7 +31,7 @@
                       "target": "<Link href",
                       "behaviour": "insertBefore",
                       "fallbackOnly": true,
-                      "content": "<Link href=\"{{.LowerCasePlural}}\" className=\"hover:underline\">{{.UpperCasePlural}}</Link>"
+                      "content": "<Link href=\"{{.LowerCasePlural}}\" className=\"hover:underline\">{{.PascalCasePlural}}</Link>"
                     }
                   }
                 ],
