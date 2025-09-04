@@ -9,16 +9,7 @@
     { "commandPackagesContains": ["never"] }
   ] },
   "filePaths": [
-    {
-      "_key": "20250903-front-queries-file",
-      "_type": "treeNode",
-      "id": "file-frontend-queries",
-      "name": "{{.KebabCasePageType}}.queries.ts",
-      "type": "file",
-      "code": "import { defineQuery } from \"next-sanity\";\nimport { linkReference, postFields } from \"./queries\";\n\n\nexport const all{{.PascalCasePlural}}Query = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageType}}BySlugQuery = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && slug.current == $slug] [0] {\n    content[]{\n    ...,\n    markDefs[]{\n      ...,\n      ${linkReference}\n    }\n  },\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageType}}Slugs = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`);\n",
-      "isIndexer": false,
-      "children": []
-    },
+   
     {
       "_key": "1740238526203-3i9le8otf",
       "_type": "filePathGroup",
@@ -122,6 +113,17 @@
       "id": "path-1756908335556-ohtbikm",
       "path": "frontend/sanity/lib",
       "nodes": [
+        {
+          "_key": "20250903-front-queries-file",
+          "_type": "treeNode",
+          "id": "file-frontend-queries",
+          "name": "{{.KebabCasePageType}}.queries.ts",
+          "type": "file",
+          "markers": [],
+          "code": "import { defineQuery } from \"next-sanity\";\nimport { pageBuilderFields } from \"./queries\";\n\nexport const listFields = /* groq */ `\n  _id,\n  \"name\": coalesce(name, \"Untitled\"),\n  \"slug\": slug.current,\n  heading,\n  subheading\n`;\n\n// List (plural)\nexport const all{{.PascalCasePlural}}Query = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)] | order(_updatedAt desc) {\n    ${listFields}\n  }\n`);\n\n// By slug (singular)\nexport const {{.LowerCasePageType}}BySlugQuery = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && slug.current == $slug][0]{\n    _id,\n    _type,\n    name,\n    slug,\n    heading,\n    subheading,\n    \"pageBuilder\": pageBuilder[]{\n      ${pageBuilderFields}\n    },\n  }\n`);\n\n\n// Slugs only\nexport const {{.LowerCasePageType}}Slugs = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)]{ \"slug\": slug.current }\n`);\n",
+          "isIndexer": false,
+          "children": []
+        },
         {
           "_key": "1756919951450-hqircx415",
           "_type": "treeNode",
