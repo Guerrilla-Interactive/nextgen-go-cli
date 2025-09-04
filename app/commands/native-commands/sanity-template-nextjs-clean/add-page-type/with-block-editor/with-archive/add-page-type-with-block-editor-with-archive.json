@@ -117,16 +117,17 @@
         "id": "path-1756910010585-3xq0wiv",
         "path": "frontend/sanity/lib",
         "nodes": [
-          {
-            "_key": "20250903-front-queries-file",
-            "_type": "treeNode",
-            "id": "file-frontend-queries",
-            "name": "{{.KebabCasePageType}}.queries.ts",
-            "type": "file",
-            "code": "import { defineQuery } from \"next-sanity\";\nimport { linkReference, postFields } from \"./queries\";\n\n\nexport const all{{.PascalCasePlural}}Query = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageType}}BySlugQuery = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && slug.current == $slug] [0] {\n    content[]{\n    ...,\n    markDefs[]{\n      ...,\n      ${linkReference}\n    }\n  },\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageType}}Slugs = defineQuery(`\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`);\n",
-            "isIndexer": false,
-            "children": []
-          },
+            {
+                "_key": "20250903-front-queries-file",
+                "_type": "treeNode",
+                "id": "file-frontend-queries",
+                "name": "{{.KebabCasePageType}}.queries.ts",
+                "type": "file",
+                "code": "import { defineQuery } from \"next-sanity\";\r\n\r\nexport const listFields = /* groq */ `\r\n  _id,\r\n  \"name\": coalesce(name, \"Untitled\"),\r\n  \"slug\": slug.current,\r\n  heading,\r\n  subheading\r\n`;\r\n\r\n// List (plural)\r\nexport const all{{.PascalCasePlural}}Query = defineQuery(`\r\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)] | order(_updatedAt desc) {\r\n    ${listFields}\r\n  }\r\n`);\r\n\r\n// By slug (singular)\r\nexport const {{.LowerCasePageType}}BySlugQuery = defineQuery(`\r\n  *[_type == \"{{.LowerCasePageType}}\" && slug.current == $slug][0]{\r\n    _id,\r\n    _type,\r\n    name,\r\n    slug,\r\n    heading,\r\n    subheading,\r\n    \"pageBuilder\": pageBuilder[]{\r\n        ...,\r\n        _type == \"callToAction\" => {\r\n          ${linkFields},\r\n          },\r\n          _type == \"infoSection\" => {\r\n            content[]{\r\n              ...,\r\n              markDefs[]{\r\n                ...,\r\n                ${linkReference}\r\n              }\r\n            }\r\n          }\r\n        },\r\n    }\r\n`);\r\n\r\n\r\n// Slugs only\r\nexport const {{.LowerCasePageType}}Slugs = defineQuery(`\r\n  *[_type == \"{{.LowerCasePageType}}\" && defined(slug.current)]{ \"slug\": slug.current }\r\n`);\r\n",
+                "isIndexer": false,
+                "markers": [],
+                "children": []
+              },
           {
             "_key": "1756919951450-hqircx415",
             "_type": "treeNode",
