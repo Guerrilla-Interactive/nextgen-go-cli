@@ -30,7 +30,8 @@
                     "fallback": {
                       "target": "<Link href",
                       "behaviour": "insertBefore",
-                      "content": "<Link href=\"{{.LowerCasePlural}}\" className=\"hover:underline\"></Link>"
+                      "fallbackOnly": true,
+                      "content": "<Link href=\"{{.LowerCasePlural}}\" className=\"hover:underline\">{{.UpperCasePlural}}</Link>"
                     }
                   }
                 ],
