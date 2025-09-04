@@ -24,9 +24,9 @@ import (
 
 // Global regex patterns for snippet markers.
 var (
-	startMarkerRegex = regexp.MustCompile(`^\s*//\s*START\s+OF\s+(.+)$`)
-	endMarkerRegex   = regexp.MustCompile(`^\s*//\s*END\s+OF\s+(.+)$`)
-	addMarkerRegex   = regexp.MustCompile(`^\s*//\s*ADD\s+(.+?)\s+(BELOW|ABOVE)\s*$`)
+    startMarkerRegex = regexp.MustCompile(`(?m)^\s*//\s*START\s+OF\s+(.+)$`)
+    endMarkerRegex   = regexp.MustCompile(`(?m)^\s*//\s*END\s+OF\s+(.+)$`)
+    addMarkerRegex   = regexp.MustCompile(`(?m)^\s*//\s*ADD\s+(.+?)\s+(BELOW|ABOVE)\s*$`)
 )
 
 // hasAnySnippetMarkers returns true if the content already includes any snippet
@@ -301,27 +301,34 @@ func insertAddMarkerAfterFallback(existingContent, key, fallback string) (string
 // insertAddMarkerRelativeToTarget inserts an ADD marker relative to the first/last
 // line that contains the provided target substring, following the specified behaviour
 // ("insertAfter" or "insertBefore"). It preserves the indentation of the anchor line.
-func insertAddMarkerRelativeToTarget(existingContent, key, target, behaviour string) (string, bool) {
-	target = strings.TrimSpace(target)
-	if target == "" {
-		return existingContent, false
-	}
-	behaviour = strings.ToLower(strings.TrimSpace(behaviour))
+func insertAddMarkerRelativeToTarget(existingContent, key, target, behaviour, occurrence string) (string, bool) {
+    target = strings.TrimSpace(target)
+    if target == "" {
+        return existingContent, false
+    }
+    behaviour = strings.ToLower(strings.TrimSpace(behaviour))
 	if behaviour != "insertbefore" && behaviour != "insertafter" {
 		// Default to insertAfter if unspecified or invalid
 		behaviour = "insertafter"
 	}
-	lines := strings.Split(existingContent, "\n")
-	anchorIdx := -1
-	// Find the last occurrence to bias towards the most local context
-	for i := 0; i < len(lines); i++ {
-		if strings.Contains(lines[i], target) {
-			anchorIdx = i
-		}
-	}
-	if anchorIdx == -1 {
-		return existingContent, false
-	}
+    lines := strings.Split(existingContent, "\n")
+    anchorIdx := -1
+    var matches []int
+    for i := 0; i < len(lines); i++ {
+        if strings.Contains(lines[i], target) {
+            matches = append(matches, i)
+        }
+    }
+    if len(matches) == 0 {
+        return existingContent, false
+    }
+    occ := strings.ToLower(strings.TrimSpace(occurrence))
+    if occ == "first" {
+        anchorIdx = matches[0]
+    } else {
+        anchorIdx = matches[len(matches)-1]
+    }
+    // anchorIdx is set
 	// Compute indentation from anchor line
 	ln := lines[anchorIdx]
 	j := 0
@@ -415,11 +422,11 @@ func findSnippetForKeyGlobal(snippetMap map[string]string, key string) (string, 
 // insertSnippetInlineRelativeToTarget inserts snippet directly before/after the
 // first/last occurrence of target within a single line (inline). It avoids
 // adding any markers. Returns modified content and whether insertion occurred.
-func insertSnippetInlineRelativeToTarget(existingContent, snippet, target, behaviour string) (string, bool) {
-	target = strings.TrimSpace(target)
-	if target == "" || strings.TrimSpace(snippet) == "" {
-		return existingContent, false
-	}
+func insertSnippetInlineRelativeToTarget(existingContent, snippet, target, behaviour, occurrence string) (string, bool) {
+    target = strings.TrimSpace(target)
+    if target == "" || strings.TrimSpace(snippet) == "" {
+        return existingContent, false
+    }
 	// Normalize snippet to single-line for inline insertion
 	compressWS := func(s string) string {
 		// Replace any CRLF with LF, then collapse whitespace sequences to single space
@@ -434,19 +441,30 @@ func insertSnippetInlineRelativeToTarget(existingContent, snippet, target, behav
 		// Default to before-inline for safety when specified inline behaviour is off
 		behaviour = "insertbeforeinline"
 	}
-	lines := strings.Split(existingContent, "\n")
-	// Find anchor line index and column for last occurrence of target
-	anchorLine := -1
-	anchorCol := -1
-	for i := 0; i < len(lines); i++ {
-		if idx := strings.LastIndex(lines[i], target); idx >= 0 {
-			anchorLine = i
-			anchorCol = idx
-		}
-	}
-	if anchorLine == -1 {
-		return existingContent, false
-	}
+    lines := strings.Split(existingContent, "\n")
+    // Find anchor line index and column according to occurrence
+    occ := strings.ToLower(strings.TrimSpace(occurrence))
+    anchorLine := -1
+    anchorCol := -1
+    if occ == "first" {
+        for i := 0; i < len(lines); i++ {
+            if idx := strings.Index(lines[i], target); idx >= 0 {
+                anchorLine = i
+                anchorCol = idx
+                break
+            }
+        }
+    } else { // default last
+        for i := 0; i < len(lines); i++ {
+            if idx := strings.LastIndex(lines[i], target); idx >= 0 {
+                anchorLine = i
+                anchorCol = idx
+            }
+        }
+    }
+    if anchorLine == -1 {
+        return existingContent, false
+    }
 	line := lines[anchorLine]
 	// Check idempotency: if snippet already exists inline before/after target on the same line
 	if behaviour == "insertbeforeinline" {
@@ -965,6 +983,7 @@ type MarkerFallbackSpec struct {
     Behaviour    string `json:"behaviour"` // insertAfter | insertBefore | insertBeforeInline | insertAfterInline
     Content      string `json:"content"`
     FallbackOnly bool   `json:"fallbackOnly"`
+    Occurrence   string `json:"occurrence"` // first | last (default last)
 }
 
 // UnmarshalJSON allows MarkerFallback to be a string or an object.
@@ -1362,10 +1381,11 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
                                 }
                                 target := replacePlaceholders(m.Fallback.Spec.Target, placeholders)
                                 behaviour := m.Fallback.Spec.Behaviour
+                                occurrence := m.Fallback.Spec.Occurrence
                                 if behaviour == "" {
                                     behaviour = "insertBeforeInline"
                                 }
-                                if modified, inserted := insertSnippetInlineRelativeToTarget(existingContent, snip, target, behaviour); inserted {
+                                if modified, inserted := insertSnippetInlineRelativeToTarget(existingContent, snip, target, behaviour, occurrence); inserted {
                                     existingContent = modified
                                     if cli.IsVerboseEnabled() {
                                         fmt.Printf("✓ Injected inline snippet for '%s' in %s.\n", mk, currentPath)
@@ -1381,19 +1401,20 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 								if m.Fallback.Raw != "" {
 									modified, inserted = insertAddMarkerAfterFallback(existingContent, mk, replacePlaceholders(m.Fallback.Raw, placeholders))
 								} else if m.Fallback.Spec != nil {
-									target := replacePlaceholders(m.Fallback.Spec.Target, placeholders)
-									behaviour := m.Fallback.Spec.Behaviour
-									modified, inserted = insertAddMarkerRelativeToTarget(existingContent, mk, target, behaviour)
-								}
-								if inserted {
-									existingContent = modified
-									if cli.IsVerboseEnabled() {
-										fmt.Printf("ℹ️  Inserted missing marker for '%s' in %s using fallback.\n", mk, currentPath)
-									}
-								}
-							}
-						}
-					}
+                                    target := replacePlaceholders(m.Fallback.Spec.Target, placeholders)
+                                    behaviour := m.Fallback.Spec.Behaviour
+                                    occurrence := m.Fallback.Spec.Occurrence
+                                    modified, inserted = insertAddMarkerRelativeToTarget(existingContent, mk, target, behaviour, occurrence)
+                                }
+                                if inserted {
+                                    existingContent = modified
+                                    if cli.IsVerboseEnabled() {
+                                        fmt.Printf("ℹ️  Inserted missing marker for '%s' in %s using fallback.\n", mk, currentPath)
+                                    }
+                                }
+                            }
+                        }
+                    }
                     // Attempt to auto-insert markers if the existing indexer lacks them
                     if !hasAnySnippetMarkers(existingContent) {
                         if snippetMap, _ := extractSnippets(code); len(snippetMap) > 0 {
