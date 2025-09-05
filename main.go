@@ -37,7 +37,7 @@ import (
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.103"
+var Version = "v1.0.104"
 
 // determine CLI name variants (primary + aliases)
 func detectPrimaryCLIName() string {
