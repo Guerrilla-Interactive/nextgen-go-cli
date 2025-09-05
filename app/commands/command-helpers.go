@@ -495,6 +495,31 @@ func insertSnippetInlineRelativeToTarget(existingContent, snippet, target, behav
 	return strings.Join(lines, "\n"), true
 }
 
+// conditionalReplace performs a one-time replacement of target with replacement
+// if requireAbsent is not present in the content. It respects occurrence (first|last)
+// for selecting which target to replace when multiple matches exist.
+func conditionalReplace(existingContent, target, requireAbsent, replacement, occurrence string) (string, bool) {
+    target = strings.TrimSpace(target)
+    if target == "" || replacement == "" {
+        return existingContent, false
+    }
+    if strings.TrimSpace(requireAbsent) != "" && strings.Contains(existingContent, requireAbsent) {
+        return existingContent, false
+    }
+    occ := strings.ToLower(strings.TrimSpace(occurrence))
+    if occ == "first" {
+        if idx := strings.Index(existingContent, target); idx >= 0 {
+            return existingContent[:idx] + replacement + existingContent[idx+len(target):], true
+        }
+        return existingContent, false
+    }
+    // default last
+    if idx := strings.LastIndex(existingContent, target); idx >= 0 {
+        return existingContent[:idx] + replacement + existingContent[idx+len(target):], true
+    }
+    return existingContent, false
+}
+
 // removeSnippetMarkers removes the marker lines (START/END) from the
 // provided content while keeping the snippet's code intact. This is used
 // when creating a new file.
@@ -927,6 +952,16 @@ func cleanupIndexerContent(content string) string {
 	return strings.Join(out, "\n")
 }
 
+// ensureExportForLinkReference ensures that a declaration of
+// "const linkReference = ..." is exported as
+// "export const linkReference = ...". It preserves indentation
+// and leaves already-exported declarations unchanged.
+func ensureExportForLinkReference(content string) string {
+    // Promote non-exported const declarations for linkReference and linkFields
+    re := regexp.MustCompile(`(?m)^(\s*)const\s+(linkReference|linkFields)\b`)
+    return re.ReplaceAllString(content, "$1export const $2")
+}
+
 // -----------------------------------------------------------------------------
 // (Existing functions below unchanged...)
 // -----------------------------------------------------------------------------
@@ -984,6 +1019,9 @@ type MarkerFallbackSpec struct {
     Content      string `json:"content"`
     FallbackOnly bool   `json:"fallbackOnly"`
     Occurrence   string `json:"occurrence"` // first | last (default last)
+    // Conditional replace support: if RequireAbsent is not found, replace first/last Target with Replacement
+    RequireAbsent string `json:"requireAbsent"`
+    Replacement   string `json:"replacement"`
 }
 
 // UnmarshalJSON allows MarkerFallback to be a string or an object.
@@ -1366,7 +1404,25 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 							if mk == "" {
 								continue
 							}
-							// If behaviour requests inline insertion or fallbackOnly, inject snippet directly without markers
+                            // Conditional replace behaviour: replace target with replacement if requireAbsent not present
+                            if m.Fallback.Spec != nil {
+                                beh := strings.ToLower(strings.TrimSpace(m.Fallback.Spec.Behaviour))
+                                if beh == "replaceifmissing" || beh == "replaceifabsent" || beh == "replace" {
+                                    tgt := replacePlaceholders(m.Fallback.Spec.Target, placeholders)
+                                    rep := replacePlaceholders(m.Fallback.Spec.Replacement, placeholders)
+                                    req := replacePlaceholders(m.Fallback.Spec.RequireAbsent, placeholders)
+                                    occ := m.Fallback.Spec.Occurrence
+                                    if modified, did := conditionalReplace(existingContent, tgt, req, rep, occ); did {
+                                        existingContent = modified
+                                        if cli.IsVerboseEnabled() {
+                                            fmt.Printf("✓ Replaced inline for '%s' in %s.\n", mk, currentPath)
+                                        }
+                                    }
+                                    // Skip marker insertion for replace behaviour
+                                    continue
+                                }
+                            }
+                            // If behaviour requests inline insertion or fallbackOnly, inject snippet directly without markers
                             if m.Fallback.Spec != nil && (strings.EqualFold(m.Fallback.Spec.Behaviour, "insertBeforeInline") || strings.EqualFold(m.Fallback.Spec.Behaviour, "insertAfterInline") || m.Fallback.Spec.FallbackOnly) {
                                 // Determine snippet body: prefer explicit fallback content, else template snippet
                                 var snip string
@@ -1470,8 +1526,9 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 					if mergeErr != nil {
 						return fmt.Errorf("failed to merge file %s: %w", currentPath, mergeErr)
 					}
-					// Final cleanup to remove duplicates that may remain after merge
-					mergedContent = cleanupIndexerContent(mergedContent)
+                    // Final cleanup and adjustments
+                    mergedContent = cleanupIndexerContent(mergedContent)
+                    mergedContent = ensureExportForLinkReference(mergedContent)
 					if err := os.WriteFile(currentPath, []byte(mergedContent), 0644); err != nil {
 						return fmt.Errorf("failed to write merged file %s: %w", currentPath, err)
 					}
@@ -1508,7 +1565,8 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 					if mergeErr != nil {
 						return fmt.Errorf("failed to build new indexer %s: %w", currentPath, mergeErr)
 					}
-					mergedContent = cleanupIndexerContent(mergedContent)
+                    mergedContent = cleanupIndexerContent(mergedContent)
+                    mergedContent = ensureExportForLinkReference(mergedContent)
 					if err := os.WriteFile(currentPath, []byte(mergedContent), 0644); err != nil {
 						return fmt.Errorf("failed to write new indexer file %s: %w", currentPath, err)
 					}
@@ -1517,7 +1575,8 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 					}
 				} else {
 					// Non-indexer: remove the snippet start/end markers (but keep any ADD markers).
-					newContent := removeSnippetMarkers(code)
+                    newContent := removeSnippetMarkers(code)
+                    newContent = ensureExportForLinkReference(newContent)
 					if err := os.WriteFile(currentPath, []byte(newContent), 0644); err != nil {
 						return fmt.Errorf("failed to write file %s: %w", currentPath, err)
 					}
