@@ -898,58 +898,91 @@ func smartMerge(existingContent, templateContent string) (string, error) {
 // the first occurrence and drops subsequent duplicates to avoid duplication
 // after repeated runs.
 func cleanupIndexerContent(content string) string {
-	lines := strings.Split(content, "\n")
-	importFromRegex := regexp.MustCompile(`^\s*import\s+.*from\s+['"]([^'\"]+)['"]`)
-	requireRegex := regexp.MustCompile(`^\s*(?:const|let|var)\s+\w+\s*=\s*require\(['"]([^'\"]+)['"]\)`) // basic CJS
-	arrayItemRegex := regexp.MustCompile(`^\s*[_$a-zA-Z][_$a-zA-Z0-9]*\s*,\s*$`)
+    lines := strings.Split(content, "\n")
+    importFromRegex := regexp.MustCompile(`^\s*import\s+.*from\s+['"]([^'\"]+)['"]`)
+    requireRegex := regexp.MustCompile(`^\s*(?:const|let|var)\s+\w+\s*=\s*require\(['"]([^'\"]+)['"]\)`) // basic CJS
+    arrayItemRegex := regexp.MustCompile(`^\s*[_$a-zA-Z][_$a-zA-Z0-9]*\s*,\s*$`)
 
-	seenImport := map[string]bool{}
-	seenItem := map[string]bool{}
+    seenImport := map[string]bool{}
 
-	var out []string
-	for _, ln := range lines {
-		trim := strings.TrimSpace(ln)
-		if trim == "" {
-			out = append(out, ln)
-			continue
-		}
-		// Preserve markers as-is
-		if startMarkerRegex.MatchString(ln) || endMarkerRegex.MatchString(ln) || addMarkerRegex.MatchString(ln) {
-			out = append(out, ln)
-			continue
-		}
-		// Handle imports
-		if m := importFromRegex.FindStringSubmatch(ln); m != nil {
-			mod := m[1]
-			if seenImport[mod] {
-				continue
-			}
-			seenImport[mod] = true
-			out = append(out, ln)
-			continue
-		}
-		if m := requireRegex.FindStringSubmatch(ln); m != nil {
-			mod := m[1]
-			if seenImport[mod] {
-				continue
-			}
-			seenImport[mod] = true
-			out = append(out, ln)
-			continue
-		}
-		// Handle array item lines
-		if arrayItemRegex.MatchString(ln) {
-			key := strings.ReplaceAll(strings.ReplaceAll(trim, "\t", ""), " ", "")
-			if seenItem[key] {
-				continue
-			}
-			seenItem[key] = true
-			out = append(out, ln)
-			continue
-		}
-		out = append(out, ln)
-	}
-	return strings.Join(out, "\n")
+    // Only dedupe simple identifier lines inside the known schemaTypes array block
+    inSchemaTypes := false
+    bracketDepth := 0
+    seenArrayItem := map[string]bool{}
+    schemaTypesStart := regexp.MustCompile(`^\s*export\s+const\s+schemaTypes\s*=\s*\[`)
+
+    var out []string
+    for _, ln := range lines {
+        trim := strings.TrimSpace(ln)
+        // Track entering schemaTypes array
+        if !inSchemaTypes && schemaTypesStart.MatchString(ln) {
+            inSchemaTypes = true
+            bracketDepth = 1 // we saw the opening [ on this line
+            seenArrayItem = map[string]bool{}
+            out = append(out, ln)
+            continue
+        }
+
+        if inSchemaTypes {
+            // Update bracket depth to determine when we leave the array
+            // crude but effective for our generated code
+            for i := 0; i < len(ln); i++ {
+                if ln[i] == '[' {
+                    bracketDepth++
+                } else if ln[i] == ']' {
+                    bracketDepth--
+                }
+            }
+            if arrayItemRegex.MatchString(ln) {
+                key := strings.ReplaceAll(strings.ReplaceAll(trim, "\t", ""), " ", "")
+                if seenArrayItem[key] {
+                    // skip duplicate within schemaTypes
+                    // do not append
+                } else {
+                    seenArrayItem[key] = true
+                    out = append(out, ln)
+                }
+            } else {
+                out = append(out, ln)
+            }
+            if bracketDepth <= 0 {
+                inSchemaTypes = false
+            }
+            continue
+        }
+
+        if trim == "" {
+            out = append(out, ln)
+            continue
+        }
+        // Preserve markers as-is
+        if startMarkerRegex.MatchString(ln) || endMarkerRegex.MatchString(ln) || addMarkerRegex.MatchString(ln) {
+            out = append(out, ln)
+            continue
+        }
+        // Handle imports (dedupe by module path)
+        if m := importFromRegex.FindStringSubmatch(ln); m != nil {
+            mod := m[1]
+            if seenImport[mod] {
+                continue
+            }
+            seenImport[mod] = true
+            out = append(out, ln)
+            continue
+        }
+        if m := requireRegex.FindStringSubmatch(ln); m != nil {
+            mod := m[1]
+            if seenImport[mod] {
+                continue
+            }
+            seenImport[mod] = true
+            out = append(out, ln)
+            continue
+        }
+        // Do not attempt global array-item dedupe; preserve content like `_type,` in GROQ projections
+        out = append(out, ln)
+    }
+    return strings.Join(out, "\n")
 }
 
 // ensureExportForLinkReference ensures that a declaration of
