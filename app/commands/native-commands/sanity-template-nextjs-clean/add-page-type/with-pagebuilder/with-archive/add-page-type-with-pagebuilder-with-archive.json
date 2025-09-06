@@ -180,6 +180,13 @@
             "occurrence": "first"
             }
           },
+          {"mark": "EXPORT POST FIELDS", "fallback":{
+            "behaviour": "replaceIfMissing",
+            "target": "const postFields = /* groq */ `",
+            "requireAbsent": "export const postFields = /* groq */ `",
+            "replacement": "export const postFields = /* groq */ `",
+            "occurrence": "first"
+          }},
           {"mark":"EXPORT LINK REFERENCE", "fallback":{
             "behaviour": "replaceIfMissing",
             "target": "const linkReference = /* groq */ `",

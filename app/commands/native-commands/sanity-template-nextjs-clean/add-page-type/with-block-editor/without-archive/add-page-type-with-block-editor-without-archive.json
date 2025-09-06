@@ -108,10 +108,33 @@
           "_type": "treeNode",
           "id": "file-1756919951450",
           "markers": 
-          [{"mark":"LINK REFERENCES", "fallback":{
+          [
+          {"mark":"EXPORT LINK FIELDS", "fallback":{
+            "behaviour": "replaceIfMissing",
+            "target": "const linkFields = /* groq */ `",
+            "requireAbsent": "export const linkFields = /* groq */ `",
+            "replacement": "export const linkFields = /* groq */ `",
+            "occurrence": "first"
+            }
+          },
+          {"mark": "EXPORT POST FIELDS", "fallback":{
+            "behaviour": "replaceIfMissing",
+            "target": "const postFields = /* groq */ `",
+            "requireAbsent": "export const postFields = /* groq */ `",
+            "replacement": "export const postFields = /* groq */ `",
+            "occurrence": "first"
+          }},
+          {"mark":"EXPORT LINK REFERENCE", "fallback":{
+            "behaviour": "replaceIfMissing",
+            "target": "const linkReference = /* groq */ `",
+            "requireAbsent": "export const linkReference = /* groq */ `",
+            "replacement": "export const linkReference = /* groq */ `",
+            "occurrence": "first"
+            }
+          },
+          {"mark":"LINK REFERENCES", "fallback":{
             "target": "_type == \"link\" => {",  
             "behaviour": "insertAfter"
-
             }
           },     
           {"mark":"SITEMAP TYPES", "fallback":{

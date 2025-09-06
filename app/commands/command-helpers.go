@@ -1591,16 +1591,12 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 			} else {
 				// New file
 				if isIndexer {
-					// Build a default indexer scaffold and merge snippet content into place
-					base := generateDefaultIndexerScaffold()
-					codeWithFallbackSnippets := augmentTemplateWithFallbackSnippets(code, node.Markers, placeholders)
-					mergedContent, mergeErr := smartMerge(base, codeWithFallbackSnippets)
-					if mergeErr != nil {
-						return fmt.Errorf("failed to build new indexer %s: %w", currentPath, mergeErr)
-					}
-                    mergedContent = cleanupIndexerContent(mergedContent)
-                    mergedContent = ensureExportForLinkReference(mergedContent)
-					if err := os.WriteFile(currentPath, []byte(mergedContent), 0644); err != nil {
+					// Create the file directly from the provided code (not from a generic indexer scaffold).
+					// Clean snippet START/END markers and ensure required exports exist.
+					newContent := removeSnippetMarkers(code)
+					newContent = cleanupIndexerContent(newContent)
+					newContent = ensureExportForLinkReference(newContent)
+					if err := os.WriteFile(currentPath, []byte(newContent), 0644); err != nil {
 						return fmt.Errorf("failed to write new indexer file %s: %w", currentPath, err)
 					}
 					if cli.IsVerboseEnabled() {
