@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	appUtils "github.com/Guerrilla-Interactive/nextgen-go-cli/app/utils"
 	config "github.com/Guerrilla-Interactive/nextgen-go-cli/internal"
 	tea "github.com/charmbracelet/bubbletea"
@@ -47,7 +48,7 @@ func ViewScreenLogin(m app.Model) string {
 		"After signing in, you'll be redirected back to complete login.\n\n" +
 		"Instance: " + app.LinkStyle.Render("https://www.nextgen-cli.com/sign-in") + "\n" +
 		"Callback: " + app.PathStyle.Render("http://localhost:4455/callback") + "\n\n" +
-		app.HelpStyle.Render("Press q to quit")
+		sharedScreens.Footer("Enter start login", "ctrl+c quit")
 	// Append status if available
 	if m.HistorySaveStatus != "" {
 		body += "\n" + app.HelpStyle.Render(m.HistorySaveStatus)

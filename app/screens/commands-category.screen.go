@@ -8,6 +8,7 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
 	clipboardScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/clipboard" // Import clipboard screen
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -133,7 +134,7 @@ func ViewScreenCommandsCategory(m app.Model, registry *project.ProjectRegistry) 
 
 	// --- Combine & Footer ---
 	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
-	footer := app.HelpStyle.Render("Use ↑/↓ to navigate, Enter to select, Esc/b to go back.")
+	footer := sharedScreens.Footer("↑↓ ←→ navigate", "enter to confirm", "ctrl+c quit")
 
 	finalView := lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
 	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {

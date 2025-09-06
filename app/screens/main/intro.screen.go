@@ -46,7 +46,7 @@ func ViewSelectScreen(m app.Model) string {
 
 	body += loginOpt + "\n" + offlineOpt + "\n\n"
 
-	body += app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)")
+	body += sharedScreens.Footer("↑↓ ←→ navigate", "ctrl+c quit")
 
 	// Wrap the select screen content with a base container.
 	panel := sharedScreens.BaseContainer(body)

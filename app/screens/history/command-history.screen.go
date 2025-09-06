@@ -6,12 +6,13 @@ import (
 	"strings"
 	"time"
 
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
+
 	"path/filepath"
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
-	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/utils"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -333,7 +334,7 @@ func ViewScreenCommandHistory(m app.Model, registry *project.ProjectRegistry) st
 	leftPanelStyle := lipgloss.NewStyle().Padding(0, 1)
 
 	// Footer (help only)
-	footer := app.HelpStyle.Render("Use ↑/↓/←/→ to navigate, Esc/b to go back.")
+	footer := sharedScreens.Footer("↑↓ ←→ navigate", "ctrl+c quit")
 	footerHeight := lipgloss.Height(footer)
 	availableHeightForPanes := m.TerminalHeight - footerHeight - 1
 	if availableHeightForPanes < 10 {

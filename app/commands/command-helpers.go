@@ -2021,6 +2021,266 @@ func GeneratePreviewFileTreeFromBytes(templateBytes []byte, placeholders map[str
 	return preview, nil
 }
 
+// GetCommandVariableDescriptions attempts to extract human-friendly descriptions
+// for variables defined by a command template. It supports two schema shapes:
+// 1) variables: { "VarName": { "description": "..." }, ... }
+// 2) args: [ { "name": "VarName", "message": "..." | "description": "..." }, ... ]
+func GetCommandVariableDescriptions(cmdName, projectPath string, registry *project.ProjectRegistry) (map[string]string, error) {
+    descs := map[string]string{}
+    // Try to load the template bytes via common resolution
+    b, _, err := LoadTemplateBytesForName(cmdName, projectPath, registry)
+    if err != nil {
+        // If cmdName is an embedded template path, try that directly
+        if data, readErr := LoadCommandTemplate(cmdName); readErr == nil {
+            b = data
+        } else {
+            return descs, nil
+        }
+    }
+    var obj map[string]any
+    if jerr := json.Unmarshal(b, &obj); jerr != nil {
+        return descs, nil
+    }
+    // Case 1: variables object
+    if raw, ok := obj["variables"]; ok {
+        if m, ok2 := raw.(map[string]any); ok2 {
+            for k, v := range m {
+                if inner, ok3 := v.(map[string]any); ok3 {
+                    if d, ok4 := inner["description"]; ok4 {
+                        if s, ok5 := d.(string); ok5 && strings.TrimSpace(s) != "" {
+                            descs[k] = s
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // Case 2: args array (use description or message)
+    if raw, ok := obj["args"]; ok {
+        if arr, ok2 := raw.([]any); ok2 {
+            for _, it := range arr {
+                if m, ok3 := it.(map[string]any); ok3 {
+                    nameVal, _ := m["name"].(string)
+                    if strings.TrimSpace(nameVal) == "" {
+                        continue
+                    }
+                    var d string
+                    if dv, ok4 := m["description"]; ok4 {
+                        if s, ok5 := dv.(string); ok5 {
+                            d = s
+                        }
+                    }
+                    if strings.TrimSpace(d) == "" {
+                        if mv, ok6 := m["message"]; ok6 {
+                            if s, ok7 := mv.(string); ok7 {
+                                d = s
+                            }
+                        }
+                    }
+                    if strings.TrimSpace(d) != "" {
+                        descs[nameVal] = d
+                    }
+                }
+            }
+        }
+    }
+    return descs, nil
+}
+
+// GetCommandVariableTitles extracts display titles for variables from the template, if provided.
+// Supports variables.<Var>.title and args[].title (falls back to args[].label if present).
+func GetCommandVariableTitles(cmdName, projectPath string, registry *project.ProjectRegistry) (map[string]string, error) {
+    titles := map[string]string{}
+    b, _, err := LoadTemplateBytesForName(cmdName, projectPath, registry)
+    if err != nil {
+        if data, readErr := LoadCommandTemplate(cmdName); readErr == nil {
+            b = data
+        } else {
+            return titles, nil
+        }
+    }
+    var obj map[string]any
+    if jerr := json.Unmarshal(b, &obj); jerr != nil {
+        return titles, nil
+    }
+    // 1) variables object
+    if raw, ok := obj["variables"]; ok {
+        if m, ok2 := raw.(map[string]any); ok2 {
+            for k, v := range m {
+                if inner, ok3 := v.(map[string]any); ok3 {
+                    if t, ok4 := inner["title"]; ok4 {
+                        if s, ok5 := t.(string); ok5 && strings.TrimSpace(s) != "" {
+                            titles[k] = s
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // 2) args array: title or label fields
+    if raw, ok := obj["args"]; ok {
+        if arr, ok2 := raw.([]any); ok2 {
+            for _, it := range arr {
+                if m, ok3 := it.(map[string]any); ok3 {
+                    nameVal, _ := m["name"].(string)
+                    if strings.TrimSpace(nameVal) == "" {
+                        continue
+                    }
+                    var t string
+                    if tv, ok4 := m["title"]; ok4 {
+                        if s, ok5 := tv.(string); ok5 {
+                            t = s
+                        }
+                    }
+                    if strings.TrimSpace(t) == "" {
+                        if lv, ok6 := m["label"]; ok6 {
+                            if s, ok7 := lv.(string); ok7 {
+                                t = s
+                            }
+                        }
+                    }
+                    if strings.TrimSpace(t) != "" {
+                        titles[nameVal] = t
+                    }
+                }
+            }
+        }
+    }
+    return titles, nil
+}
+
+// GetCommandVariablePriorities extracts numeric priorities for variables from the template.
+// Supports variables.<Var>.priority (number) and args[].priority (number).
+// Lower values indicate earlier prompting.
+func GetCommandVariablePriorities(cmdName, projectPath string, registry *project.ProjectRegistry) (map[string]int, error) {
+    res := map[string]int{}
+    b, _, err := LoadTemplateBytesForName(cmdName, projectPath, registry)
+    if err != nil {
+        if data, readErr := LoadCommandTemplate(cmdName); readErr == nil {
+            b = data
+        } else {
+            return res, nil
+        }
+    }
+    var obj map[string]any
+    if jerr := json.Unmarshal(b, &obj); jerr != nil {
+        return res, nil
+    }
+    // variables object
+    if raw, ok := obj["variables"]; ok {
+        if m, ok2 := raw.(map[string]any); ok2 {
+            for k, v := range m {
+                if inner, ok3 := v.(map[string]any); ok3 {
+                    if pv, ok4 := inner["priority"]; ok4 {
+                        switch t := pv.(type) {
+                        case float64:
+                            res[k] = int(t)
+                        case int:
+                            res[k] = t
+                        case json.Number:
+                            if iv, e := t.Int64(); e == nil { res[k] = int(iv) }
+                        case string:
+                            // try parse
+                            if n, e := json.Number(t).Int64(); e == nil { res[k] = int(n) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // args array
+    if raw, ok := obj["args"]; ok {
+        if arr, ok2 := raw.([]any); ok2 {
+            for _, it := range arr {
+                if m, ok3 := it.(map[string]any); ok3 {
+                    nameVal, _ := m["name"].(string)
+                    if strings.TrimSpace(nameVal) == "" { continue }
+                    if pv, ok4 := m["priority"]; ok4 {
+                        switch t := pv.(type) {
+                        case float64:
+                            res[nameVal] = int(t)
+                        case int:
+                            res[nameVal] = t
+                        case json.Number:
+                            if iv, e := t.Int64(); e == nil { res[nameVal] = int(iv) }
+                        case string:
+                            if n, e := json.Number(t).Int64(); e == nil { res[nameVal] = int(n) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return res, nil
+}
+
+// GetCommandVariableExamples extracts example values per variable from the template.
+// Supports variables.<Var>.examples: []string and args[].examples: []string
+func GetCommandVariableExamples(cmdName, projectPath string, registry *project.ProjectRegistry) (map[string][]string, error) {
+    out := map[string][]string{}
+    b, _, err := LoadTemplateBytesForName(cmdName, projectPath, registry)
+    if err != nil {
+        if data, readErr := LoadCommandTemplate(cmdName); readErr == nil {
+            b = data
+        } else {
+            return out, nil
+        }
+    }
+    var obj map[string]any
+    if jerr := json.Unmarshal(b, &obj); jerr != nil {
+        return out, nil
+    }
+    // variables object
+    if raw, ok := obj["variables"]; ok {
+        if m, ok2 := raw.(map[string]any); ok2 {
+            for k, v := range m {
+                if inner, ok3 := v.(map[string]any); ok3 {
+                    if exv, ok4 := inner["examples"]; ok4 {
+                        if arr, ok5 := exv.([]any); ok5 {
+                            var coll []string
+                            for _, it := range arr {
+                                if s, ok6 := it.(string); ok6 && strings.TrimSpace(s) != "" {
+                                    coll = append(coll, s)
+                                }
+                            }
+                            if len(coll) > 0 {
+                                out[k] = coll
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // args array
+    if raw, ok := obj["args"]; ok {
+        if arr, ok2 := raw.([]any); ok2 {
+            for _, it := range arr {
+                if m, ok3 := it.(map[string]any); ok3 {
+                    nameVal, _ := m["name"].(string)
+                    if strings.TrimSpace(nameVal) == "" {
+                        continue
+                    }
+                    if exv, ok4 := m["examples"]; ok4 {
+                        if arr2, ok5 := exv.([]any); ok5 {
+                            var coll []string
+                            for _, it2 := range arr2 {
+                                if s, ok6 := it2.(string); ok6 && strings.TrimSpace(s) != "" {
+                                    coll = append(coll, s)
+                                }
+                            }
+                            if len(coll) > 0 {
+                                out[nameVal] = coll
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return out, nil
+}
+
 // -----------------------------------------------------------------------------
 // Argument Validation Helper
 // -----------------------------------------------------------------------------

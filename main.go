@@ -20,7 +20,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+    "github.com/charmbracelet/lipgloss"
 
 	// screens
 	categoryScreen "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/commands/category"
@@ -38,6 +38,9 @@ import (
 
 // Define Version (will be set via linker flags during build)
 var Version = "v1.0.107"
+
+// exitLog holds a log-style summary printed after the TUI exits.
+var exitLog string
 
 // determine CLI name variants (primary + aliases)
 func detectPrimaryCLIName() string {
@@ -146,7 +149,140 @@ func (b commandRegistryCheckerBridge) CommandExists(name string) bool {
 type HeartbeatMsg struct{}
 
 func heartbeatTick() tea.Cmd {
-	return tea.Tick(time.Millisecond*800, func(time.Time) tea.Msg { return HeartbeatMsg{} })
+    return tea.Tick(time.Millisecond*800, func(time.Time) tea.Msg { return HeartbeatMsg{} })
+}
+
+// --- Helpers to build a log-style tree for exit output ---
+type logNode struct {
+    name     string
+    path     string
+    isFile   bool
+    children map[string]*logNode
+}
+
+func (n *logNode) addChild(name string, isFile bool) *logNode {
+    if n.children == nil {
+        n.children = make(map[string]*logNode)
+    }
+    if child, ok := n.children[name]; ok {
+        return child
+    }
+    child := &logNode{name: name, isFile: isFile}
+    n.children[name] = child
+    return child
+}
+
+func buildLogTree(paths []string) *logNode {
+    root := &logNode{name: "", children: make(map[string]*logNode)}
+    for _, p := range paths {
+        norm := filepath.ToSlash(p)
+        parts := strings.Split(norm, "/")
+        cur := root
+        for i, part := range parts {
+            isFile := i == len(parts)-1
+            child := cur.addChild(part, isFile)
+            if isFile {
+                child.path = p
+            }
+            cur = child
+        }
+    }
+    return root
+}
+
+func renderLogTree(node *logNode, prefix string, isLast bool, skipSelf bool) string {
+    var line string
+    if !skipSelf && node.name != "" {
+        branch := "┣"
+        if isLast {
+            branch = "┗"
+        }
+        icon := "📜"
+        if len(node.children) > 0 {
+            icon = "📂"
+        }
+        nameOut := node.name
+        if node.isFile {
+            if edited, ok := template_cmds.EditedIndexers[node.path]; ok && edited {
+                nameOut += " (edited)"
+            }
+        }
+        line = fmt.Sprintf("%s%s %s %s\n", prefix, branch, icon, nameOut)
+    }
+    newPrefix := prefix
+    if node.name != "" {
+        if isLast {
+            newPrefix += "   "
+        } else {
+            newPrefix += "┃  "
+        }
+    }
+    // sort children
+    var names []string
+    for name := range node.children {
+        names = append(names, name)
+    }
+    sort.Strings(names)
+    var out = line
+    for i, name := range names {
+        child := node.children[name]
+        last := i == len(names)-1
+        out += renderLogTree(child, newPrefix, last, false)
+    }
+    return out
+}
+
+func buildExitLog(msg app.CommandFinishedMsg) string {
+    var b strings.Builder
+    b.WriteString(strings.Repeat("─", 48))
+    b.WriteString("\n")
+    if msg.Err == nil {
+        b.WriteString("Installation Complete! ✅\n")
+    } else {
+        b.WriteString(fmt.Sprintf("Command failed: %v\n", msg.Err))
+    }
+    if strings.TrimSpace(msg.ProjectPath) != "" {
+        b.WriteString(msg.ProjectPath)
+        b.WriteString("\n\n")
+    }
+    // Make paths relative to project when possible
+    var rels []string
+    for _, full := range msg.GeneratedFiles {
+        if msg.ProjectPath != "" {
+            if rel, err := filepath.Rel(msg.ProjectPath, full); err == nil {
+                rels = append(rels, rel)
+                continue
+            }
+        }
+        rels = append(rels, full)
+    }
+    if len(rels) > 0 {
+        root := buildLogTree(rels)
+        // top-level entries
+        var top []string
+        for name := range root.children {
+            top = append(top, name)
+        }
+        sort.Strings(top)
+        for _, name := range top {
+            child := root.children[name]
+            icon := "📜"
+            if len(child.children) > 0 {
+                icon = "📦"
+            }
+            nameOut := name
+            if child.isFile {
+                if edited, ok := template_cmds.EditedIndexers[child.path]; ok && edited {
+                    nameOut += " (edited)"
+                }
+            }
+            b.WriteString(fmt.Sprintf("%s%s\n", icon, nameOut))
+            b.WriteString(renderLogTree(child, " ", true, true))
+        }
+    } else {
+        b.WriteString("(No files generated)\n")
+    }
+    return b.String()
 }
 
 // Init returns the Cmd that loads project info.
@@ -200,45 +336,36 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return pm, nil
 
 	// 2) Handle the asynchronous command finished message.
-	case app.CommandFinishedMsg:
-		if typedMsg.Err == nil {
-			// --- Command Succeeded: Record History ---
-			if pm.ProjectRegistry != nil && typedMsg.ProjectPath != "" && typedMsg.ProjectPath != "." {
-				historicCmd := project.HistoricCommand{
-					Name:           typedMsg.CommandName,
-					Variables:      typedMsg.Placeholders,
-					Timestamp:      time.Now().Unix(),
-					GeneratedFiles: typedMsg.GeneratedFiles,
-				}
-				if err := pm.ProjectRegistry.RecordCommandHistory(typedMsg.ProjectPath, historicCmd); err != nil {
-					// Log error, but don't block UI
-					pm.M.HistorySaveStatus = fmt.Sprintf("Error saving history: %v", err) // Update status message
-					fmt.Printf("Warning: Failed to record command history for '%s': %v\n", typedMsg.CommandName, err)
-				} else {
-					pm.M.HistorySaveStatus = fmt.Sprintf("History saved for: %s", typedMsg.CommandName)
-				}
-			} else {
-				// Cannot record history (no registry or invalid path)
-				pm.M.HistorySaveStatus = "Could not save history (no registry or invalid path)"
-			}
-			// -------------------------------------------
-			// Update to installation details screen on success
-			pm.M.CurrentScreen = app.ScreenInstallDetails
-		} else {
-			// --- Command Failed ---
-			// Optionally log or display the error.
-			pm.M.HistorySaveStatus = fmt.Sprintf("Command '%s' failed: %v", typedMsg.CommandName, typedMsg.Err)
-			fmt.Println("Command finished with error:", typedMsg.Err)
-			// For now, still go to InstallDetails to show the error (it quits on key press)
-			pm.M.CurrentScreen = app.ScreenInstallDetails
-		}
-		// Clear pending command info regardless of success/failure
-		pm.M.PendingCommand = ""
-		pm.M.Variables = nil
-		pm.M.VariableKeys = nil
-		pm.M.TempFilename = ""
-		// No command needed from here, just update the model state
-		return pm, nil
+    case app.CommandFinishedMsg:
+        if typedMsg.Err == nil {
+            // --- Command Succeeded: Record History ---
+            if pm.ProjectRegistry != nil && typedMsg.ProjectPath != "" && typedMsg.ProjectPath != "." {
+                historicCmd := project.HistoricCommand{
+                    Name:           typedMsg.CommandName,
+                    Variables:      typedMsg.Placeholders,
+                    Timestamp:      time.Now().Unix(),
+                    GeneratedFiles: typedMsg.GeneratedFiles,
+                }
+                if err := pm.ProjectRegistry.RecordCommandHistory(typedMsg.ProjectPath, historicCmd); err != nil {
+                    pm.M.HistorySaveStatus = fmt.Sprintf("Error saving history: %v", err)
+                } else {
+                    pm.M.HistorySaveStatus = fmt.Sprintf("History saved for: %s", typedMsg.CommandName)
+                }
+            } else {
+                pm.M.HistorySaveStatus = "Could not save history (no registry or invalid path)"
+            }
+        } else {
+            // --- Command Failed ---
+            pm.M.HistorySaveStatus = fmt.Sprintf("Command '%s' failed: %v", typedMsg.CommandName, typedMsg.Err)
+        }
+        // Prepare an exit log and quit the TUI, printing after exit
+        exitLog = buildExitLog(typedMsg)
+        // Clear pending command info
+        pm.M.PendingCommand = ""
+        pm.M.Variables = nil
+        pm.M.VariableKeys = nil
+        pm.M.TempFilename = ""
+        return pm, tea.Quit
 
 	// 3) Handle window size message
 	case tea.WindowSizeMsg:
@@ -261,7 +388,16 @@ func (pm ProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return pm, heartbeatTick()
 
+	case promptScreen.PromptPreviewMsg:
+		updatedM, cmd := promptScreen.UpdateScreenFilenamePromptPreview(pm.M, typedMsg, pm.ProjectRegistry)
+		pm.M = updatedM
+		return pm, cmd
+
 	case tea.KeyMsg:
+		// Global: Ctrl+C always quits regardless of current screen
+		if typedMsg.String() == "ctrl+c" {
+			return pm, tea.Quit
+		}
 		switch pm.M.CurrentScreen {
 		case app.ScreenSelect:
 			updatedM, cmd := sharedScreens.UpdateScreenSelect(pm.M, typedMsg)
@@ -631,10 +767,14 @@ func main() {
 		},
 		tea.WithAltScreen(),
 	)
-	if err := p.Start(); err != nil {
-		fmt.Println("Error running program:", err)
-		os.Exit(1)
-	}
+    if err := p.Start(); err != nil {
+        fmt.Println("Error running program:", err)
+        os.Exit(1)
+    }
+    // After TUI exits, print any prepared exit log
+    if strings.TrimSpace(exitLog) != "" {
+        fmt.Println(exitLog)
+    }
 }
 
 // displayGeneralHelp prints the top-level help message.

@@ -7,6 +7,7 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -106,7 +107,7 @@ func ViewScreenNativeActions(m app.Model, registry *project.ProjectRegistry) str
 		status = app.ChoiceStyle.Render(m.HistorySaveStatus)
 	}
 
-	footer := app.HelpStyle.Render("Use ↑/↓ to navigate, Enter to select, Esc/b to go back.")
+	footer := sharedScreens.Footer("↑↓ ←→ navigate", "enter to confirm", "ctrl+c quit")
 
 	finalView := lipgloss.JoinVertical(lipgloss.Left, header, listPanel, status, "\n", footer)
 	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {

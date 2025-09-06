@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
+
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
@@ -319,7 +321,7 @@ func ViewScreenProjectCommandsList(m app.Model, registry *project.ProjectRegistr
 
 	// --- Combine, Footer ---
 	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
-	footer := app.HelpStyle.Render("Use ↑/↓/←/→ to navigate, Enter to select, Esc/b to go back.")
+	footer := sharedScreens.Footer("↑↓ ←→ navigate", "enter to confirm", "ctrl+c quit")
 
 	finalView := lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)
 	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {

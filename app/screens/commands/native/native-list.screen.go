@@ -9,6 +9,7 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -260,7 +261,7 @@ func ViewScreenNativeList(m app.Model, registry *project.ProjectRegistry) string
 
 	// --- Combine, Footer ---
 	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
-	footer := app.HelpStyle.Render("Use ↑/↓/←/→ to navigate, Enter to select, Esc/b to go back.")
+	footer := sharedScreens.Footer("↑↓ ←→ navigate", "enter to confirm", "ctrl+c quit")
 
 	// Combine list, paginator, footer
 	finalView := lipgloss.JoinVertical(lipgloss.Left, header, combinedPanes, "\n", footer)

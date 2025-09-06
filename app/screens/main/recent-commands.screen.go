@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -303,216 +301,145 @@ func UpdateScreenMain(m app.Model, msg tea.Msg, registry *project.ProjectRegistr
 
 // updatePreview needs modification to accept the selected command name directly
 func updatePreview(m app.Model, registry *project.ProjectRegistry, selectedCmdName string) app.Model {
-	lowerCmd := strings.ToLower(selectedCmdName)
+    lowerCmd := strings.ToLower(selectedCmdName)
 
-	// Reset previews
-	m.FileTreePreview = ""
-	m.StatsPreview = ""
-	m.CurrentPreviewType = "none"
+    // Helper: build stable placeholders for a command's keys
+    buildStable := func(cmd string) map[string]string {
+        keys, _ := commands.GetCommandVariableKeys(cmd, m.ProjectPath, registry)
+        raw := map[string]string{"Main": "<Value>"}
+        for _, k := range keys {
+            raw[k] = "<" + k + ">"
+        }
+        return commands.BuildPlaceholders(raw)
+    }
 
-	switch lowerCmd {
-	case "logout": // Renamed
-		// Use sharedScreens.RenderProjectInfoSection and append user info
-		base := sharedScreens.RenderProjectInfoSection(m, registry)
-		cfg, _ := config.LoadConfig()
-		userHeader := app.SubtitleStyle.Render("User") + "\n"
-		status := "Logged out"
-		if cfg.IsLoggedIn {
-			masked := maskToken(cfg.Token)
-			status = "Logged in (token " + masked + ")"
-			// Try to decode JWT (no signature verification) for basic user info
-			claims := parseJWTClaims(cfg.Token)
-			if len(claims) > 0 {
-				// Show a few common fields if present
-				if sub, ok := claims["sub"].(string); ok && sub != "" {
-					status += "\n  sub: " + sub
-				}
-				if email, ok := claims["email"].(string); ok && email != "" {
-					status += "\n  email: " + email
-				}
-				if iss, ok := claims["iss"].(string); ok && iss != "" {
-					status += "\n  iss: " + iss
-				}
-				if sid, ok := claims["sid"].(string); ok && sid != "" {
-					status += "\n  sid: " + sid
-				}
-				if exp, ok := claims["exp"].(float64); ok && exp > 0 {
-					status += "\n  exp: " + time.Unix(int64(exp), 0).Format(time.RFC3339)
-				}
-				// Show pro flag from public_metadata if present
-				if pmRaw, ok := claims["public_metadata"]; ok {
-					if pm, ok2 := pmRaw.(map[string]any); ok2 {
-						if v, ok3 := pm["pro"]; ok3 {
-							switch t := v.(type) {
-							case bool:
-								if t {
-									status += "\n  pro: true"
-								}
-							case string:
-								if strings.ToLower(t) == "true" {
-									status += "\n  pro: true"
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-		m.StatsPreview = base + "\n" + userHeader + "  " + status + "\n"
-		m.CurrentPreviewType = "stats"
-	case "command history":
-		// Render a compact list of recent command history (generated files only), newest first
-		m.CurrentPreviewType = "stats"
-		header := app.SubtitleStyle.Render("Command History")
-		var lines []string
-		if registry != nil && m.ProjectPath != "" {
-			if projectInfo, found := registry.GetProject(m.ProjectPath); found {
-				hist := projectInfo.CommandHistory
-				type row struct {
-					when string
-					name string
-				}
-				rows := []row{}
-				for i := len(hist) - 1; i >= 0; i-- { // newest first if appended chronologically
-					h := hist[i]
-					if len(h.GeneratedFiles) == 0 {
-						continue
-					}
-					when := relativeTimeShort(h.Timestamp)
-					name := truncateWithEllipsis(h.Name, 42)
-					rows = append(rows, row{when: when, name: name})
-				}
-				max := 10
-				if len(rows) < max {
-					max = len(rows)
-				}
-				gray := lipgloss.NewStyle().Foreground(lipgloss.Color("#888"))
-				for i := 0; i < max; i++ {
-					lines = append(lines, gray.Render(rows[i].when)+"  "+rows[i].name)
-				}
-			}
-		}
-		if len(lines) == 0 {
-			lines = []string{lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render("No recent generated-file commands.")}
-		}
-		body := lipgloss.JoinVertical(lipgloss.Left, lines...)
-		m.StatsPreview = lipgloss.JoinVertical(lipgloss.Left, header, "", body)
-		return m
-	case "paste from clipboard":
-		// Generate preview based on clipboard content
-		// Use default placeholders as we don't have real input yet
-		placeholderMap := commands.BuildAutoPlaceholders(map[string]string{"Filename": "<PastedItem>"})
-		pv, err := commands.GeneratePreviewFileTreeFromClipboard(placeholderMap, m.ProjectPath)
-		if err == nil && strings.TrimSpace(pv) != "" {
-			m.FileTreePreview = pv
-			m.CurrentPreviewType = "file-tree"
-		} else {
-			// Clean, minimal guidance panel using Lipgloss
-			muted := lipgloss.NewStyle().Foreground(lipgloss.Color("#888"))
-			title := app.SubtitleStyle.Render("Clipboard Preview")
-			msg := muted.Render("Copy a NextGen JSON command, then choose ‘paste from clipboard’.")
-			content := lipgloss.JoinVertical(lipgloss.Left, title, "", msg)
-			panel := lipgloss.NewStyle().Padding(1, 2).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Render(content)
-			m.FileTreePreview = panel
-			m.CurrentPreviewType = "file-tree"
-		}
-	default:
-		// Attempt to generate file tree preview for other commands
-		// First, handle saved clipboard commands using their stored template
-		if registry != nil {
-			if cmdSpec, ok := registry.ClipboardCommands[selectedCmdName]; ok {
-				placeholderMap := commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
-				pv, err := commands.GeneratePreviewFileTreeFromBytes([]byte(cmdSpec.Template), placeholderMap, m.ProjectPath)
-				if err == nil && strings.TrimSpace(pv) != "" {
-					m.FileTreePreview = pv
-					m.CurrentPreviewType = "file-tree"
-					return m
-				}
-				// If clipboard template preview fails, fall through to generic handling below
-			}
-		}
+    switch lowerCmd {
+    case "logout":
+        base := sharedScreens.RenderProjectInfoSection(m, registry)
+        cfg, _ := config.LoadConfig()
+        userHeader := app.SubtitleStyle.Render("User") + "\n"
+        status := "Logged out"
+        if cfg.IsLoggedIn {
+            masked := maskToken(cfg.Token)
+            status = "Logged in (token " + masked + ")"
+            claims := parseJWTClaims(cfg.Token)
+            if len(claims) > 0 {
+                if sub, ok := claims["sub"].(string); ok && sub != "" { status += "\n  sub: " + sub }
+                if email, ok := claims["email"].(string); ok && email != "" { status += "\n  email: " + email }
+                if iss, ok := claims["iss"].(string); ok && iss != "" { status += "\n  iss: " + iss }
+                if sid, ok := claims["sid"].(string); ok && sid != "" { status += "\n  sid: " + sid }
+                if exp, ok := claims["exp"].(float64); ok && exp > 0 { status += "\n  exp: " + time.Unix(int64(exp), 0).Format(time.RFC3339) }
+                if pmRaw, ok := claims["public_metadata"]; ok {
+                    if pm, ok2 := pmRaw.(map[string]any); ok2 {
+                        if v, ok3 := pm["pro"]; ok3 {
+                            switch t := v.(type) {
+                            case bool:
+                                if t { status += "\n  pro: true" }
+                            case string:
+                                if strings.ToLower(t) == "true" { status += "\n  pro: true" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        m.StatsPreview = base + "\n" + userHeader + "  " + status + "\n"
+        m.CurrentPreviewType = "stats"
+        return m
+    case "command history":
+        m.CurrentPreviewType = "stats"
+        header := app.SubtitleStyle.Render("Command History")
+        var lines []string
+        if registry != nil && m.ProjectPath != "" {
+            if projectInfo, found := registry.GetProject(m.ProjectPath); found {
+                hist := projectInfo.CommandHistory
+                type row struct{ when, name string }
+                rows := []row{}
+                for i := len(hist) - 1; i >= 0; i-- {
+                    h := hist[i]
+                    if len(h.GeneratedFiles) == 0 { continue }
+                    when := relativeTimeShort(h.Timestamp)
+                    name := truncateWithEllipsis(h.Name, 42)
+                    rows = append(rows, row{when: when, name: name})
+                }
+                max := 10; if len(rows) < max { max = len(rows) }
+                gray := lipgloss.NewStyle().Foreground(lipgloss.Color("#888"))
+                for i := 0; i < max; i++ { lines = append(lines, gray.Render(rows[i].when)+"  "+rows[i].name) }
+            }
+        }
+        if len(lines) == 0 { lines = []string{lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render("No recent generated-file commands.")}}
+        body := lipgloss.JoinVertical(lipgloss.Left, lines...)
+        m.StatsPreview = lipgloss.JoinVertical(lipgloss.Left, header, "", body)
+        return m
+    case "paste from clipboard":
+        placeholderMap := commands.BuildAutoPlaceholders(map[string]string{"Filename": "<PastedItem>"})
+        pv, err := commands.GeneratePreviewFileTreeFromClipboard(placeholderMap, m.ProjectPath)
+        if err == nil && strings.TrimSpace(pv) != "" {
+            m.FileTreePreview = pv
+            m.CurrentPreviewType = "file-tree"
+        } else {
+            muted := lipgloss.NewStyle().Foreground(lipgloss.Color("#888"))
+            title := app.SubtitleStyle.Render("Clipboard Preview")
+            msg := muted.Render("Copy a NextGen JSON command, then choose ‘paste from clipboard’.")
+            content := lipgloss.JoinVertical(lipgloss.Left, title, "", msg)
+            panel := lipgloss.NewStyle().Padding(1, 2).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Render(content)
+            m.FileTreePreview = panel
+            m.CurrentPreviewType = "file-tree"
+        }
+        return m
+    }
 
-		// If this is a composite command (args/run), preview the first invoked subcommand
-		if data, _, err := commands.LoadTemplateBytesForName(selectedCmdName, m.ProjectPath, registry); err == nil && commands.IsCompositeTemplate(data) {
-			slugs, _ := commands.GetCompositeRunSlugs(data)
-			if len(slugs) > 0 {
-				first := slugs[0]
-				keys, _ := commands.GetCommandVariableKeys(first, m.ProjectPath, registry)
-				var placeholderMap map[string]string
-				if len(keys) > 0 {
-					placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
-				} else {
-					placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
-				}
-				if pv, perr := commands.GeneratePreviewFileTree(first, placeholderMap, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
-					m.FileTreePreview = pv
-					m.CurrentPreviewType = "file-tree"
-					return m
-				}
-			}
-		}
+    // Default: try multiple sources for a preview
+    if registry != nil {
+        if cmdSpec, ok := registry.ClipboardCommands[selectedCmdName]; ok {
+            placeholderMap := commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
+            if pv, err := commands.GeneratePreviewFileTreeFromBytes([]byte(cmdSpec.Template), placeholderMap, m.ProjectPath); err == nil && strings.TrimSpace(pv) != "" {
+                m.FileTreePreview = pv
+                m.CurrentPreviewType = "file-tree"
+                return m
+            }
+        }
+    }
 
-		// If this command is an auto-browse synthetic wrapper, preview the nearest JSON under its root
-		if data, _, err := commands.LoadTemplateBytesForName(selectedCmdName, m.ProjectPath, registry); err == nil {
-			var t struct {
-				AutoBrowseRoot string `json:"autoBrowseRoot"`
-			}
-			if json.Unmarshal(data, &t) == nil && strings.TrimSpace(t.AutoBrowseRoot) != "" {
-				root := strings.TrimSpace(t.AutoBrowseRoot)
-				if nearest, ok := commands.FindFirstJSONUnder(root); ok {
-					keys, _ := commands.GetCommandVariableKeys(nearest, m.ProjectPath, registry)
-					var placeholderMap map[string]string
-					if len(keys) > 0 {
-						placeholderMap = commands.BuildPlaceholders(map[string]string{keys[0]: "<" + keys[0] + ">"})
-					} else {
-						placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Value>"})
-					}
-					if b, rerr := commands.ReadEmbeddedTemplate(nearest); rerr == nil {
-						if pv, perr := commands.GeneratePreviewFileTreeFromBytes(b, placeholderMap, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
-							m.FileTreePreview = pv
-							m.CurrentPreviewType = "file-tree"
-							return m
-						}
-					}
-				}
-			}
-		}
+    if data, _, err := commands.LoadTemplateBytesForName(selectedCmdName, m.ProjectPath, registry); err == nil && commands.IsCompositeTemplate(data) {
+        slugs, _ := commands.GetCompositeRunSlugs(data)
+        if len(slugs) > 0 {
+            first := slugs[0]
+            placeholderMap := buildStable(first)
+            if pv, perr := commands.GeneratePreviewFileTree(first, placeholderMap, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+                m.FileTreePreview = pv
+                m.CurrentPreviewType = "file-tree"
+                return m
+            }
+        }
+    }
 
-		// Use the new function to get keys
-		keys, err := commands.GetCommandVariableKeys(selectedCmdName, m.ProjectPath, registry)
-		var placeholderMap map[string]string
-		if err == nil && len(keys) > 0 {
-			// Use the first key as the primary placeholder for preview
-			placeholders := map[string]string{keys[0]: "<" + keys[0] + ">"}
-			placeholderMap = commands.BuildPlaceholders(placeholders)
-		} else {
-			// Fallback if no keys found or error getting keys
-			placeholderMap = commands.BuildAutoPlaceholders(map[string]string{"Main": "<Filename>"})
-		}
+    if data, _, err := commands.LoadTemplateBytesForName(selectedCmdName, m.ProjectPath, registry); err == nil {
+        var t struct{ AutoBrowseRoot string `json:"autoBrowseRoot"` }
+        if json.Unmarshal(data, &t) == nil && strings.TrimSpace(t.AutoBrowseRoot) != "" {
+            root := strings.TrimSpace(t.AutoBrowseRoot)
+            if nearest, ok := commands.FindFirstJSONUnder(root); ok {
+                placeholderMap := buildStable(nearest)
+                if b, rerr := commands.ReadEmbeddedTemplate(nearest); rerr == nil {
+                    if pv, perr := commands.GeneratePreviewFileTreeFromBytes(b, placeholderMap, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+                        m.FileTreePreview = pv
+                        m.CurrentPreviewType = "file-tree"
+                        return m
+                    }
+                }
+            }
+        }
+    }
 
-		// Next, handle project-local commands (.nextgen/local-commands)
-		if m.ProjectPath != "" {
-			kebab := commands.ToKebabCase(selectedCmdName)
-			localPath := filepath.Join(m.ProjectPath, ".nextgen", "local-commands", kebab+".json")
-			if data, readErr := os.ReadFile(localPath); readErr == nil {
-				if pv, perr := commands.GeneratePreviewFileTreeFromBytes(data, placeholderMap, m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
-					m.FileTreePreview = pv
-					m.CurrentPreviewType = "file-tree"
-					return m
-				}
-			}
-		}
-
-		// Pass the potentially updated selectedCmdName if it was clipboard paste
-		pv, err2 := commands.GeneratePreviewFileTree(selectedCmdName, placeholderMap, m.ProjectPath)
-		if err2 == nil && strings.TrimSpace(pv) != "" {
-			m.FileTreePreview = pv
-			m.CurrentPreviewType = "file-tree"
-		} else {
-			m.CurrentPreviewType = "none"
-		}
-	}
-	return m
+    // Try the command name itself
+    if pv, perr := commands.GeneratePreviewFileTree(selectedCmdName, buildStable(selectedCmdName), m.ProjectPath); perr == nil && strings.TrimSpace(pv) != "" {
+        m.FileTreePreview = pv
+        m.CurrentPreviewType = "file-tree"
+    } else {
+        m.FileTreePreview = lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render("No preview available for this command.")
+        m.CurrentPreviewType = "file-tree"
+    }
+    return m
 }
 
 // ViewMainScreen is the view for the main screen.
@@ -578,15 +505,15 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 	leftContentCombined := lipgloss.JoinVertical(lipgloss.Left, headerSection, actionBarText, listBuilder.String(), paginatorView) // Added paginatorView here
 	// Apply NO border or fixed width to the combined left content itself
 	leftPanelStyle := lipgloss.NewStyle().Padding(0, 1) // Just padding
-	// Calculate width dynamically based on longest item? For now, maybe fixed is ok?
-	// Let's try a slightly smaller fixed width for commands again.
-	leftPanelWidth := 50 // Keep left panel fixed width
+	// Favor a wider, stable left panel using shared helper
+	gap := 1
+	leftPanelWidth := sharedScreens.ComputeLeftPanelWidthFavorLeft(m.TerminalWidth)
 	// Left panel rendering moved after height calculation
 
 	// --- Define Footer Content First (Without Paginator) ---
 	// Suppress history/status messages on the Recent Commands screen
 	var statusLine string
-	footerHelp := app.HelpStyle.Render("Use ↑/↓/←/→ to navigate, Enter to select, q quits.")
+	footerHelp := sharedScreens.Footer("↑↓ ←→ navigate", "enter to confirm", "ctrl+c quit")
 	footerContent := statusLine + footerHelp // Paginator is removed from here
 
 	// --- Calculate available height for panels ---
@@ -619,18 +546,14 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 	if maxPreviewContentHeight < 1 {
 		maxPreviewContentHeight = 1
 	}
-	lines := strings.Split(previewContent, "\n")
-	if len(lines) > maxPreviewContentHeight {
-		previewContent = strings.Join(lines[:maxPreviewContentHeight], "\n")
-		// previewContent += "\n... (truncated)"
-	}
+	previewContent = sharedScreens.TruncateLines(previewContent, maxPreviewContentHeight)
 
 	// --- Prepend header and render final right panel ---
-	folderName := filepath.Base(m.ProjectPath)
-	previewHeader := lipgloss.NewStyle().Foreground(lipgloss.Color("#888")).Render(fmt.Sprintf("📦 %s", folderName))
+	previewHeader := sharedScreens.ProjectHeader(m.ProjectPath)
 	previewContentWithHeader := previewHeader + "\n\n" + previewContent
 
 	// Build right panel content and bottom-align within available height
+	// Let right panel size to content; may exceed viewport (clipped by terminal)
 	rightInner := lipgloss.NewStyle().Padding(1, 1).Render(previewContentWithHeader)
 	rightPanel := lipgloss.Place(lipgloss.Width(rightInner), availableHeightForPanes, lipgloss.Left, lipgloss.Bottom, rightInner)
 
@@ -641,7 +564,7 @@ func ViewMainScreen(m app.Model, registry *project.ProjectRegistry) string {
 
 	// --- Combine Panes ---
 	// Lipgloss JoinHorizontal will distribute remaining space to the right panel
-	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, " ", rightPanel)
+	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, strings.Repeat(" ", gap), rightPanel)
 
 	// --- Footer ---
 	// Render the final footer using the content without the paginator
@@ -1007,3 +930,6 @@ func fetchClerkUserInfoCmd(token string) tea.Cmd {
 		return app.ClerkUserInfoMsg{Info: "", Token: token}
 	}
 }
+
+
+

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
+
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"          // For ToKebabCase
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands" // Import commands package
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"  // Import shared
@@ -160,7 +162,7 @@ func ViewScreenProjectCommandActions(m app.Model, registry *project.ProjectRegis
 		status = app.ChoiceStyle.Render(m.HistorySaveStatus)
 	}
 
-	footer := app.HelpStyle.Render("Use ↑/↓ to navigate, Enter to select, Esc/b to go back.")
+	footer := sharedScreens.Footer("↑↓ ←→ navigate", "enter to confirm", "ctrl+c quit")
 
 	finalView := lipgloss.JoinVertical(lipgloss.Left, header, listPanel, status, "\n", footer)
 	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {

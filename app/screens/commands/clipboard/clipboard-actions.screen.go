@@ -9,6 +9,7 @@ import (
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/commands"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -169,7 +170,7 @@ func ViewScreenClipboardActions(m app.Model, registry *project.ProjectRegistry) 
 
 	listPanel := lipgloss.NewStyle().Padding(1, 2).Render(listBuilder.String())
 
-	footer := app.HelpStyle.Render("Use ↑/↓ to navigate, Enter to select, Esc/b to go back.")
+	footer := sharedScreens.Footer("↑↓ ←→ navigate", "enter to confirm", "ctrl+c quit")
 
 	finalView := lipgloss.JoinVertical(lipgloss.Left, header, listPanel, "\n", footer)
 	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {

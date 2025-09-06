@@ -7,6 +7,7 @@ import (
 
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
 	config "github.com/Guerrilla-Interactive/nextgen-go-cli/internal"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -140,7 +141,7 @@ func ViewSettingsScreen(m app.Model, registry *project.ProjectRegistry) string {
 	}
 
 	// --- Compute available height and bottom-align panels ---
-	footer := app.HelpStyle.Render("Use ↑/↓ to navigate categories, Enter to select, Esc/b to go back.")
+	footer := sharedScreens.Footer("↑↓ ←→ navigate", "enter to confirm", "ctrl+c quit")
 	footerHeight := lipgloss.Height(footer)
 	availableRowHeight := m.TerminalHeight - footerHeight - 1
 	if availableRowHeight < 10 {

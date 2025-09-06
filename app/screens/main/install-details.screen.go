@@ -2,7 +2,6 @@ package mainScreen
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -126,8 +125,8 @@ func ViewInstallDetailsScreen(m app.Model) string {
 		relPaths = append(relPaths, fullPath)
 	}
 
-	// Build a tree from the relative paths.
-	treeRoot := buildFileTree(relPaths)
+    // Build a tree from the relative paths.
+    treeRoot := buildFileTree(relPaths)
 
 	// Render the top-level nodes.
 	var treeDisplay string
@@ -137,53 +136,32 @@ func ViewInstallDetailsScreen(m app.Model) string {
 		topLevel = append(topLevel, name)
 	}
 	sort.Strings(topLevel)
-	for _, name := range topLevel {
-		child := treeRoot.Children[name]
-		// Use 📦 for directories and 📜 for files.
-		icon := "📜"
-		if len(child.Children) > 0 {
-			icon = "📦"
-		}
-		// Print the top-level folder header.
-		treeDisplay += fmt.Sprintf("%s%s\n", icon, name)
-		// Render the children without reprinting the top-level node.
-		treeDisplay += renderFileTree(child, " ", true, true)
-	}
+    for _, name := range topLevel {
+        child := treeRoot.Children[name]
+        // Use 📦 for directories and 📜 for files.
+        icon := "📜"
+        if len(child.Children) > 0 {
+            icon = "📦"
+        }
+        // Top-level line; mark edited files
+        displayName := name
+        if child.IsFile {
+            if edited, ok := commands.EditedIndexers[child.Path]; ok && edited {
+                displayName += " (edited)"
+            }
+        }
+        treeDisplay += fmt.Sprintf("%s%s\n", icon, displayName)
+        // Render the children without reprinting the top-level node.
+        treeDisplay += renderFileTree(child, " ", true, true)
+    }
 
-	// Header section using TitleStyle and PathStyle.
-
-	header := lipgloss.JoinVertical(lipgloss.Center,
-		app.TitleStyle.Render("Installation Complete! ✅"),
-	)
-	pathLine := app.PathStyle.Render(m.ProjectPath)
-
-	// Build the file tree container using Lipgloss for a refined look.
-	treeContainer := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		Padding(1, 2).
-		MarginTop(1).
-		MarginBottom(1).
-		Render(treeDisplay)
-
-	// Options panel as a navigable list with three options.
-	optionsList := []string{"[Recent Commands]", "[Run Command Again]", "[Exit]"}
-	var optionsText string
-	for i, option := range optionsList {
-		if i == m.InstallDetailsSelectedOption {
-			optionsText += app.HighlightStyle.Render(option)
-		} else {
-			optionsText += app.HelpStyle.Render(option)
-		}
-		if i < len(optionsList)-1 {
-			optionsText += "    "
-		}
-	}
-	options := optionsText
-
-	// Combine header, file tree and options; then append the help notice.
-	msg := header + "\n" + pathLine + "\n" + treeContainer + "\n\n" + options + "\n\n" +
-		app.HelpStyle.Render("(Use arrow keys or j/k/h/l to move; q quits.)")
+    // Log-style output: header + path + tree (no interactive options)
+    header := app.TitleStyle.Render("Installation Complete! ✅")
+    pathLine := app.PathStyle.Render(m.ProjectPath)
+    // Add a separator line on top for clarity
+    sep := strings.Repeat("─", 48)
+    msg := sep + "\n" + header + "\n" + pathLine + "\n\n" + treeDisplay + "\n\n" +
+        sharedScreens.Footer("Enter back", "Esc back", "Ctrl+C quit")
 	finalView := sharedScreens.BaseContainer(msg)
 	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {
 		return lipgloss.Place(m.TerminalWidth, m.TerminalHeight, lipgloss.Left, lipgloss.Bottom, finalView)
@@ -193,52 +171,17 @@ func ViewInstallDetailsScreen(m app.Model) string {
 
 // UpdateInstallDetailsScreen handles key input for the Install Details screen.
 func UpdateInstallDetailsScreen(m app.Model, msg tea.KeyMsg) (app.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c":
-		// Quit the app when ctrl+c is pressed.
-		os.Exit(0)
-	case "left", "h", "up", "k":
-		// Cycle left: decrement selection mod 3.
-		m.InstallDetailsSelectedOption = (m.InstallDetailsSelectedOption + 3 - 1) % 3
-		return m, nil
-	case "right", "l", "down", "j":
-		// Cycle right: increment selection mod 3.
-		m.InstallDetailsSelectedOption = (m.InstallDetailsSelectedOption + 1) % 3
-		return m, nil
-	case "enter":
-		if m.InstallDetailsSelectedOption == 0 {
-			// Recent Commands: Go back to that screen.
-			m.CurrentScreen = app.ScreenMain
-			return m, nil
-		} else if m.InstallDetailsSelectedOption == 1 {
-			// Run Command Again: Navigate to the filename prompt screen and clear the input.
-			m.CurrentScreen = app.ScreenFilenamePrompt
-			m.TempFilename = ""
-			m.FileTreePreview = ""
-			return m, nil
-		} else if m.InstallDetailsSelectedOption == 2 {
-			// Exit.
-			return m, tea.Quit
-		}
-		return m, nil
-	// Direct key shortcuts.
-	case "b", "B":
-		// Shortcut to go back to Recent Commands.
-		m.CurrentScreen = app.ScreenMain
-		return m, nil
-	case "r", "R":
-		// Shortcut to run command again: navigate to the filename prompt screen.
-		m.CurrentScreen = app.ScreenFilenamePrompt
-		m.TempFilename = ""
-		m.FileTreePreview = ""
-		return m, nil
-	case "q", "Q", "e", "E":
-		// Shortcut to exit.
-		return m, tea.Quit
-	default:
-		// For any other key, log (if desired) and return the current model.
-		// For debugging: fmt.Println("Unhandled key:", msg.String())
-		return m, nil
-	}
-	return m, nil
+    switch msg.String() {
+    case "ctrl+c":
+        return m, tea.Quit
+    case "enter", "esc":
+        // Treat as a simple log screen: Enter/Esc go back to Recent Commands
+        m.CurrentScreen = app.ScreenMain
+        return m, nil
+    // Optional convenience keys
+    case "q", "Q":
+        return m, tea.Quit
+    default:
+        return m, nil
+    }
 }

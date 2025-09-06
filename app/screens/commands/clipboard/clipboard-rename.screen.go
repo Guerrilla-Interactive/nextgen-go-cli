@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	sharedScreens "github.com/Guerrilla-Interactive/nextgen-go-cli/app/screens/shared"
+
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app"
 	"github.com/Guerrilla-Interactive/nextgen-go-cli/app/project"
 	tea "github.com/charmbracelet/bubbletea"
@@ -117,7 +119,7 @@ func ViewScreenRenameClipboard(m app.Model) string {
 		status = app.ChoiceStyle.Render(m.HistorySaveStatus) // Reuse ChoiceStyle or define an ErrorStyle
 	}
 
-	footer := app.HelpStyle.Render("Enter to confirm, Esc to cancel.")
+	footer := sharedScreens.Footer("enter to confirm", "Esc cancel", "ctrl+c quit")
 
 	finalView := lipgloss.JoinVertical(lipgloss.Left, header, inputPanel, status, "\n", footer)
 	if m.TerminalWidth > 0 && m.TerminalHeight > 0 {

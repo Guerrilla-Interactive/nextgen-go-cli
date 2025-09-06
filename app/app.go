@@ -77,9 +77,13 @@ type Model struct {
 	PlannedFiles []string
 
 	// Preview fields:
-	CurrentPreviewType string // "file-tree", "stats", or "none"
-	FileTreePreview    string // Holds the generated file tree preview string.
-	StatsPreview       string // Holds the generated project stats preview string.
+    CurrentPreviewType string // "file-tree", "stats", or "none"
+    FileTreePreview    string // Holds the generated file tree preview string.
+    StatsPreview       string // Holds the generated project stats preview string.
+
+    // Preview debounce state for filename prompt
+    PromptPreviewSeq     int  // increments on each input change
+    PromptPreviewPending bool // true when a debounced preview is pending
 
 	// Choice prompt state
 	ChoiceIndex       int
