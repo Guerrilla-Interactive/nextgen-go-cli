@@ -1,0 +1,173 @@
+{
+    "_id": "add-pagebuilder-block",
+    "_type": "command",
+    "title": "Add Pagebuilder Block",
+    "slug": "add-pagebuilder-block",
+    "show": { "anyOf": [
+      { "packageJson": { "name": "never" } },
+      { "packageJsonArrayContains": { "nextgen-identifiers": "never" } },
+      { "commandPackagesContains": ["never"] }
+    ] },
+    "variables": {
+      "BlockTypeSingular": {
+        "title": "Name your block type",
+        "priority": 1,
+        "description": "Sanity object `_type` used inside pageBuilder arrays.",
+        "examples": ["hero", "testimonial", "gallery", "feature"]
+      }
+    },
+    "filePaths": [
+      {
+        "_key": "addblock-frontend-components",
+        "_type": "filePathGroup",
+        "id": "frontend-components-block",
+        "path": "frontend/app/components",
+        "nodes": [
+          {
+            "_key": "addblock-component-file",
+            "_type": "treeNode",
+            "id": "file-frontend-block-component",
+            "name": "{{.PascalCaseBlockTypeSingular}}.tsx",
+            "type": "file",
+            "isIndexer": false,
+            "code": "import {Suspense} from 'react'\nimport ResolvedLink from '@/app/components/ResolvedLink'\nimport {dataAttr} from '@/sanity/lib/utils'\n\n/** Render for {{.PascalCaseBlockTypeSingular}} block */\nexport default function {{.PascalCaseBlockTypeSingular}}({ block, index }: { block: any; index: number }) {\n  return (\n    <section\n      className=\"container my-12\"\n      data-sanity={dataAttr({ id: block?._id || 'unknown', type: '{{.LowerCaseBlockTypeSingular}}', path: `pageBuilder[_key==\\\"${block?._key}\\\"]` }).toString()}\n    >\n      <div className=\"bg-gray-50 border border-gray-100 rounded-2xl p-10 grid gap-6\">\n        {block?.heading && (\n          <h2 className=\"text-3xl font-bold tracking-tight text-black sm:text-4xl\">{block.heading}</h2>\n        )}\n        {block?.text && <p className=\"text-lg leading-8 text-gray-600\">{block.text}</p>}\n        {block?.buttonText && block?.link && (\n          <Suspense fallback={null}>\n            <div className=\"flex items-center gap-x-6\">\n              <ResolvedLink\n                link={block.link}\n                className=\"rounded-full flex gap-2 items-center bg-black hover:bg-blue focus:bg-blue py-3 px-6 text-white transition-colors duration-200\"\n              >\n                {block.buttonText}\n              </ResolvedLink>\n            </div>\n          </Suspense>\n        )}\n      </div>\n    </section>\n  )\n}\n"
+          },
+          {
+            "_key": "addblock-renderer-patch",
+            "_type": "treeNode",
+            "id": "file-frontend-block-renderer",
+            "name": "BlockRenderer.tsx",
+            "type": "file",
+            "isIndexer": false,
+            "code": "import React from 'react'\n\nimport Cta from '@/app/components/Cta'\nimport Info from '@/app/components/InfoSection'\nimport {dataAttr} from '@/sanity/lib/utils'\n\n// START OF BLOCKS IMPORT\n// END OF BLOCKS IMPORT\n\ntype BlocksType = {\n  [key: string]: React.FC<any>\n}\n\ntype BlockType = {\n  _type: string\n  _key: string\n}\n\ntype BlockProps = {\n  index: number\n  block: BlockType\n  pageId: string\n  pageType: string\n}\n\nconst Blocks: BlocksType = {\n  callToAction: Cta,\n  infoSection: Info,\n  // START OF BLOCKS MAP ITEM\n  // END OF BLOCKS MAP ITEM\n}\n\nexport default function BlockRenderer({block, index, pageId, pageType}: BlockProps) {\n  if (typeof Blocks[block._type] !== 'undefined') {\n    return (\n      <div\n        key={block._key}\n        data-sanity={dataAttr({\n          id: pageId,\n          type: pageType,\n          path: `pageBuilder[_key==\\\"${block._key}\\\"]`,\n        }).toString()}\n      >\n        {React.createElement(Blocks[block._type], {\n          key: block._key,\n          block: block,\n          index: index,\n        })}\n      </div>\n    )\n  }\n  return (\n    <div className=\"w-full bg-gray-100 text-center text-gray-500 p-20 rounded\">\n      A &ldquo;{block._type}&rdquo; block hasn&apos;t been created\n    </div>\n  )\n}\n",
+            "markers": [
+              {
+                "mark": "BLOCKS IMPORT",
+                "fallback": {
+                  "behaviour": "insertAfter",
+                  "target": "import Info from '@/app/components/InfoSection'",
+                  "occurrence": "last",
+                  "content": "\nimport {{.PascalCaseBlockTypeSingular}} from '@/app/components/{{.PascalCaseBlockTypeSingular}}'"
+                }
+              },
+              {
+                "mark": "BLOCKS MAP ITEM",
+                "fallback": {
+                  "behaviour": "insertAfter",
+                  "target": "infoSection: Info,",
+                  "occurrence": "last",
+                  "content": "\n  {{.LowerCaseBlockTypeSingular}}: {{.PascalCaseBlockTypeSingular}},"
+                }
+              }
+            ]
+          }
+        ]
+      },
+  
+      {
+        "_key": "addblock-frontend-queries",
+        "_type": "filePathGroup",
+        "id": "frontend-queries",
+        "path": "frontend/sanity/lib",
+        "nodes": [
+          {
+            "_key": "addblock-queries-file",
+            "_type": "treeNode",
+            "id": "file-frontend-queries",
+            "name": "queries.ts",
+            "type": "file",
+            "isIndexer": true,
+            "code": "//THIS IS AN INDEXER FILE\nimport {defineQuery} from 'next-sanity'\n\nexport const pageBuilderFields = /* groq */ `\n  ...,\n  _type == \"callToAction\" => {\n    ${linkFields},\n  },\n  _type == \"infoSection\" => {\n    content[]{\n      ...,\n      markDefs[]{\n        ...,\n        ${linkReference}\n      }\n    }\n  },\n  // START OF PAGEBUILDER FIELDS ITEM\n  // END OF PAGEBUILDER FIELDS ITEM\n`\n",
+            "markers": [
+              {
+                "mark": "PAGEBUILDER FIELDS ITEM",
+                "fallback": {
+                  "behaviour": "insertAfter",
+                  "target": "// START OF PAGEBUILDER FIELDS ITEM",
+                  "occurrence": "last",
+                  "content": "  _type == \"{{.LowerCaseBlockTypeSingular}}\" => {\n    ...,\n    ${linkFields},\n  },"
+                }
+              }
+            ]
+          }
+        ]
+      },
+  
+      {
+        "_key": "addblock-studio-object",
+        "_type": "filePathGroup",
+        "id": "studio-object-schema",
+        "path": "studio/src/schemaTypes/objects",
+        "nodes": [
+          {
+            "_key": "addblock-object-schema-file",
+            "_type": "treeNode",
+            "id": "file-studio-object-schema",
+            "name": "{{.KebabCaseBlockTypeSingular}}.ts",
+            "type": "file",
+            "isIndexer": false,
+            "code": "import {defineField, defineType} from 'sanity'\nimport {DocumentIcon} from '@sanity/icons'\n\nexport const {{.LowerCaseBlockTypeSingular}} = defineType({\n  name: '{{.LowerCaseBlockTypeSingular}}',\n  title: '{{.PascalCaseBlockTypeSingular}}',\n  type: 'object',\n  icon: DocumentIcon,\n  fields: [\n    defineField({ name: 'heading', title: 'Heading', type: 'string' }),\n    defineField({ name: 'text', title: 'Text', type: 'text' }),\n    defineField({ name: 'buttonText', title: 'Button text', type: 'string' }),\n    defineField({ name: 'link', title: 'Button link', type: 'link' })\n  ],\n  preview: {\n    select: { title: 'heading' },\n    prepare({ title }) {\n      return { title: title || '{{.PascalCaseBlockTypeSingular}}', subtitle: '{{.PascalCaseBlockTypeSingular}} block' }\n    }\n  }\n})\n"
+          }
+        ]
+      },
+  
+      {
+        "_key": "addblock-studio-indexer",
+        "_type": "filePathGroup",
+        "id": "studio-indexer",
+        "path": "studio/src/schemaTypes",
+        "nodes": [
+            {
+                "_key": "20250903-studio-indexer-file",
+                "_type": "treeNode",
+                "id": "file-studio-indexer",
+                "name": "index.ts",
+                "type": "file",
+                "isIndexer": false,
+                "code": "import {person} from './documents/person'\nimport {page} from './documents/page'\nimport {post} from './documents/post'\nimport {callToAction} from './objects/callToAction'\nimport {infoSection} from './objects/infoSection'\nimport {settings} from './singletons/settings'\nimport {link} from './objects/link'\nimport {blockContent} from './objects/blockContent'\n\n// START OF DOCUMENT IMPORT\nimport { {{.LowerCasePageTypeSingular}} } from './documents/{{.KebabCasePageTypeSingular}}'\n// END OF DOCUMENT IMPORT\n\n// START OF OBJECT IMPORT\n// (reserved for pagebuilder blocks)\n// END OF OBJECT IMPORT\n\n// Export an array of all the schema types.  This is used in the Sanity Studio configuration. https://www.sanity.io/docs/schema-types\n\nexport const schemaTypes = [\n  // Singletons\n  settings,\n  // Documents\n  page,\n  post,\n  person,\n  // START OF DOCUMENT ARRAY ITEM\n  {{.LowerCasePageTypeSingular}},\n  // END OF DOCUMENT ARRAY ITEM\n  // Objects\n  blockContent,\n  infoSection,\n  callToAction,\n  link,\n  // START OF OBJECT ARRAY ITEM\n  // (reserved for pagebuilder blocks)\n  // END OF OBJECT ARRAY ITEM\n]\n",
+                "markers": [
+                  {
+                    "mark": "DOCUMENT IMPORT",
+                    "fallback": {
+                      "behaviour": "insertAfter",
+                      "target": "import {post} from './documents/post'",
+                      "occurrence": "last",
+                      "content": "\nimport { {{.LowerCasePageTypeSingular}} } from './documents/{{.KebabCasePageTypeSingular}}'"
+                    }
+                  },
+                  {
+                    "mark": "DOCUMENT ARRAY ITEM",
+                    "fallback": {
+                      "behaviour": "insertAfter",
+                      "target": "person,",
+                      "occurrence": "last",
+                      "content": "\n  {{.LowerCasePageTypeSingular}},"
+                    }
+                  },
+                  {
+                    "mark": "OBJECT IMPORT",
+                    "fallback": {
+                      "behaviour": "insertAfter",
+                      "target": "import {blockContent} from './objects/blockContent'",
+                      "occurrence": "last",
+                      "content": "\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.KebabCaseBlockTypeSingular}}'"
+                    }
+                  },
+                  {
+                    "mark": "OBJECT ARRAY ITEM",
+                    "fallback": {
+                      "behaviour": "insertAfter",
+                      "target": "link,",
+                      "occurrence": "last",
+                      "content": "\n  {{.LowerCaseBlockTypeSingular}},"
+                    }
+                  }
+                ],
+                "children": []
+              }
+              
+        ]
+      }
+    ]
+  }
+  
