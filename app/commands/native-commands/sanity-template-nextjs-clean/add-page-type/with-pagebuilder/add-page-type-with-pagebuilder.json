@@ -146,6 +146,30 @@
       "path": "frontend/sanity/lib",
       "nodes": [
         {
+          "_key": "node-utils-linktype-case",
+          "_type": "treeNode",
+          "id": "node-utils-linktype-case",
+          "name": "utils.ts",
+          "type": "file",
+          "isIndexer": false,
+          "code": "import createImageUrlBuilder from '@sanity/image-url'\nimport {Link} from '@/sanity.types'\nimport {dataset, projectId, studioUrl} from '@/sanity/lib/api'\nimport {createDataAttribute, CreateDataAttributeProps} from 'next-sanity'\nimport {getImageDimensions} from '@sanity/asset-utils'\n\nconst imageBuilder = createImageUrlBuilder({\n  projectId: projectId || '',\n  dataset: dataset || '',\n})\n\nexport const urlForImage = (source: any) => {\n  // Ensure that source image contains a valid reference\n  if (!source?.asset?._ref) {\n    return undefined\n  }\n\n  const imageRef = source?.asset?._ref\n  const crop = source.crop\n\n  // get the image's og dimensions\n  const {width, height} = getImageDimensions(imageRef)\n\n  if (Boolean(crop)) {\n    // compute the cropped image's area\n    const croppedWidth = Math.floor(width * (1 - (crop.right + crop.left)))\n\n    const croppedHeight = Math.floor(height * (1 - (crop.top + crop.bottom)))\n\n    // compute the cropped image's position\n    const left = Math.floor(width * crop.left)\n    const top = Math.floor(height * crop.top)\n\n    // gather into a url\n    return imageBuilder?.image(source).rect(left, top, croppedWidth, croppedHeight).auto('format')\n  }\n\n  return imageBuilder?.image(source).auto('format')\n}\n\nexport function resolveOpenGraphImage(image: any, width = 1200, height = 627) {\n  if (!image) return\n  const url = urlForImage(image)?.width(1200).height(627).fit('crop').url()\n  if (!url) return\n  return {url, alt: image?.alt as string, width, height}\n}\n\n// Depending on the type of link, we need to fetch the corresponding page, post, or URL.  Otherwise return null.\nexport function linkResolver(link: Link | undefined) {\n  if (!link) return null\n\n  // If linkType is not set but href is, lets set linkType to \"href\".  This comes into play when pasting links into the portable text editor because a link type is not assumed.\n  if (!link.linkType && link.href) {\n    link.linkType = 'href'\n  }\n\n  switch (link.linkType) {\n    case 'href':\n      return link.href || null\n    case 'page':\n      if (link?.page && typeof link.page === 'string') {\n        return `/${link.page}`\n      }\n    case 'post':\n      if (link?.post && typeof link.post === 'string') {\n        return `/posts/${link.post}`\n      }\n\n    // START OF LINKTYPE ROUTES ITEM\n    case '{{.LowerCasePageTypeSingular}}': {\n      const slug = (link as any)?.['{{.LowerCasePageTypeSingular}}']\n      return typeof slug === 'string' ? `/{{.LowerCasePageTypePlural}}/${slug}` : null\n    }\n    // END OF LINKTYPE ROUTES ITEM\n\n    default:\n      return null\n  }\n}\n\ntype DataAttributeConfig = CreateDataAttributeProps &\n  Required<Pick<CreateDataAttributeProps, 'id' | 'type' | 'path'>>\n\nexport function dataAttr(config: DataAttributeConfig) {\n  return createDataAttribute({\n    projectId,\n    dataset,\n    baseUrl: studioUrl,\n  }).combine(config)\n}\n",
+          "markers": [
+            {
+              "mark": "LINKTYPE ROUTES ITEM",
+              "fallback": {
+                "behaviour": "insertBefore",
+                "target": "default:",
+                "occurrence": "first"
+              }
+            }
+          ],
+          "children": []
+        }
+,        
+        
+          
+        
+        {
           "_key": "1757064566263-k9lklr230",
           "_type": "treeNode",
           "id": "folder-1757064566263",
@@ -259,120 +283,75 @@
           "id": "file-studio-indexer",
           "name": "index.ts",
           "type": "file",
-          "code": "// THIS IS AN INDEXER FILE\r\n\r\n// START OF DOCUMENT IMPORT\r\nimport { {{.LowerCasePageTypeSingular}} } from './documents/{{.KebabCasePageTypeSingular}}'\r\n// END OF DOCUMENT IMPORT\r\n\r\n// START OF DOCUMENT ARRAY ITEM\r\n  {{.LowerCasePageTypeSingular}},\r\n// END OF DOCUMENT ARRAY ITEM\r\n",
           "isIndexer": false,
-          "markers": [],
+          "code": "import {person} from './documents/person'\nimport {page} from './documents/page'\nimport {post} from './documents/post'\nimport {callToAction} from './objects/callToAction'\nimport {infoSection} from './objects/infoSection'\nimport {settings} from './singletons/settings'\nimport {link} from './objects/link'\nimport {blockContent} from './objects/blockContent'\n\n// Export an array of all the schema types.  This is used in the Sanity Studio configuration. https://www.sanity.io/docs/schema-types\n\nexport const schemaTypes = [\n  // Singletons\n  settings,\n  // Documents\n  page,\n  post,\n  person,\n  // Objects\n  blockContent,\n  infoSection,\n  callToAction,\n  link,\n]\n\n// START OF DOCUMENT IMPORT\nimport { {{.LowerCasePageTypeSingular}} } from './documents/{{.KebabCasePageTypeSingular}}'\n// END OF DOCUMENT IMPORT\n\n// START OF DOCUMENT ARRAY ITEM\n  {{.LowerCasePageTypeSingular}},\n// END OF DOCUMENT ARRAY ITEM\n",
           "children": []
         }
       ]
     },
     {
-      "_key": "1757202633375-q9y6d7y1z",
+      "_key": "1757205030144-22z1kk1f1",
       "_type": "filePathGroup",
-      "id": "path-1757202633375-vdcos67",
+      "id": "path-1757205030144-19ytkj4",
       "path": "studio\\src\\schemaTypes\\objects",
       "nodes": [
         {
-          "_key": "node-v74Aag884JFXfrp1eEljWw==",
+          "_key": "node-blockcontent-fixes",
           "_type": "treeNode",
-          "id": "node-Ey6hErGBe1PrKveGY1c+Tw==",
+          "id": "node-blockcontent-fixes",
           "name": "blockContent.tsx",
           "type": "file",
-          "code": "import {defineArrayMember, defineType, defineField} from 'sanity'\n\n/**\n * Rich text (Portable Text) used across documents.\n * Templated to allow variable-driven internal link targets.\n */\nexport const blockContent = defineType({\n  title: 'Block Content',\n  name: 'blockContent',\n  type: 'array',\n  of: [\n    defineArrayMember({\n      type: 'block',\n      marks: {\n        annotations: [\n          {\n            name: 'link',\n            type: 'object',\n            title: 'Link',\n            fields: [\n              defineField({\n                name: 'linkType',\n                title: 'Link Type',\n                type: 'string',\n                initialValue: 'href',\n                options: {\n                  list: [\n                    {title: 'URL', value: 'href'},\n                    {title: 'Page', value: 'page'},\n                    {title: 'Post', value: 'post'},\n                    // START OF LINK TYPE OPTION\n                    {title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},\n                    // END OF LINK TYPE OPTION\n                  ],\n                  layout: 'radio',\n                },\n              }),\n\n              // URL\n              defineField({\n                name: 'href',\n                title: 'URL',\n                type: 'url',\n                hidden: ({parent}) => parent?.linkType !== 'href' && parent?.linkType != null,\n                validation: (Rule) =>\n                  Rule.custom((value, context: any) => {\n                    if (context.parent?.linkType === 'href' && !value) {\n                      return 'URL is required when Link Type is URL'\n                    }\n                    return true\n                  }),\n              }),\n\n              // Page\n              defineField({\n                name: 'page',\n                title: 'Page',\n                type: 'reference',\n                to: [{type: 'page'}],\n                hidden: ({parent}) => parent?.linkType !== 'page',\n                validation: (Rule) =>\n                  Rule.custom((value, context: any) => {\n                    if (context.parent?.linkType === 'page' && !value) {\n                      return 'Page reference is required when Link Type is Page'\n                    }\n                    return true\n                  }),\n              }),\n\n              // Post\n              defineField({\n                name: 'post',\n                title: 'Post',\n                type: 'reference',\n                to: [{type: 'post'}],\n                hidden: ({parent}) => parent?.linkType !== 'post',\n                validation: (Rule) =>\n                  Rule.custom((value, context: any) => {\n                    if (context.parent?.linkType === 'post' && !value) {\n                      return 'Post reference is required when Link Type is Post'\n                    }\n                    return true\n                  }),\n              }),\n\n              // {{.PascalCasePageTypeSingular}}\n              defineField({\n                name: '{{.LowerCasePageTypeSingular}}',\n                title: '{{.PascalCasePageTypeSingular}}',\n                type: 'reference',\n                to: [{type: '{{.LowerCasePageTypeSingular}}'}],\n                hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\n                validation: (Rule) =>\n                  Rule.custom((value, context: any) => {\n                    if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\n                      return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\n                    }\n                    return true\n                  }),\n              }),\n\n              // START OF EXTRA INTERNAL LINK FIELDS\n              // (CLI can inject more reference targets here)\n              // END OF EXTRA INTERNAL LINK FIELDS\n\n              defineField({\n                name: 'openInNewTab',\n                title: 'Open in new tab',\n                type: 'boolean',\n                initialValue: false,\n              }),\n            ],\n          },\n        ],\n      },\n    }),\n  ],\n})\n",
           "isIndexer": false,
+          "code": "import {defineArrayMember, defineType, defineField} from 'sanity'\n\n/**\n * This is the schema definition for the rich text fields used for\n * for this blog studio. When you import it in schemas.js it can be\n * reused in other parts of the studio with:\n *  {\n *    name: 'someName',\n *    title: 'Some title',\n *    type: 'blockContent'\n *  }\n *\n * Learn more: https://www.sanity.io/docs/block-content\n */\nexport const blockContent = defineType({\n  title: 'Block Content',\n  name: 'blockContent',\n  type: 'array',\n  of: [\n    defineArrayMember({\n      type: 'block',\n      marks: {\n        annotations: [\n          {\n            name: 'link',\n            type: 'object',\n            title: 'Link',\n            fields: [\n              defineField({\n                name: 'linkType',\n                title: 'Link Type',\n                type: 'string',\n                initialValue: 'href',\n                options: {\n                  list: [\n                    {title: 'URL', value: 'href'},\n                    {title: 'Page', value: 'page'},\n                    {title: 'Post', value: 'post'},\n                    // ADD LINK TYPE OPTION BELOW\n                  ],\n                  layout: 'radio',\n                },\n              }),\n\n              defineField({\n                name: 'href',\n                title: 'URL',\n                type: 'url',\n                hidden: ({parent}) => parent?.linkType !== 'href' && parent?.linkType != null,\n                validation: (Rule) =>\n                  Rule.custom((value, context: any) => {\n                    if (context.parent?.linkType === 'href' && !value) {\n                      return 'URL is required when Link Type is URL'\n                    }\n                    return true\n                  }),\n              }),\n\n              defineField({\n                name: 'page',\n                title: 'Page',\n                type: 'reference',\n                to: [{type: 'page'}],\n                hidden: ({parent}) => parent?.linkType !== 'page',\n                validation: (Rule) =>\n                  Rule.custom((value, context: any) => {\n                    if (context.parent?.linkType === 'page' && !value) {\n                      return 'Page reference is required when Link Type is Page'\n                    }\n                    return true\n                  }),\n              }),\n\n              defineField({\n                name: 'post',\n                title: 'Post',\n                type: 'reference',\n                to: [{type: 'post'}],\n                hidden: ({parent}) => parent?.linkType !== 'post',\n                validation: (Rule) =>\n                  Rule.custom((value, context: any) => {\n                    if (context.parent?.linkType === 'post' && !value) {\n                      return 'Post reference is required when Link Type is Post'\n                    }\n                    return true\n                  }),\n              }),\n\n              // START OF EXTRA INTERNAL LINK FIELD\n              defineField({\n                name: '{{.LowerCasePageTypeSingular}}',\n                title: '{{.PascalCasePageTypeSingular}}',\n                type: 'reference',\n                to: [{type: '{{.LowerCasePageTypeSingular}}'}],\n                hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\n                validation: (Rule) =>\n                  Rule.custom((value, context: any) => {\n                    if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\n                      return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\n                    }\n                    return true\n                  }),\n              }),\n              // END OF EXTRA INTERNAL LINK FIELD\n\n              defineField({\n                name: 'openInNewTab',\n                title: 'Open in new tab',\n                type: 'boolean',\n                initialValue: false,\n              }),\n            ],\n          },\n        ],\n      },\n    }),\n  ],\n})\n\n// START OF LINK TYPE OPTION\n{title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},\n// END OF LINK TYPE OPTION\n",
           "markers": [
             {
               "mark": "LINK TYPE OPTION",
               "fallback": {
                 "behaviour": "insertAfter",
                 "target": "{title: 'Post', value: 'post'},",
-                "content": "{title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},",
-                "requireAbsent": "value: '{{.LowerCasePageTypeSingular}}'"
+                "occurrence": "last"
               }
             },
             {
-              "mark": "LINK TYPE OPTION (backup)",
-              "fallback": {
-                "behaviour": "insertAfter",
-                "target": "list: [",
-                "content": "{title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},",
-                "requireAbsent": "value: '{{.LowerCasePageTypeSingular}}'",
-                "fallbackOnly": true
-              }
-            },
-            {
-              "mark": "EXTRA INTERNAL LINK FIELDS",
-              "fallback": {
-                "behaviour": "insertAfter",
-                "target": "// START OF EXTRA INTERNAL LINK FIELDS",
-                "content": "defineField({\n  name: '{{.LowerCasePageTypeSingular}}',\n  title: '{{.PascalCasePageTypeSingular}}',\n  type: 'reference',\n  to: [{type: '{{.LowerCasePageTypeSingular}}'}],\n  hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\n  validation: (Rule) =>\n    Rule.custom((value, context: any) => {\n      if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\n        return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\n      }\n      return true\n    }),\n}),",
-                "requireAbsent": "name: '{{.LowerCasePageTypeSingular}}'"
-              }
-            },
-            {
-              "mark": "EXTRA INTERNAL LINK FIELDS (backup)",
+              "mark": "EXTRA INTERNAL LINK FIELD",
               "fallback": {
                 "behaviour": "insertBefore",
-                "target": "name: 'openInNewTab'",
-                "content": "defineField({\n  name: '{{.LowerCasePageTypeSingular}}',\n  title: '{{.PascalCasePageTypeSingular}}',\n  type: 'reference',\n  to: [{type: '{{.LowerCasePageTypeSingular}}'}],\n  hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\n  validation: (Rule) =>\n    Rule.custom((value, context: any) => {\n      if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\n        return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\n      }\n      return true\n    }),\n}),",
-                "requireAbsent": "name: '{{.LowerCasePageTypeSingular}}'",
-                "fallbackOnly": true
-              }
-            }
-          ],
-          "children": []
-        },
-        
-        {
-          "_key": "node-ays8QWGb1HbDJd/4mI/92A==",
-          "_type": "treeNode",
-          "id": "node-ICcuCusXYxKriUCV+eRZGg==",
-          "name": "link.ts",
-          "type": "file",
-          "code": "import {defineField, defineType} from 'sanity'\nimport {LinkIcon} from '@sanity/icons'\n\n/**\n * Generic Link object schema.\n * - Lets user choose between URL, Page, Post, or custom {{.PascalCasePageTypeSingular}} reference.\n * - Includes snippet markers so CLI can inject more link targets in the future.\n */\nexport const link = defineType({\n  name: 'link',\n  title: 'Link',\n  type: 'object',\n  icon: LinkIcon,\n  fields: [\n    defineField({\n      name: 'linkType',\n      title: 'Link Type',\n      type: 'string',\n      initialValue: 'href',\n      options: {\n        list: [\n          {title: 'URL', value: 'href'},\n          {title: 'Page', value: 'page'},\n          {title: 'Post', value: 'post'},\n          // START OF LINK TYPE OPTION\n          {title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},\n          // END OF LINK TYPE OPTION\n        ],\n        layout: 'radio',\n      },\n    }),\n\n    // URL\n    defineField({\n      name: 'href',\n      title: 'URL',\n      type: 'url',\n      hidden: ({parent}) => parent?.linkType !== 'href',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === 'href' && !value) {\n            return 'URL is required when Link Type is URL'\n          }\n          return true\n        }),\n    }),\n\n    // Page\n    defineField({\n      name: 'page',\n      title: 'Page',\n      type: 'reference',\n      to: [{type: 'page'}],\n      hidden: ({parent}) => parent?.linkType !== 'page',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === 'page' && !value) {\n            return 'Page reference is required when Link Type is Page'\n          }\n          return true\n        }),\n    }),\n\n    // Post\n    defineField({\n      name: 'post',\n      title: 'Post',\n      type: 'reference',\n      to: [{type: 'post'}],\n      hidden: ({parent}) => parent?.linkType !== 'post',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === 'post' && !value) {\n            return 'Post reference is required when Link Type is Post'\n          }\n          return true\n        }),\n    }),\n\n    // {{.PascalCasePageTypeSingular}}\n    defineField({\n      name: '{{.LowerCasePageTypeSingular}}',\n      title: '{{.PascalCasePageTypeSingular}}',\n      type: 'reference',\n      to: [{type: '{{.LowerCasePageTypeSingular}}'}],\n      hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\n            return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\n          }\n          return true\n        }),\n    }),\n\n    // START OF EXTRA INTERNAL LINK FIELDS\n    // (CLI can inject more reference targets here)\n    // END OF EXTRA INTERNAL LINK FIELDS\n\n    defineField({\n      name: 'openInNewTab',\n      title: 'Open in new tab',\n      type: 'boolean',\n      initialValue: false,\n    }),\n  ],\n})\n",
-          "isIndexer": false,
-          "markers": [
-            {
-              "mark": "LINK TYPE OPTION",
-              "fallback": {
-                "behaviour": "insertAfter",
-                "target": "{title: 'Post', value: 'post'},",
-                "content": "{title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},",
-                "requireAbsent": "value: '{{.LowerCasePageTypeSingular}}'"
-              }
-            },
-            {
-              "mark": "LINK TYPE OPTION (backup)",
-              "fallback": {
-                "behaviour": "insertAfter",
-                "target": "list: [",
-                "content": "{title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},",
-                "requireAbsent": "value: '{{.LowerCasePageTypeSingular}}'",
-                "fallbackOnly": true
-              }
-            },
-            {
-              "mark": "EXTRA INTERNAL LINK FIELDS",
-              "fallback": {
-                "behaviour": "insertAfter",
-                "target": "// START OF EXTRA INTERNAL LINK FIELDS",
-                "content": "defineField({\n  name: '{{.LowerCasePageTypeSingular}}',\n  title: '{{.PascalCasePageTypeSingular}}',\n  type: 'reference',\n  to: [{type: '{{.LowerCasePageTypeSingular}}'}],\n  hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\n  validation: (Rule) =>\n    Rule.custom((value, context: any) => {\n      if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\n        return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\n      }\n      return true\n    }),\n}),",
-                "requireAbsent": "name: '{{.LowerCasePageTypeSingular}}'"
-              }
-            },
-            {
-              "mark": "EXTRA INTERNAL LINK FIELDS (backup)",
-              "fallback": {
-                "behaviour": "insertBefore",
-                "target": "name: 'openInNewTab'",
-                "content": "defineField({\n  name: '{{.LowerCasePageTypeSingular}}',\n  title: '{{.PascalCasePageTypeSingular}}',\n  type: 'reference',\n  to: [{type: '{{.LowerCasePageTypeSingular}}'}],\n  hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\n  validation: (Rule) =>\n    Rule.custom((value, context: any) => {\n      if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\n        return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\n      }\n      return true\n    }),\n}),",
-                "requireAbsent": "name: '{{.LowerCasePageTypeSingular}}'",
-                "fallbackOnly": true
+                "target": "defineField({",
+                "occurrence": "last"
               }
             }
           ],
           "children": []
         }
+,        
+{
+  "_key": "node-link-schema-fixes",
+  "_type": "treeNode",
+  "id": "node-link-schema-fixes",
+  "name": "link.ts",
+  "type": "file",
+  "isIndexer": false,
+  "code": "import {defineField, defineType} from 'sanity'\nimport {LinkIcon} from '@sanity/icons'\n\n/**\n * Link schema object. This link object lets the user first select the type of link and then\n * then enter the URL, page reference, or post reference - depending on the type selected.\n * Learn more: https://www.sanity.io/docs/object-type\n */\nexport const link = defineType({\n  name: 'link',\n  title: 'Link',\n  type: 'object',\n  icon: LinkIcon,\n  fields: [\n    defineField({\n      name: 'linkType',\n      title: 'Link Type',\n      type: 'string',\n      initialValue: 'url',\n      options: {\n        list: [\n          {title: 'URL', value: 'href'},\n          {title: 'Page', value: 'page'},\n          {title: 'Post', value: 'post'},\n          // ADD LINK TYPE OPTION BELOW\n        ],\n        layout: 'radio',\n      },\n    }),\n\n    // URL\n    defineField({\n      name: 'href',\n      title: 'URL',\n      type: 'url',\n      hidden: ({parent}) => parent?.linkType !== 'href',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === 'href' && !value) {\n            return 'URL is required when Link Type is URL'\n          }\n          return true\n        }),\n    }),\n\n    // Page\n    defineField({\n      name: 'page',\n      title: 'Page',\n      type: 'reference',\n      to: [{type: 'page'}],\n      hidden: ({parent}) => parent?.linkType !== 'page',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === 'page' && !value) {\n            return 'Page reference is required when Link Type is Page'\n          }\n          return true\n        }),\n    }),\n\n    // Post\n    defineField({\n      name: 'post',\n      title: 'Post',\n      type: 'reference',\n      to: [{type: 'post'}],\n      hidden: ({parent}) => parent?.linkType !== 'post',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === 'post' && !value) {\n            return 'Post reference is required when Link Type is Post'\n          }\n          return true\n        }),\n    }),\n\n    // START OF EXTRA INTERNAL LINK FIELD\n    defineField({\n      name: '{{.LowerCasePageTypeSingular}}',\n      title: '{{.PascalCasePageTypeSingular}}',\n      type: 'reference',\n      to: [{type: '{{.LowerCasePageTypeSingular}}'}],\n      hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\n            return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\n          }\n          return true\n        }),\n    }),\n    // END OF EXTRA INTERNAL LINK FIELD\n\n    defineField({\n      name: 'openInNewTab',\n      title: 'Open in new tab',\n      type: 'boolean',\n      initialValue: false,\n    }),\n  ],\n})\n\n// --- snippet bodies used by smartMerge ---\n// START OF LINK TYPE OPTION\n{title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},\n// END OF LINK TYPE OPTION\n",
+  "markers": [
+    {
+      "mark": "LINK TYPE OPTION",
+      "fallback": {
+        "behaviour": "insertAfter",
+        "target": "{title: 'Post', value: 'post'},",
+        "occurrence": "last"
+      }
+    },
+    {
+      "mark": "EXTRA INTERNAL LINK FIELD",
+      "fallback": {
+        "behaviour": "insertBefore",
+        "target": "defineField({",
+        "occurrence": "last"
+      }
+    }
+  ],
+  "children": []
+}
         
       ]
     }
