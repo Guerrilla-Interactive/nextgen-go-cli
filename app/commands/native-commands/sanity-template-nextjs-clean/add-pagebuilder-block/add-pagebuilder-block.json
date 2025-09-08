@@ -74,24 +74,67 @@
         "path": "frontend/sanity/lib",
         "nodes": [
           {
-            "_key": "addblock-queries-file",
+            "_key": "1756919951450-hqircx415",
             "_type": "treeNode",
-            "id": "file-frontend-queries",
+            "id": "file-1756919951450",
             "name": "queries.ts",
             "type": "file",
-            "isIndexer": true,
-            "code": "//THIS IS AN INDEXER FILE\nimport {defineQuery} from 'next-sanity'\n\nexport const pageBuilderFields = /* groq */ `\n  ...,\n  _type == \"callToAction\" => {\n    ${linkFields},\n  },\n  _type == \"infoSection\" => {\n    content[]{\n      ...,\n      markDefs[]{\n        ...,\n        ${linkReference}\n      }\n    }\n  },\n  // START OF PAGEBUILDER FIELDS ITEM\n  // END OF PAGEBUILDER FIELDS ITEM\n`\n",
+            "code": "//THIS IS AN INDEXER FILE \nimport {defineQuery} from 'next-sanity'\n\nexport const settingsQuery = defineQuery(`*[_type == \"settings\"][0]`)\n\nexport const postFields = /* groq */ `\n  _id,\n  \"status\": select(_originalId in path(\"drafts.**\") => \"draft\", \"published\"),\n  \"title\": coalesce(title, \"Untitled\"),\n  \"slug\": slug.current,\n  excerpt,\n  coverImage,\n  \"date\": coalesce(date, _updatedAt),\n  \"author\": author->{firstName, lastName, picture},\n`\n\nexport const linkReference = /* groq */ `\n  _type == \"link\" => {\n    \"page\": page->slug.current,\n    \"post\": post->slug.current,\n  }\n`\n\nexport const linkFields = /* groq */ `\n  link {\n      ...,\n      ${linkReference}\n      }\n`\n\nexport const pageBuilderFields = /* groq */ `\n  ...,\n  _type == \"callToAction\" => {\n    ${linkFields},\n  },\n  _type == \"infoSection\" => {\n    content[]{\n      ...,\n      markDefs[]{\n        ...,\n        ${linkReference}\n      }\n    }\n  }\n`\n\nexport const getPageQuery = defineQuery(`\n  *[_type == 'page' && slug.current == $slug][0]{\n    _id,\n    _type,\n    name,\n    slug,\n    heading,\n    subheading,\n    \"pageBuilder\": pageBuilder[]{\n      ${pageBuilderFields}\n    },\n  }\n`)\n\n\n\nexport const sitemapData = defineQuery(`\n  *[_type == \"page\" || _type == \"post\" && defined(slug.current)] | order(_type asc) {\n    \"slug\": slug.current,\n    _type,\n    _updatedAt,\n  }\n`)\n\nexport const allPostsQuery = defineQuery(`\n  *[_type == \"post\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\n    ${postFields}\n  }\n`)\n\nexport const morePostsQuery = defineQuery(`\n  *[_type == \"post\" && _id != $skip && defined(slug.current)] | order(date desc, _updatedAt desc) [0...$limit] {\n    ${postFields}\n  }\n`)\n\nexport const postQuery = defineQuery(`\n  *[_type == \"post\" && slug.current == $slug] [0] {\n    content[]{\n    ...,\n    markDefs[]{\n      ...,\n      ${linkReference}\n    }\n  },\n    ${postFields}\n  }\n`)\n\nexport const postPagesSlugs = defineQuery(`\n  *[_type == \"post\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`)\n\nexport const pagesSlugs = defineQuery(`\n  *[_type == \"page\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`)\n",
+            "isIndexer": false,
             "markers": [
               {
-                "mark": "PAGEBUILDER FIELDS ITEM",
+                "mark": "Setting \"linkFields\" to Export",
                 "fallback": {
-                  "behaviour": "insertAfter",
-                  "target": "// START OF PAGEBUILDER FIELDS ITEM",
-                  "occurrence": "last",
-                  "content": "  _type == \"{{.LowerCaseBlockTypeSingular}}\" => {\n    ...,\n    ${linkFields},\n  },"
+                  "behaviour": "replaceIfMissing",
+                  "target": "const linkFields = /* groq */ `",
+                  "requireAbsent": "export const linkFields = /* groq */ `",
+                  "replacement": "export const linkFields = /* groq */ `",
+                  "occurrence": "first"
+                }
+              },
+              {
+                "mark": "Setting \"postFields\" to Export",
+                "fallback": {
+                  "behaviour": "replaceIfMissing",
+                  "target": "const postFields = /* groq */ `",
+                  "requireAbsent": "export const postFields = /* groq */ `",
+                  "replacement": "export const postFields = /* groq */ `",
+                  "occurrence": "first"
+                }
+              },
+              {
+                "mark": "Setting \"linkReference\" to Export",
+                "fallback": {
+                  "behaviour": "replaceIfMissing",
+                  "target": "const linkReference = /* groq */ `",
+                  "requireAbsent": "export const linkReference = /* groq */ `",
+                  "replacement": "export const linkReference = /* groq */ `",
+                  "occurrence": "first"
+                }
+              },
+              {
+                "mark": "Making \"PageBuilder Fields\" exportable",
+                "fallback": {
+                  "behaviour": "replaceBetween",
+                  "targetStart": "export const getPageQuery = defineQuery(`",
+                  "targetEnd": "`)",
+                  "occurrence": "first",
+                  "requireAbsent": "export const pageBuilderFields = /* groq */ `",
+                  "replacement": "export const pageBuilderFields = /* groq */ `\n  ...,\n  _type == \"callToAction\" => {\n    ${linkFields},\n  },\n  _type == \"infoSection\" => {\n    content[]{\n      ...,\n      markDefs[]{\n        ...,\n        ${linkReference}\n      }\n    }\n  }\n`\n\nexport const getPageQuery = defineQuery(`\n  *[_type == 'page' && slug.current == $slug][0]{\n    _id,\n    _type,\n    name,\n    slug,\n    heading,\n    subheading,\n    \"pageBuilder\": pageBuilder[]{\n      ${pageBuilderFields}\n    },\n  }\n`)"
+                }
+              },
+              {
+                "mark": "Adding \"BlockType\" to \"pageBuilderFields\"",
+                "fallback": {
+                  "behaviour": "insertNextLine",
+                  "target": "export const pageBuilderFields = /* groq */ `",
+                  "occurrence": "first",
+                  "fallbackOnly": false,
+                  "content": "_type == \"{{.KebabCaseBlockTypeSingular}}\" => {\n...,\n  },"
                 }
               }
-            ]
+            ],
+            "children": []
           }
         ]
       },

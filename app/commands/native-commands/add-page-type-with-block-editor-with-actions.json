@@ -59,15 +59,24 @@
                 "type": "file",
                 "code": "//THIS IS AN INDEXER FILE \r\n\r\nimport Link from 'next/link'\r\nimport {settingsQuery} from '@/sanity/lib/queries'\r\nimport {sanityFetch} from '@/sanity/lib/live'\r\n\r\nexport default async function Header() {\r\n  const {data: settings} = await sanityFetch({\r\n    query: settingsQuery,\r\n  })\r\n\r\n  return (\r\n    <header className=\"fixed z-50 h-24 inset-0 bg-white/80 flex items-center backdrop-blur-lg\">\r\n      <div className=\"container py-6 px-2 sm:px-6\">\r\n        <div className=\"flex items-center justify-between gap-5\">\r\n          <Link className=\"flex items-center gap-2\" href=\"/\">\r\n            <span className=\"text-lg sm:text-2xl pl-2 font-semibold\">\r\n              {settings?.title || 'Sanity + Next.js'}\r\n            </span>\r\n          </Link>\r\n\r\n          <nav>\r\n            <ul\r\n              role=\"list\"\r\n              className=\"flex items-center gap-4 md:gap-6 leading-5 text-xs sm:text-base tracking-tight font-mono\"\r\n            >\r\n              <li>\r\n              // START OF PAGETYPE ARCHIVE LINK\r\n               <Link href=\"/{{.LowerCasePageTypePlural}}\" className=\"ml-8 hover:underline\">{{.LowerCasePageTypePlural}}</Link>\r\n              // END OF PAGETYPE ARCHIVE LINK\r\n                <Link href=\"/about\" className=\"hover:underline\">\r\n                  About\r\n                </Link>\r\n              </li>\r\n\r\n              <li className=\"sm:before:w-[1px] sm:before:bg-gray-200 before:block flex sm:gap-4 md:gap-6\">\r\n                <Link\r\n                  className=\"rounded-full flex gap-4 items-center bg-black hover:bg-blue focus:bg-blue py-2 px-4 justify-center sm:py-3 sm:px-6 text-white transition-colors duration-200\"\r\n                  href=\"https://github.com/sanity-io/sanity-template-nextjs-clean\"\r\n                  target=\"_blank\"\r\n                  rel=\"noopener noreferrer\"\r\n                >\r\n                  <span className=\"whitespace-nowrap\">View on GitHub</span>\r\n                  <svg\r\n                    xmlns=\"http://www.w3.org/2000/svg\"\r\n                    viewBox=\"0 0 24 24\"\r\n                    fill=\"currentColor\"\r\n                    className=\"hidden sm:block h-4 sm:h-6\"\r\n                  >\r\n                    <path d=\"M12.001 2C6.47598 2 2.00098 6.475 2.00098 12C2.00098 16.425 4.86348 20.1625 8.83848 21.4875C9.33848 21.575 9.52598 21.275 9.52598 21.0125C9.52598 20.775 9.51348 19.9875 9.51348 19.15C7.00098 19.6125 6.35098 18.5375 6.15098 17.975C6.03848 17.6875 5.55098 16.8 5.12598 16.5625C4.77598 16.375 4.27598 15.9125 5.11348 15.9C5.90098 15.8875 6.46348 16.625 6.65098 16.925C7.55098 18.4375 8.98848 18.0125 9.56348 17.75C9.65098 17.1 9.91348 16.6625 10.201 16.4125C7.97598 16.1625 5.65098 15.3 5.65098 11.475C5.65098 10.3875 6.03848 9.4875 6.67598 8.7875C6.57598 8.5375 6.22598 7.5125 6.77598 6.1375C6.77598 6.1375 7.61348 5.875 9.52598 7.1625C10.326 6.9375 11.176 6.825 12.026 6.825C12.876 6.825 13.726 6.9375 14.526 7.1625C16.4385 5.8625 17.276 6.1375 17.276 6.1375C17.826 7.5125 17.476 8.5375 17.376 8.7875C18.0135 9.4875 18.401 10.375 18.401 11.475C18.401 15.3125 16.0635 16.1625 13.8385 16.4125C14.201 16.725 14.5135 17.325 14.5135 18.2625C14.5135 19.6 14.501 20.675 14.501 21.0125C14.501 21.275 14.6885 21.5875 15.1885 21.4875C19.259 20.1133 21.9999 16.2963 22.001 12C22.001 6.475 17.526 2 12.001 2Z\"></path>\r\n                  </svg>\r\n                </Link>\r\n              </li>\r\n            </ul>\r\n          </nav>\r\n        </div>\r\n      </div>\r\n    </header>\r\n  )\r\n}\r\n",
                 "isIndexer": false,
-                "markers": [
+                "actions": [
                   {
-                    "mark": "PAGETYPE ARCHIVE LINK",
-                    "fallback": {
-                      "target": "<Link href",
-                      "behaviour": "insertBefore",
-                      "fallbackOnly": true,
-                      "content": "<Link href=\"/{{.LowerCasePageTypePlural}}\" className=\"mr-6 hover:underline\">{{.PascalCasePageTypePlural}}</Link>"
-                    }
+                    "id": "ensure-archive-link",
+                    "when": [
+                      { "notContains": { "pattern": "/{{.LowerCasePageTypePlural}}" } }
+                    ],
+                    "do": [
+                      { "ensureImport": { "from": "next/link", "names": ["Link"] } },
+                      {
+                        "insert": {
+                          "anchor": { "match": { "pattern": "<nav>" }, "position": "insideEnd" },
+                          "content": "\n<Link href=\"/{{.LowerCasePageTypePlural}}\" className=\"ml-8 hover:underline\">{{.PascalCasePageTypePlural}}</Link>\n",
+                          "format": { "indentFromAnchor": true, "ensureNewline": true, "trimDuplicates": true }
+                        }
+                      }
+                    ],
+                    "verify": [ { "contains": { "pattern": "/{{.LowerCasePageTypePlural}}" } } ],
+                    "onConflict": "patch"
                   }
                 ],
                 "children": []
@@ -154,14 +163,21 @@
             "type": "file",
             "isIndexer": false,
             "code": "import createImageUrlBuilder from '@sanity/image-url'\nimport {Link} from '@/sanity.types'\nimport {dataset, projectId, studioUrl} from '@/sanity/lib/api'\nimport {createDataAttribute, CreateDataAttributeProps} from 'next-sanity'\nimport {getImageDimensions} from '@sanity/asset-utils'\n\nconst imageBuilder = createImageUrlBuilder({\n  projectId: projectId || '',\n  dataset: dataset || '',\n})\n\nexport const urlForImage = (source: any) => {\n  // Ensure that source image contains a valid reference\n  if (!source?.asset?._ref) {\n    return undefined\n  }\n\n  const imageRef = source?.asset?._ref\n  const crop = source.crop\n\n  // get the image's og dimensions\n  const {width, height} = getImageDimensions(imageRef)\n\n  if (Boolean(crop)) {\n    // compute the cropped image's area\n    const croppedWidth = Math.floor(width * (1 - (crop.right + crop.left)))\n\n    const croppedHeight = Math.floor(height * (1 - (crop.top + crop.bottom)))\n\n    // compute the cropped image's position\n    const left = Math.floor(width * crop.left)\n    const top = Math.floor(height * crop.top)\n\n    // gather into a url\n    return imageBuilder?.image(source).rect(left, top, croppedWidth, croppedHeight).auto('format')\n  }\n\n  return imageBuilder?.image(source).auto('format')\n}\n\nexport function resolveOpenGraphImage(image: any, width = 1200, height = 627) {\n  if (!image) return\n  const url = urlForImage(image)?.width(1200).height(627).fit('crop').url()\n  if (!url) return\n  return {url, alt: image?.alt as string, width, height}\n}\n\n// Depending on the type of link, we need to fetch the corresponding page, post, or URL.  Otherwise return null.\nexport function linkResolver(link: Link | undefined) {\n  if (!link) return null\n\n  // If linkType is not set but href is, lets set linkType to \"href\".  This comes into play when pasting links into the portable text editor because a link type is not assumed.\n  if (!link.linkType && link.href) {\n    link.linkType = 'href'\n  }\n\n  switch (link.linkType) {\n    case 'href':\n      return link.href || null\n    case 'page':\n      if (link?.page && typeof link.page === 'string') {\n        return `/${link.page}`\n      }\n    case 'post':\n      if (link?.post && typeof link.post === 'string') {\n        return `/posts/${link.post}`\n      }\n\n    // START OF LINKTYPE ROUTES ITEM\n    case '{{.LowerCasePageTypeSingular}}': {\n      const slug = (link as any)?.['{{.LowerCasePageTypeSingular}}']\n      return typeof slug === 'string' ? `/{{.LowerCasePageTypePlural}}/${slug}` : null\n    }\n    // END OF LINKTYPE ROUTES ITEM\n\n    default:\n      return null\n  }\n}\n\ntype DataAttributeConfig = CreateDataAttributeProps &\n  Required<Pick<CreateDataAttributeProps, 'id' | 'type' | 'path'>>\n\nexport function dataAttr(config: DataAttributeConfig) {\n  return createDataAttribute({\n    projectId,\n    dataset,\n    baseUrl: studioUrl,\n  }).combine(config)\n}\n",
-            "markers": [
+            "actions": [
               {
-                "mark": "LINKTYPE ROUTES ITEM",
-                "fallback": {
-                  "behaviour": "insertBefore",
-                  "target": "default:",
-                  "occurrence": "first"
-                }
+                "id": "ensure-linktype-switch-case",
+                "when": [ { "notContains": { "pattern": "case '{{.LowerCasePageTypeSingular}}':" } } ],
+                "do": [
+                  {
+                    "insert": {
+                      "anchor": { "match": { "pattern": "switch \\(link\\.linkType\\) \\{" }, "position": "insideEnd" },
+                      "content": "\n    case '{{.LowerCasePageTypeSingular}}': {\n      const slug = (link as any)?.['{{.LowerCasePageTypeSingular}}']\n      return typeof slug === 'string' ? `/{{.LowerCasePageTypePlural}}/${slug}` : null\n    }\n",
+                      "format": { "indentFromAnchor": true, "ensureNewline": true, "trimDuplicates": true }
+                    }
+                  }
+                ],
+                "verify": [ { "contains": { "pattern": "case '{{.LowerCasePageTypeSingular}}':" } } ],
+                "onConflict": "patch"
               }
             ],
             "children": []
@@ -195,74 +211,49 @@
                 "id": "file-1756919951450",
                 "name": "queries.ts",
                 "type": "file",
-                "code": "//THIS IS AN INDEXER FILE \nimport {defineQuery} from 'next-sanity'\n\nexport const settingsQuery = defineQuery(`*[_type == \"settings\"][0]`)\n\nexport const postFields = /* groq */ `\n  _id,\n  \"status\": select(_originalId in path(\"drafts.**\") => \"draft\", \"published\"),\n  \"title\": coalesce(title, \"Untitled\"),\n  \"slug\": slug.current,\n  excerpt,\n  coverImage,\n  \"date\": coalesce(date, _updatedAt),\n  \"author\": author->{firstName, lastName, picture},\n`\n\nexport const linkReference = /* groq */ `\n  _type == \"link\" => {\n    \"page\": page->slug.current,\n    \"post\": post->slug.current,\n    // START OF LINK REFERENCES \n    \"{{.LowerCasePageTypeSingular}}\": {{.LowerCasePageTypeSingular}}->slug.current,\n    // END OF LINK REFERENCES\n\n  }\n`\n\nexport const linkFields = /* groq */ `\n  link {\n      ...,\n      ${linkReference}\n      }\n`\n\nexport const pageBuilderFields = /* groq */ `\n  ...,\n  _type == \"callToAction\" => {\n    ${linkFields},\n  },\n  _type == \"infoSection\" => {\n    content[]{\n      ...,\n      markDefs[]{\n        ...,\n        ${linkReference}\n      }\n    }\n  }\n`\n\nexport const getPageQuery = defineQuery(`\n  *[_type == 'page' && slug.current == $slug][0]{\n    _id,\n    _type,\n    name,\n    slug,\n    heading,\n    subheading,\n    \"pageBuilder\": pageBuilder[]{\n      ${pageBuilderFields}\n    },\n  }\n`)\n\n\n\nexport const sitemapData = defineQuery(`\n  *[_type == \"page\" || _type == \"post\" && defined(slug.current)] | order(_type asc) {\n    \"slug\": slug.current,\n    _type,\n    _updatedAt,\n  }\n`)\n\nexport const allPostsQuery = defineQuery(`\n  *[_type == \"post\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\n    ${postFields}\n  }\n`)\n\nexport const morePostsQuery = defineQuery(`\n  *[_type == \"post\" && _id != $skip && defined(slug.current)] | order(date desc, _updatedAt desc) [0...$limit] {\n    ${postFields}\n  }\n`)\n\nexport const postQuery = defineQuery(`\n  *[_type == \"post\" && slug.current == $slug] [0] {\n    content[]{\n    ...,\n    markDefs[]{\n      ...,\n      ${linkReference}\n    }\n  },\n    ${postFields}\n  }\n`)\n\nexport const postPagesSlugs = defineQuery(`\n  *[_type == \"post\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`)\n\nexport const pagesSlugs = defineQuery(`\n  *[_type == \"page\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`)\n",
+                "code": "//THIS IS AN INDEXER FILE \r\nimport {defineQuery} from 'next-sanity'\r\n\r\nexport const settingsQuery = defineQuery(`*[_type == \"settings\"][0]`)\r\n\r\nexport const postFields = /* groq */ `\r\n  _id,\r\n  \"status\": select(_originalId in path(\"drafts.**\") => \"draft\", \"published\"),\r\n  \"title\": coalesce(title, \"Untitled\"),\r\n  \"slug\": slug.current,\r\n  excerpt,\r\n  coverImage,\r\n  \"date\": coalesce(date, _updatedAt),\r\n  \"author\": author->{firstName, lastName, picture},\r\n`\r\n\r\nexport const linkReference = /* groq */ `\r\n  _type == \"link\" => {\r\n    \"page\": page->slug.current,\r\n    \"post\": post->slug.current,\r\n    // START OF LINK REFERENCES \r\n    \"{{.LowerCasePageTypeSingular}}\": {{.LowerCasePageTypeSingular}}->slug.current,\r\n    // END OF LINK REFERENCES IMPORT\r\n\r\n  }\r\n`\r\n\r\nexport const linkFields = /* groq */ `\r\n  link {\r\n      ...,\r\n      ${linkReference}\r\n      }\r\n`\r\n\r\nexport const pageBuilderFields = /* groq */ `\r\n  ...,\r\n  _type == \"callToAction\" => {\r\n    ${linkFields},\r\n  },\r\n  _type == \"infoSection\" => {\r\n    content[]{\r\n      ...,\r\n      markDefs[]{\r\n        ...,\r\n        ${linkReference}\r\n      }\r\n    }\r\n  }\r\n`\r\n\r\nexport const getPageQuery = defineQuery(`\r\n  *[_type == 'page' && slug.current == $slug][0]{\r\n    _id,\r\n    _type,\r\n    name,\r\n    slug,\r\n    heading,\r\n    subheading,\r\n    \"pageBuilder\": pageBuilder[]{\r\n      ${pageBuilderFields}\r\n    },\r\n  }\r\n`)\r\n\r\n\r\n\r\nexport const sitemapData = defineQuery(`\r\n  *[defined(slug.current) && (_type == \"page\" || _type == \"post\")] | order(_type asc) {\r\n    \"slug\": slug.current,\r\n    _type,\r\n    _updatedAt,\r\n  }\r\n`)\r\n\r\nexport const allPostsQuery = defineQuery(`\r\n  *[_type == \"post\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\r\n    ${postFields}\r\n  }\r\n`)\r\n\r\nexport const morePostsQuery = defineQuery(`\r\n  *[_type == \"post\" && _id != $skip && defined(slug.current)] | order(date desc, _updatedAt desc) [0...$limit] {\r\n    ${postFields}\r\n  }\r\n`)\r\n\r\nexport const postQuery = defineQuery(`\r\n  *[_type == \"post\" && slug.current == $slug] [0] {\r\n    content[]{\r\n    ...,\r\n    markDefs[]{\r\n      ...,\r\n      ${linkReference}\r\n    }\r\n  },\r\n    ${postFields}\r\n  }\r\n`)\r\n\r\nexport const postPagesSlugs = defineQuery(`\r\n  *[_type == \"post\" && defined(slug.current)]\r\n  {\"slug\": slug.current}\r\n`)\r\n\r\nexport const pagesSlugs = defineQuery(`\r\n  *[_type == \"page\" && defined(slug.current)]\r\n  {\"slug\": slug.current}\r\n`)\r\n",
                 "isIndexer": false,
-                "markers": [
+                "actions": [
                   {
-                    "mark": "set linkFields to Export",
-                    "fallback": {
-                      "behaviour": "replaceIfMissing",
-                      "target": "const linkFields = /* groq */ `",
-                      "requireAbsent": "export const linkFields = /* groq */ `",
-                      "replacement": "export const linkFields = /* groq */ `",
-                      "occurrence": "first"
-                    }
+                    "id": "export-linkFields-if-const",
+                    "when": [ { "contains": { "pattern": "const linkFields = /\\* groq \\*/" } } ],
+                    "do": [
+                      { "replace": { "selector": { "pattern": "const linkFields = (/\\* groq \\*/[\\s\\S]*?`)" }, "content": "export ${1}" } }
+                    ]
                   },
                   {
-                    "mark": "Set postFields to Export",
-                    "fallback": {
-                      "behaviour": "replaceIfMissing",
-                      "target": "const postFields = /* groq */ `",
-                      "requireAbsent": "export const postFields = /* groq */ `",
-                      "replacement": "export const postFields = /* groq */ `",
-                      "occurrence": "first"
-                    }
+                    "id": "export-postFields-if-const",
+                    "when": [ { "contains": { "pattern": "const postFields = /\\* groq \\*/" } } ],
+                    "do": [
+                      { "replace": { "selector": { "pattern": "const postFields = (/\\* groq \\*/[\\s\\S]*?`)" }, "content": "export ${1}" } }
+                    ]
                   },
                   {
-                    "mark": "Set linkReference to Export",
-                    "fallback": {
-                      "behaviour": "replaceIfMissing",
-                      "target": "const linkReference = /* groq */ `",
-                      "requireAbsent": "export const linkReference = /* groq */ `",
-                      "replacement": "export const linkReference = /* groq */ `",
-                      "occurrence": "first"
-                    }
+                    "id": "export-linkReference-if-const",
+                    "when": [ { "contains": { "pattern": "const linkReference = /\\* groq \\*/" } } ],
+                    "do": [
+                      { "replace": { "selector": { "pattern": "const linkReference = (/\\* groq \\*/[\\s\\S]*?`)" }, "content": "export ${1}" } }
+                    ]
                   },
                   {
-                    "mark": "connect up PageType as linkReference",
-                    "fallback": {
-                      "target": "_type == \"link\" => {",
-                      "behaviour": "insertAfter",
-                      "occurrence": "first",
-                      "content": "\"{{.LowerCasePageTypeSingular}}\": {{.LowerCasePageTypeSingular}}->slug.current,"
-                    }
+                    "id": "ensure-linkReference-internal-type",
+                    "when": [ { "notContains": { "pattern": "\"{{.LowerCasePageTypeSingular}}\": {{.LowerCasePageTypeSingular}}->slug.current" } } ],
+                    "do": [
+                      { "insert": { "anchor": { "match": { "pattern": "_type == \\\"link\\\" => \\{" }, "position": "insideEnd" }, "content": "\n    \"{{.LowerCasePageTypeSingular}}\": {{.LowerCasePageTypeSingular}}->slug.current,\n", "format": { "indentFromAnchor": true, "ensureNewline": true } } }
+                    ],
+                    "verify": [ { "contains": { "pattern": "\"{{.LowerCasePageTypeSingular}}\": {{.LowerCasePageTypeSingular}}->slug.current" } } ],
+                    "onConflict": "patch"
                   },
                   {
-                    "mark": "adding PageType to Sitemap",
-                    "fallback": {
-                      "target": "&& defined(slug.current)] | order(_type asc) {",
-                      "behaviour": "insertBeforeInline",
-                      "content": " || _type == \"{{.LowerCasePageTypeSingular}}\"",
-                      "fallbackOnly": true,
-                      "occurrence": "first"
-                    }
-                  },
-                  {
-                    "mark": "Exportable PageBuilder Fields",
-                    "fallback": {
-                      "behaviour": "replaceBetween",
-                      "targetStart": "export const getPageQuery = defineQuery(`",
-                      "targetEnd": "`)",
-                      "occurrence": "first",
-                      "requireAbsent": "export const pageBuilderFields = /* groq */ `",
-                      "replacement": "export const pageBuilderFields = /* groq */ `\n  ...,\n  _type == \"callToAction\" => {\n    ${linkFields},\n  },\n  _type == \"infoSection\" => {\n    content[]{\n      ...,\n      markDefs[]{\n        ...,\n        ${linkReference}\n      }\n    }\n  }\n`\n\nexport const getPageQuery = defineQuery(`\n  *[_type == 'page' && slug.current == $slug][0]{\n    _id,\n    _type,\n    name,\n    slug,\n    heading,\n    subheading,\n    \"pageBuilder\": pageBuilder[]{\n      ${pageBuilderFields}\n    },\n  }\n`)"
-                    }
+                    "id": "ensure-sitemap-type",
+                    "when": [ { "notContains": { "pattern": "_type == \\\"{{.LowerCasePageTypeSingular}}\\\"" } } ],
+                    "do": [
+                      { "replace": { "selector": { "pattern": "(\\*\\[defined\\(slug\\.current\\) && \\(_type == \\\"page\\\" \\\\|\\\\| _type == \\\"post\\\"\\)\\])" }, "content": "*[defined(slug.current) && (_type == \"page\" || _type == \"post\" || _type == \"{{.LowerCasePageTypeSingular}}\")]" } }
+                    ]
                   }
                 ],
                 "children": []
               }
-        
-              
         ]
       },
       {
@@ -296,43 +287,25 @@
             "name": "index.ts",
             "type": "file",
             "isIndexer": false,
-            "code": "import {person} from './documents/person'\nimport {page} from './documents/page'\nimport {post} from './documents/post'\nimport {callToAction} from './objects/callToAction'\nimport {infoSection} from './objects/infoSection'\nimport {settings} from './singletons/settings'\nimport {link} from './objects/link'\nimport {blockContent} from './objects/blockContent'\n\n// START OF DOCUMENT IMPORT\nimport { {{.LowerCasePageTypeSingular}} } from './documents/{{.KebabCasePageTypeSingular}}'\n// END OF DOCUMENT IMPORT\n\n// START OF OBJECT IMPORT\n// (reserved for pagebuilder blocks)\n// END OF OBJECT IMPORT\n\n// Export an array of all the schema types.  This is used in the Sanity Studio configuration. https://www.sanity.io/docs/schema-types\n\nexport const schemaTypes = [\n  // Singletons\n  settings,\n  // Documents\n  page,\n  post,\n  person,\n  // START OF DOCUMENT ARRAY ITEM\n  {{.LowerCasePageTypeSingular}},\n  // END OF DOCUMENT ARRAY ITEM\n  // Objects\n  blockContent,\n  infoSection,\n  callToAction,\n  link,\n  // START OF OBJECT ARRAY ITEM\n  // (reserved for pagebuilder blocks)\n  // END OF OBJECT ARRAY ITEM\n]\n",
-            "markers": [
+            "code": "import {person} from './documents/person'\nimport {page} from './documents/page'\nimport {post} from './documents/post'\nimport {callToAction} from './objects/callToAction'\nimport {infoSection} from './objects/infoSection'\nimport {settings} from './singletons/settings'\nimport {link} from './objects/link'\nimport {blockContent} from './objects/blockContent'\n\n// Export an array of all the schema types.  This is used in the Sanity Studio configuration. https://www.sanity.io/docs/schema-types\n\nexport const schemaTypes = [\n  // Singletons\n  settings,\n  // Documents\n  page,\n  post,\n  person,\n  // Objects\n  blockContent,\n  infoSection,\n  callToAction,\n  link,\n]\n",
+            "actions": [
               {
-                "mark": "DOCUMENT IMPORT",
-                "fallback": {
-                  "behaviour": "insertAfter",
-                  "target": "import {post} from './documents/post'",
-                  "occurrence": "last",
-                  "content": "\nimport { {{.LowerCasePageTypeSingular}} } from './documents/{{.KebabCasePageTypeSingular}}'"
-                }
+                "id": "ensure-doc-import",
+                "when": [ { "notContains": { "pattern": "from './documents/{{.KebabCasePageTypeSingular}}'" } } ],
+                "do": [
+                  { "insert": { "anchor": { "match": { "pattern": "import \\{post\\} from './documents/post'" }, "position": "after" }, "content": "\nimport { {{.LowerCasePageTypeSingular}} } from './documents/{{.KebabCasePageTypeSingular}}'\n", "format": { "ensureNewline": true } } }
+                ],
+                "verify": [ { "contains": { "pattern": "from './documents/{{.KebabCasePageTypeSingular}}'" } } ],
+                "onConflict": "append"
               },
               {
-                "mark": "DOCUMENT ARRAY ITEM",
-                "fallback": {
-                  "behaviour": "insertAfter",
-                  "target": "person,",
-                  "occurrence": "last",
-                  "content": "\n  {{.LowerCasePageTypeSingular}},"
-                }
-              },
-              {
-                "mark": "OBJECT IMPORT",
-                "fallback": {
-                  "behaviour": "insertAfter",
-                  "target": "import {blockContent} from './objects/blockContent'",
-                  "occurrence": "last",
-                  "content": "\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.KebabCaseBlockTypeSingular}}'"
-                }
-              },
-              {
-                "mark": "OBJECT ARRAY ITEM",
-                "fallback": {
-                  "behaviour": "insertAfter",
-                  "target": "link,",
-                  "occurrence": "last",
-                  "content": "\n  {{.LowerCaseBlockTypeSingular}},"
-                }
+                "id": "ensure-doc-in-array",
+                "when": [ { "notContains": { "pattern": "\\b{{.LowerCasePageTypeSingular}}\\b,?" } } ],
+                "do": [
+                  { "insert": { "anchor": { "match": { "pattern": "person,\\s*$", "regex": true }, "position": "after" }, "content": "\n  {{.LowerCasePageTypeSingular}},", "format": { "ensureNewline": true } } }
+                ],
+                "verify": [ { "contains": { "pattern": "\\b{{.LowerCasePageTypeSingular}}\\b" } } ],
+                "onConflict": "patch"
               }
             ],
             "children": []
@@ -354,22 +327,32 @@
             "type": "file",
             "code": "import {defineArrayMember, defineType, defineField} from 'sanity'\r\n\r\n/**\r\n * This is the schema definition for the rich text fields used for\r\n * for this blog studio. When you import it in schemas.js it can be\r\n * reused in other parts of the studio with:\r\n *  {\r\n *    name: 'someName',\r\n *    title: 'Some title',\r\n *    type: 'blockContent'\r\n *  }\r\n *\r\n * Learn more: https://www.sanity.io/docs/block-content\r\n */\r\nexport const blockContent = defineType({\r\n  title: 'Block Content',\r\n  name: 'blockContent',\r\n  type: 'array',\r\n  of: [\r\n    defineArrayMember({\r\n      type: 'block',\r\n      marks: {\r\n        annotations: [\r\n          {\r\n            name: 'link',\r\n            type: 'object',\r\n            title: 'Link',\r\n            fields: [\r\n              defineField({\r\n                name: 'linkType',\r\n                title: 'Link Type',\r\n                type: 'string',\r\n                initialValue: 'href',\r\n                options: {\r\n                  list: [\r\n                    {title: 'URL', value: 'href'},\r\n                    {title: 'Page', value: 'page'},\r\n                    {title: 'Post', value: 'post'},\r\n                    // START OF LINK TYPE OPTION\r\n                    {title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},\r\n                    // END OF LINK TYPE OPTION\r\n                  ],\r\n                  layout: 'radio',\r\n                },\r\n              }),\r\n\r\n              defineField({\r\n                name: 'href',\r\n                title: 'URL',\r\n                type: 'url',\r\n                hidden: ({parent}) => parent?.linkType !== 'href' && parent?.linkType != null,\r\n                validation: (Rule) =>\r\n                  Rule.custom((value, context: any) => {\r\n                    if (context.parent?.linkType === 'href' && !value) {\r\n                      return 'URL is required when Link Type is URL'\r\n                    }\r\n                    return true\r\n                  }),\r\n              }),\r\n\r\n              defineField({\r\n                name: 'page',\r\n                title: 'Page',\r\n                type: 'reference',\r\n                to: [{type: 'page'}],\r\n                hidden: ({parent}) => parent?.linkType !== 'page',\r\n                validation: (Rule) =>\r\n                  Rule.custom((value, context: any) => {\r\n                    if (context.parent?.linkType === 'page' && !value) {\r\n                      return 'Page reference is required when Link Type is Page'\r\n                    }\r\n                    return true\r\n                  }),\r\n              }),\r\n\r\n              defineField({\r\n                name: 'post',\r\n                title: 'Post',\r\n                type: 'reference',\r\n                to: [{type: 'post'}],\r\n                hidden: ({parent}) => parent?.linkType !== 'post',\r\n                validation: (Rule) =>\r\n                  Rule.custom((value, context: any) => {\r\n                    if (context.parent?.linkType === 'post' && !value) {\r\n                      return 'Post reference is required when Link Type is Post'\r\n                    }\r\n                    return true\r\n                  }),\r\n              }),\r\n\r\n              // START OF EXTRA INTERNAL LINK FIELD\r\n              defineField({\r\n                name: '{{.LowerCasePageTypeSingular}}',\r\n                title: '{{.PascalCasePageTypeSingular}}',\r\n                type: 'reference',\r\n                to: [{type: '{{.LowerCasePageTypeSingular}}'}],\r\n                hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\r\n                validation: (Rule) =>\r\n                  Rule.custom((value, context: any) => {\r\n                    if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\r\n                      return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\r\n                    }\r\n                    return true\r\n                  }),\r\n              }),\r\n              // END OF EXTRA INTERNAL LINK FIELD\r\n\r\n              defineField({\r\n                name: 'openInNewTab',\r\n                title: 'Open in new tab',\r\n                type: 'boolean',\r\n                initialValue: false,\r\n              }),\r\n            ],\r\n          },\r\n        ],\r\n      },\r\n    }),\r\n  ],\r\n})\r\n\r\n",
             "isIndexer": false,
-            "markers": [
+            "actions": [
               {
-                "mark": "LINK TYPE OPTION",
-                "fallback": {
-                  "behaviour": "insertAfter",
-                  "target": "{title: 'Post', value: 'post'},",
-                  "occurrence": "last"
-                }
+                "id": "ensure-linktype-option-in-link-object",
+                "when": [ { "notContains": { "pattern": "value: '{{.LowerCasePageTypeSingular}}'" } } ],
+                "do": [
+                  {
+                    "insert": {
+                      "anchor": { "match": { "pattern": "\\{title: 'Post', value: 'post'\\},", "regex": true }, "position": "after" },
+                      "content": "\n          {title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},",
+                      "format": { "ensureNewline": true }
+                    }
+                  }
+                ]
               },
               {
-                "mark": "EXTRA INTERNAL LINK FIELD",
-                "fallback": {
-                  "behaviour": "insertBefore",
-                  "target": "defineField({",
-                  "occurrence": "last"
-                }
+                "id": "ensure-extra-internal-link-field-in-link-object",
+                "when": [ { "notContains": { "pattern": "name: '{{.LowerCasePageTypeSingular}}'," } } ],
+                "do": [
+                  {
+                    "insert": {
+                      "anchor": { "match": { "pattern": "defineField\\(\\{\\s*name: 'post'", "regex": true }, "position": "afterBlock" },
+                      "content": "\n    defineField({\n      name: '{{.LowerCasePageTypeSingular}}',\n      title: '{{.PascalCasePageTypeSingular}}',\n      type: 'reference',\n      to: [{type: '{{.LowerCasePageTypeSingular}}'}],\n      hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\n      validation: (Rule) =>\n        Rule.custom((value, context) => {\n          if ((context as any).parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\n            return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\n          }\n          return true\n        }),\n    }),\n",
+                      "format": { "indentFromAnchor": true, "ensureNewline": true }
+                    }
+                  }
+                ]
               }
             ],
             "children": []
