@@ -129,7 +129,7 @@
               "behaviour": "insertAfter",
               "target": "import {blockContent} from './objects/blockContent'",
               "occurrence": "last",
-              "content": "\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.KebabCaseBlockTypeSingular}}'"
+              "content": "\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.LowerCaseBlockTypeSingular}}'"
             }
           },
           {
@@ -144,6 +144,7 @@
         ],
         "children": []
       }
+      
       
      
     ]
