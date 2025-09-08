@@ -1,6 +1,6 @@
 {
   "name": "nextgen-go-cli",
-  "version": "1.0.123",
+  "version": "1.0.124",
   "nextgen-identifiers": [
     "sanity-template-nextjs-clean"
   ],
