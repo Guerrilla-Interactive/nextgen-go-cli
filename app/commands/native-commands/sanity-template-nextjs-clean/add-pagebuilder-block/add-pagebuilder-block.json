@@ -115,62 +115,37 @@
       },
   
       {
-        "_key": "addblock-studio-indexer",
-        "_type": "filePathGroup",
-        "id": "studio-indexer",
-        "path": "studio/src/schemaTypes",
-        "nodes": [
-            {
-                "_key": "20250903-studio-indexer-file",
-                "_type": "treeNode",
-                "id": "file-studio-indexer",
-                "name": "index.ts",
-                "type": "file",
-                "isIndexer": false,
-                "code": "import {person} from './documents/person'\nimport {page} from './documents/page'\nimport {post} from './documents/post'\nimport {callToAction} from './objects/callToAction'\nimport {infoSection} from './objects/infoSection'\nimport {settings} from './singletons/settings'\nimport {link} from './objects/link'\nimport {blockContent} from './objects/blockContent'\n\n// START OF DOCUMENT IMPORT\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.KebabCasePageTypeSingular}}'\n// END OF DOCUMENT IMPORT\n\n// START OF OBJECT IMPORT\n// (reserved for pagebuilder blocks)\n// END OF OBJECT IMPORT\n\n// Export an array of all the schema types.  This is used in the Sanity Studio configuration. https://www.sanity.io/docs/schema-types\n\nexport const schemaTypes = [\n  // Singletons\n  settings,\n  // Documents\n  page,\n  post,\n  person,\n  // START OF DOCUMENT ARRAY ITEM\n  {{.LowerCaseBlockTypeSingular}},\n  // END OF DOCUMENT ARRAY ITEM\n  // Objects\n  blockContent,\n  infoSection,\n  callToAction,\n  link,\n  // START OF OBJECT ARRAY ITEM\n  // (reserved for pagebuilder blocks)\n  // END OF OBJECT ARRAY ITEM\n]\n",
-                "markers": [
-                  {
-                    "mark": "DOCUMENT IMPORT",
-                    "fallback": {
-                      "behaviour": "insertAfter",
-                      "target": "import {post} from './documents/post'",
-                      "occurrence": "last",
-                      "content": "\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.KebabCasePageTypeSingular}}'"
-                    }
-                  },
-                  {
-                    "mark": "DOCUMENT ARRAY ITEM",
-                    "fallback": {
-                      "behaviour": "insertAfter",
-                      "target": "person,",
-                      "occurrence": "last",
-                      "content": "\n  {{.LowerCaseBlockTypeSingular}},"
-                    }
-                  },
-                  {
-                    "mark": "OBJECT IMPORT",
-                    "fallback": {
-                      "behaviour": "insertAfter",
-                      "target": "import {blockContent} from './objects/blockContent'",
-                      "occurrence": "last",
-                      "content": "\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.KebabCaseBlockTypeSingular}}'"
-                    }
-                  },
-                  {
-                    "mark": "OBJECT ARRAY ITEM",
-                    "fallback": {
-                      "behaviour": "insertAfter",
-                      "target": "link,",
-                      "occurrence": "last",
-                      "content": "\n  {{.LowerCaseBlockTypeSingular}},"
-                    }
-                  }
-                ],
-                "children": []
-              }
-              
-        ]
+        "_key": "20250903-studio-indexer-file",
+        "_type": "treeNode",
+        "id": "file-studio-indexer",
+        "name": "index.ts",
+        "type": "file",
+        "isIndexer": false,
+        "code": "import {person} from './documents/person'\nimport {page} from './documents/page'\nimport {post} from './documents/post'\nimport {callToAction} from './objects/callToAction'\nimport {infoSection} from './objects/infoSection'\nimport {settings} from './singletons/settings'\nimport {link} from './objects/link'\nimport {blockContent} from './objects/blockContent'\n\n// START OF OBJECT IMPORT\n// (reserved for pagebuilder blocks)\n// END OF OBJECT IMPORT\n\n// Export an array of all the schema types.  This is used in the Sanity Studio configuration. https://www.sanity.io/docs/schema-types\n\nexport const schemaTypes = [\n  // Singletons\n  settings,\n  // Documents\n  page,\n  post,\n  person,\n  // Objects\n  blockContent,\n  infoSection,\n  callToAction,\n  link,\n  // START OF OBJECT ARRAY ITEM\n  // (reserved for pagebuilder blocks)\n  // END OF OBJECT ARRAY ITEM\n]\n",
+        "markers": [
+          {
+            "mark": "OBJECT IMPORT",
+            "fallback": {
+              "behaviour": "insertAfter",
+              "target": "import {blockContent} from './objects/blockContent'",
+              "occurrence": "last",
+              "content": "\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.KebabCaseBlockTypeSingular}}'"
+            }
+          },
+          {
+            "mark": "OBJECT ARRAY ITEM",
+            "fallback": {
+              "behaviour": "insertAfter",
+              "target": "link,",
+              "occurrence": "last",
+              "content": "\n  {{.LowerCaseBlockTypeSingular}},"
+            }
+          }
+        ],
+        "children": []
       }
+      
+     
     ]
   }
   
