@@ -39,15 +39,15 @@
             "name": "BlockRenderer.tsx",
             "type": "file",
             "isIndexer": false,
-            "code": "import React from 'react'\n\nimport Cta from '@/app/components/Cta'\nimport Info from '@/app/components/InfoSection'\nimport {dataAttr} from '@/sanity/lib/utils'\n\n// START OF BLOCKS IMPORT\n// END OF BLOCKS IMPORT\n\ntype BlocksType = {\n  [key: string]: React.FC<any>\n}\n\ntype BlockType = {\n  _type: string\n  _key: string\n}\n\ntype BlockProps = {\n  index: number\n  block: BlockType\n  pageId: string\n  pageType: string\n}\n\nconst Blocks: BlocksType = {\n  callToAction: Cta,\n  infoSection: Info,\n  // START OF BLOCKS MAP ITEM\n  // END OF BLOCKS MAP ITEM\n}\n\nexport default function BlockRenderer({block, index, pageId, pageType}: BlockProps) {\n  if (typeof Blocks[block._type] !== 'undefined') {\n    return (\n      <div\n        key={block._key}\n        data-sanity={dataAttr({\n          id: pageId,\n          type: pageType,\n          path: `pageBuilder[_key==\\\"${block._key}\\\"]`,\n        }).toString()}\n      >\n        {React.createElement(Blocks[block._type], {\n          key: block._key,\n          block: block,\n          index: index,\n        })}\n      </div>\n    )\n  }\n  return (\n    <div className=\"w-full bg-gray-100 text-center text-gray-500 p-20 rounded\">\n      A &ldquo;{block._type}&rdquo; block hasn&apos;t been created\n    </div>\n  )\n}\n",
+            "code": "import React from 'react'\n\nimport Cta from '@/app/components/Cta'\nimport Info from '@/app/components/InfoSection'\nimport {dataAttr} from '@/sanity/lib/utils'\n\n\ntype BlocksType = {\n  [key: string]: React.FC<any>\n}\n\ntype BlockType = {\n  _type: string\n  _key: string\n}\n\ntype BlockProps = {\n  index: number\n  block: BlockType\n  pageId: string\n  pageType: string\n}\n\nconst Blocks: BlocksType = {\n  callToAction: Cta,\n  infoSection: Info,\n}\n\nexport default function BlockRenderer({block, index, pageId, pageType}: BlockProps) {\n  if (typeof Blocks[block._type] !== 'undefined') {\n    return (\n      <div\n        key={block._key}\n        data-sanity={dataAttr({\n          id: pageId,\n          type: pageType,\n          path: `pageBuilder[_key==\\\"${block._key}\\\"]`,\n        }).toString()}\n      >\n        {React.createElement(Blocks[block._type], {\n          key: block._key,\n          block: block,\n          index: index,\n        })}\n      </div>\n    )}\n  return (\n    <div className=\"w-full bg-gray-100 text-center text-gray-500 p-20 rounded\">\n      A &ldquo;{block._type}&rdquo; block hasn\\'t been created\n    </div>\n  )\n}\n",
             "markers": [
               {
                 "mark": "BLOCKS IMPORT",
                 "fallback": {
                   "behaviour": "insertAfter",
-                  "target": "import Info from '@/app/components/InfoSection'",
+                  "target": "import {dataAttr} from '@/sanity/lib/utils'",
                   "occurrence": "last",
-                  "content": "\nimport {{.PascalCaseBlockTypeSingular}} from '@/app/components/{{.PascalCaseBlockTypeSingular}}'"
+                  "content": "\n// START OF BLOCKS IMPORT\nimport {{.PascalCaseBlockTypeSingular}} from '@/app/components/{{.PascalCaseBlockTypeSingular}}'\n// END OF BLOCKS IMPORT"
                 }
               },
               {
@@ -56,11 +56,14 @@
                   "behaviour": "insertAfter",
                   "target": "infoSection: Info,",
                   "occurrence": "last",
-                  "content": "\n  {{.LowerCaseBlockTypeSingular}}: {{.PascalCaseBlockTypeSingular}},"
+                  "content": "\n  // START OF BLOCKS MAP ITEM\n  {{.LowerCaseBlockTypeSingular}}: {{.PascalCaseBlockTypeSingular}},\n  // END OF BLOCKS MAP ITEM"
                 }
               }
             ]
           }
+          
+          
+          
         ]
       },
   
