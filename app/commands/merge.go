@@ -565,9 +565,80 @@ func insertSnippetBelowMarker(existingContent, key, snippet, occurrence string) 
 		insertAt = len(lines)
 	}
 
-	// Avoid duplicating the exact block
-	sameBlock := func(start int) bool {
-		if start < 0 || start+len(toInsert) > len(lines) {
+	// Insert without adjacent-block deduplication
+	newLines := append([]string{}, lines[:insertAt]...)
+	newLines = append(newLines, toInsert...)
+	newLines = append(newLines, lines[insertAt:]...)
+	return strings.Join(newLines, "\n"), true
+}
+
+// insertSnippetAboveMarker inserts snippet on a new line immediately above the
+// ADD marker line for the given key. Occurrence can be "first" or anything else
+// (treated as "last"). Indentation of the marker line is applied to snippet lines.
+func insertSnippetAboveMarker(existingContent, key, snippet, occurrence string) (string, bool) {
+	key = strings.TrimSpace(key)
+	if key == "" || strings.TrimSpace(snippet) == "" {
+		return existingContent, false
+	}
+	// Locate marker lines for this key (ABOVE or BELOW)
+	pattern := regexp.MustCompile(`(?m)^[ \t]*//\s*ADD\s+` + regexp.QuoteMeta(key) + `\s+(?:BELOW|ABOVE)\s*$`)
+	lines := strings.Split(existingContent, "\n")
+	var matches []int
+	for i := 0; i < len(lines); i++ {
+		if pattern.MatchString(lines[i]) {
+			matches = append(matches, i)
+		}
+	}
+	if len(matches) == 0 {
+		return existingContent, false
+	}
+	anchorLine := matches[len(matches)-1]
+	if strings.ToLower(strings.TrimSpace(occurrence)) == "first" {
+		anchorLine = matches[0]
+	}
+
+	// Determine indentation from anchor line
+	ln := lines[anchorLine]
+	j := 0
+	for j < len(ln) && (ln[j] == ' ' || ln[j] == '\t') {
+		j++
+	}
+	indent := ln[:j]
+
+	// Normalize snippet newlines
+	sn := strings.ReplaceAll(strings.ReplaceAll(snippet, "\r\n", "\n"), "\r", "\n")
+	snLines := strings.Split(sn, "\n")
+	for len(snLines) > 0 && strings.TrimSpace(snLines[len(snLines)-1]) == "" {
+		snLines = snLines[:len(snLines)-1]
+	}
+	if len(snLines) == 0 {
+		return existingContent, false
+	}
+
+	// Apply indentation
+	var toInsert []string
+	for _, sl := range snLines {
+		if strings.TrimSpace(sl) == "" {
+			toInsert = append(toInsert, sl)
+		} else if len(sl) > 0 && (sl[0] == ' ' || sl[0] == '\t') {
+			toInsert = append(toInsert, sl)
+		} else {
+			toInsert = append(toInsert, indent+sl)
+		}
+	}
+
+	insertAt := anchorLine
+	if insertAt < 0 {
+		insertAt = 0
+	}
+	if insertAt > len(lines) {
+		insertAt = len(lines)
+	}
+
+	// Avoid duplicating the exact block immediately above the marker
+	sameBlock := func(end int) bool {
+		start := end - len(toInsert)
+		if start < 0 || end > len(lines) {
 			return false
 		}
 		for i := 0; i < len(toInsert); i++ {

@@ -384,22 +384,75 @@ func gatherNodes(nodes []TreeNode, basePath, projectPath string, placeholders ma
 								continue
 							}
 						}
-						// Marker creation (line-based or fallback block)
-						if !markerForKeyExists(existingContent, mk) {
-							var modified string
-							var inserted bool
-							if nm.Logic.Raw != "" {
-								modified, inserted = insertAddMarkerAfterFallback(existingContent, mk, replacePlaceholders(nm.Logic.Raw, placeholders))
-							} else if nm.Logic.Spec != nil {
-								target := replacePlaceholders(nm.Logic.Spec.Target, placeholders)
-								behaviour := normalizeBehaviour(nm.Logic.Spec.Behaviour)
-								occurrence := nm.Logic.Spec.Occurrence
-								modified, inserted = insertAddMarkerRelativeToTarget(existingContent, mk, target, behaviour, occurrence)
+						// Marker-relative insertion for addMarkerAboveTarget/addMarkerBelowTarget
+						if nm.Logic.Spec != nil {
+							beh := normalizeBehaviour(nm.Logic.Spec.Behaviour)
+							if beh == "addmarkerabovetarget" || beh == "addmarkerbelowtarget" {
+								var snip string
+								if strings.TrimSpace(nm.Logic.Spec.Content) != "" {
+									snip = replacePlaceholders(nm.Logic.Spec.Content, placeholders)
+								} else {
+									if s, ok := findSnippetForKeyGlobal(tmplSnippets, mk); ok {
+										snip = s
+									}
+								}
+								if strings.TrimSpace(snip) != "" {
+									target := replacePlaceholders(nm.Logic.Spec.Target, placeholders)
+									occurrence := nm.Logic.Spec.Occurrence
+									if markerForKeyExists(existingContent, mk) {
+										var modified string
+										var inserted bool
+										if beh == "addmarkerabovetarget" {
+											modified, inserted = insertSnippetAboveMarker(existingContent, mk, snip, occurrence)
+										} else {
+											modified, inserted = insertSnippetBelowMarker(existingContent, mk, snip, occurrence)
+										}
+										if inserted {
+											existingContent = modified
+											if cli.IsVerboseEnabled() {
+												fmt.Printf("✓ Injected snippet relative to marker '%s' in %s.\n", mk, currentPath)
+											}
+											continue
+										}
+									}
+									// Fallback to target-relative insertion and add marker aligned with behaviour
+									insertBeh := "insertbeforeline"
+									markerBeh := "addmarkerabovetarget"
+									if beh == "addmarkerbelowtarget" {
+										insertBeh = "insertafterline"
+										markerBeh = "addmarkerbelowtarget"
+									}
+									target = replacePlaceholders(nm.Logic.Spec.Target, placeholders)
+									occurrence = nm.Logic.Spec.Occurrence
+									if mod, ins := insertSnippetOnNewLineRelativeToTarget(existingContent, snip, target, insertBeh, occurrence); ins {
+										existingContent = mod
+										if mod2, ins2 := insertAddMarkerRelativeToTarget(existingContent, mk, target, markerBeh, occurrence); ins2 {
+											existingContent = mod2
+										}
+										if cli.IsVerboseEnabled() {
+											fmt.Printf("✓ Injected snippet relative to target and added marker '%s' in %s.\n", mk, currentPath)
+										}
+										continue
+									}
+								}
 							}
-							if inserted {
-								existingContent = modified
-								if cli.IsVerboseEnabled() {
-									fmt.Printf("ℹ️  Inserted missing marker for '%s' in %s using fallback.\n", mk, currentPath)
+							// Marker creation (line-based or fallback block)
+							if !markerForKeyExists(existingContent, mk) {
+								var modified string
+								var inserted bool
+								if nm.Logic.Raw != "" {
+									modified, inserted = insertAddMarkerAfterFallback(existingContent, mk, replacePlaceholders(nm.Logic.Raw, placeholders))
+								} else if nm.Logic.Spec != nil {
+									target := replacePlaceholders(nm.Logic.Spec.Target, placeholders)
+									behaviour := normalizeBehaviour(nm.Logic.Spec.Behaviour)
+									occurrence := nm.Logic.Spec.Occurrence
+									modified, inserted = insertAddMarkerRelativeToTarget(existingContent, mk, target, behaviour, occurrence)
+								}
+								if inserted {
+									existingContent = modified
+									if cli.IsVerboseEnabled() {
+										fmt.Printf("ℹ️  Inserted missing marker for '%s' in %s using fallback.\n", mk, currentPath)
+									}
 								}
 							}
 						}
@@ -1009,6 +1062,35 @@ func applyInlineFallbacksForNewFile(content string, node TreeNode, placeholders 
 				continue
 			}
 		}
+		// Marker-relative insertion for new files: prefer existing marker placement when present
+		if nm.Logic.Spec != nil {
+			beh := normalizeBehaviour(nm.Logic.Spec.Behaviour)
+			if beh == "addmarkerabovetarget" || beh == "addmarkerbelowtarget" {
+				var snip string
+				if strings.TrimSpace(nm.Logic.Spec.Content) != "" {
+					snip = replacePlaceholders(nm.Logic.Spec.Content, placeholders)
+				} else {
+					if s, ok := findSnippetForKeyGlobal(tmplSnippets, mk); ok {
+						snip = s
+					}
+				}
+				if strings.TrimSpace(snip) != "" && markerForKeyExists(content, mk) {
+					occurrence := nm.Logic.Spec.Occurrence
+					if beh == "addmarkerabovetarget" {
+						if mod, ins := insertSnippetAboveMarker(content, mk, snip, occurrence); ins {
+							content = mod
+							continue
+						}
+					} else {
+						if mod, ins := insertSnippetBelowMarker(content, mk, snip, occurrence); ins {
+							content = mod
+							continue
+						}
+					}
+				}
+			}
+		}
+
 		// Marker behaviour (new file): inject snippet relative to target
 		if nm.Logic.Spec != nil {
 			beh2 := normalizeBehaviour(nm.Logic.Spec.Behaviour)
