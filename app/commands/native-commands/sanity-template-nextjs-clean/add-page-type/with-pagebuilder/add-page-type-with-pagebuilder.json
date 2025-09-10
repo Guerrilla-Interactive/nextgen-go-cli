@@ -24,7 +24,6 @@
       }
     ]
   },
-  
   "ignoredPatterns": [],
   "variables": {
     "PageTypeSingular": {
@@ -38,8 +37,6 @@
         "service"
       ]
     },
-
-
     "PageTypePlural": {
       "title": "Pluralize your page type",
       "priority": 2,
@@ -68,7 +65,6 @@
           "isIndexer": false,
           "nodeType": "file",
           "actions": [],
-          "markers": [],
           "children": []
         },
         {
@@ -83,21 +79,11 @@
             {
               "title": "PAGETYPE ARCHIVE LINK",
               "logic": {
-                "target": "<Link href",
-                "behaviour": "addMarkerAboveTarget",
+                "target": "<li>",
+                "behaviour": "addMarkerBelowTarget",
                 "fallbackOnly": true,
-                "content": "<Link href=\"/{{.LowerCasePageTypePlural}}\" className=\"mr-6 hover:underline\">{{.PascalCasePageTypePlural}}</Link>"
-              }
-            }
-          ],
-          "markers": [
-            {
-              "title": "PAGETYPE ARCHIVE LINK",
-              "logic": {
-                "target": "<Link href",
-                "behaviour": "addMarkerAboveTarget",
-                "fallbackOnly": true,
-                "content": "<Link href=\"/{{.LowerCasePageTypePlural}}\" className=\"mr-6 hover:underline\">{{.PascalCasePageTypePlural}}</Link>"
+                "content": "<Link href=\"/{{.LowerCasePageTypePlural}}\" className=\"mr-6 hover:underline\">{{.PascalCasePageTypePlural}}</Link>",
+                "occurrence": "first"
               }
             }
           ],
@@ -120,7 +106,6 @@
           "isIndexer": false,
           "nodeType": "folder",
           "actions": [],
-          "markers": [],
           "children": [
             {
               "_key": "1757177532693-d16ts7xzg",
@@ -131,7 +116,6 @@
               "isIndexer": false,
               "nodeType": "folder",
               "actions": [],
-              "markers": [],
               "children": [
                 {
                   "_key": "20250903-front-index-file",
@@ -142,7 +126,6 @@
                   "isIndexer": false,
                   "nodeType": "file",
                   "actions": [],
-                  "markers": [],
                   "children": []
                 }
               ]
@@ -156,7 +139,6 @@
               "isIndexer": false,
               "nodeType": "folder",
               "actions": [],
-              "markers": [],
               "children": [
                 {
                   "_key": "20250903-front-slug-page",
@@ -167,7 +149,6 @@
                   "isIndexer": false,
                   "nodeType": "file",
                   "actions": [],
-                  "markers": [],
                   "children": []
                 }
               ]
@@ -191,7 +172,6 @@
           "isIndexer": false,
           "nodeType": "folder",
           "actions": [],
-          "markers": [],
           "children": [
             {
               "_key": "20250903-front-queries-file",
@@ -202,7 +182,6 @@
               "isIndexer": false,
               "nodeType": "file",
               "actions": [],
-              "markers": [],
               "children": []
             }
           ]
@@ -216,68 +195,6 @@
           "isIndexer": false,
           "nodeType": "file",
           "actions": [
-            {
-              "title": "set linkFields to Export",
-              "logic": {
-                "behaviour": "replaceIfMissing",
-                "target": "const linkFields = /* groq */ `",
-                "requireAbsent": "export const linkFields = /* groq */ `",
-                "replacement": "export const linkFields = /* groq */ `",
-                "occurrence": "first"
-              }
-            },
-            {
-              "title": "Set postFields to Export",
-              "logic": {
-                "behaviour": "replaceIfMissing",
-                "target": "const postFields = /* groq */ `",
-                "requireAbsent": "export const postFields = /* groq */ `",
-                "replacement": "export const postFields = /* groq */ `",
-                "occurrence": "first"
-              }
-            },
-            {
-              "title": "Set linkReference to Export",
-              "logic": {
-                "behaviour": "replaceIfMissing",
-                "target": "const linkReference = /* groq */ `",
-                "requireAbsent": "export const linkReference = /* groq */ `",
-                "replacement": "export const linkReference = /* groq */ `",
-                "occurrence": "first"
-              }
-            },
-            {
-              "title": "connect up PageType as linkReference",
-              "logic": {
-                "target": "_type == \"link\" => {",
-                "behaviour": "addMarkerBelowTarget",
-                "occurrence": "first",
-                "content": "\"{{.LowerCasePageTypeSingular}}\": {{.LowerCasePageTypeSingular}}->slug.current,"
-              }
-            },
-            {
-              "title": "adding PageType to Sitemap",
-              "logic": {
-                "target": "&& defined(slug.current)] | order(_type asc) {",
-                "behaviour": "insertBeforeInline",
-                "content": " || _type == \"{{.LowerCasePageTypeSingular}}\"",
-                "fallbackOnly": true,
-                "occurrence": "first"
-              }
-            },
-            {
-              "title": "Exportable PageBuilder Fields",
-              "logic": {
-                "behaviour": "replaceBetween",
-                "targetStart": "export const getPageQuery = defineQuery(`",
-                "targetEnd": "`)",
-                "occurrence": "first",
-                "requireAbsent": "export const pageBuilderFields = /* groq */ `",
-                "replacement": "export const pageBuilderFields = /* groq */ `\n  ...,\n  _type == \"callToAction\" => {\n    ${linkFields},\n  },\n  _type == \"infoSection\" => {\n    content[]{\n      ...,\n      markDefs[]{\n        ...,\n        ${linkReference}\n      }\n    }\n  }\n`\n\nexport const getPageQuery = defineQuery(`\n  *[_type == 'page' && slug.current == $slug][0]{\n    _id,\n    _type,\n    name,\n    slug,\n    heading,\n    subheading,\n    \"pageBuilder\": pageBuilder[]{\n      ${pageBuilderFields}\n    },\n  }\n`)"
-              }
-            }
-          ],
-          "markers": [
             {
               "title": "set linkFields to Export",
               "logic": {
@@ -359,16 +276,6 @@
               }
             }
           ],
-          "markers": [
-            {
-              "title": "LINKTYPE ROUTES ITEM",
-              "logic": {
-                "behaviour": "addMarkerAboveTarget",
-                "target": "default:",
-                "occurrence": "first"
-              }
-            }
-          ],
           "children": []
         }
       ]
@@ -388,7 +295,6 @@
           "isIndexer": false,
           "nodeType": "file",
           "actions": [],
-          "markers": [],
           "children": []
         }
       ]
@@ -408,44 +314,6 @@
           "isIndexer": false,
           "nodeType": "file",
           "actions": [
-            {
-              "title": "DOCUMENT IMPORT",
-              "logic": {
-                "behaviour": "addMarkerBelowTarget",
-                "target": "import {post} from './documents/post'",
-                "occurrence": "last",
-                "content": "\nimport { {{.LowerCasePageTypeSingular}} } from './documents/{{.KebabCasePageTypeSingular}}'"
-              }
-            },
-            {
-              "title": "DOCUMENT ARRAY ITEM",
-              "logic": {
-                "behaviour": "addMarkerBelowTarget",
-                "target": "person,",
-                "occurrence": "last",
-                "content": "\n  {{.LowerCasePageTypeSingular}},"
-              }
-            },
-            {
-              "title": "OBJECT IMPORT",
-              "logic": {
-                "behaviour": "addMarkerBelowTarget",
-                "target": "import {blockContent} from './objects/blockContent'",
-                "occurrence": "last",
-                "content": "\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.KebabCaseBlockTypeSingular}}'"
-              }
-            },
-            {
-              "title": "OBJECT ARRAY ITEM",
-              "logic": {
-                "behaviour": "addMarkerBelowTarget",
-                "target": "link,",
-                "occurrence": "last",
-                "content": "\n  {{.LowerCaseBlockTypeSingular}},"
-              }
-            }
-          ],
-          "markers": [
             {
               "title": "DOCUMENT IMPORT",
               "logic": {
@@ -519,24 +387,6 @@
               }
             }
           ],
-          "markers": [
-            {
-              "mark": "LINK TYPE OPTION",
-              "fallback": {
-                "behaviour": "addMarkerBelowTarget",
-                "target": "{title: 'Post', value: 'post'},",
-                "occurrence": "last"
-              }
-            },
-            {
-              "mark": "EXTRA INTERNAL LINK FIELD",
-              "fallback": {
-                "behaviour": "addMarkerAboveTarget",
-                "target": "defineField({",
-                "occurrence": "last"
-              }
-            }
-          ],
           "children": []
         },
         {
@@ -548,24 +398,6 @@
           "isIndexer": false,
           "nodeType": "file",
           "actions": [
-            {
-              "mark": "LINK TYPE OPTION",
-              "fallback": {
-                "behaviour": "addMarkerBelowTarget",
-                "target": "{title: 'Post', value: 'post'},",
-                "occurrence": "last"
-              }
-            },
-            {
-              "mark": "EXTRA INTERNAL LINK FIELD",
-              "fallback": {
-                "behaviour": "addMarkerAboveTarget",
-                "target": "defineField({",
-                "occurrence": "last"
-              }
-            }
-          ],
-          "markers": [
             {
               "mark": "LINK TYPE OPTION",
               "fallback": {

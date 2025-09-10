@@ -1,418 +1,423 @@
 {
-    "_id": "add-page-type-with-block-editor",
-    "_type": "command",
-    "title": "Add Page Type with Block Editor",
-    "slug": "add-page-type-with-block-editor",
-    "description": "Add a page type with a block editor.",
-    "detailedDescription": "",
-    "variables": {
-        "PageTypeSingular": {
-            "title": "Name your page type",
-            "priority": 1,
-            "description": "This is the name of the \"_type\" we use in Sanity. This dictates a lot of the naming conventions elsewhere.",
-            "examples": [
-              "author",
-              "event",
-              "product",
-              "service"
-            ]
-        },
-        "PageTypePlural": {
-            "title": "Pluralize your page type",
-            "priority": 2,
-            "description": "This helps cases where we need to pluralize. No worries if it's the same as the singular.",
-            "examples": [
-              "authors",
-              "events",
-              "products",
-              "services"
-            ]
+  "_id": "add-page-type-with-block-editor",
+  "_type": "command",
+  "title": "Add Page Type with Block Editor",
+  "slug": {
+    "current": "add-page-type-with-block-editor"
+  },
+  "show": {
+    "anyOf": [
+      {
+        "packageJson": {
+          "name": "never"
         }
-    },
-    "show": { "anyOf": [
-        { "packageJson": { "name": "never" } },
-        { "packageJsonArrayContains": { "nextgen-identifiers": "never" } },
-        { "commandPackagesContains": ["never"] }
-      ] },
-
-      "filePaths": [
-        {
-            "_key": "1757021003924-q3au3rnnx",
-            "_type": "filePathGroup",
-            "id": "path-1757021003924-sa8u1fy",
-            "path": "frontend/app/components",
-            "nodes": [
-                {
-                    "_key": "1757176137674-q3yigc355",
-                    "_type": "treeNode",
-                    "id": "file-1757176137674",
-                    "name": "{{.PascalCasePageTypePlural}}.tsx",
-                    "type": "file",
-                    "code": "import Link from 'next/link'\r\n\r\nimport { sanityFetch } from '@/sanity/lib/live'\r\nimport { all{{.PascalCasePageTypePlural}}Query } from '@/sanity/lib/pagetype-queries/{{.KebabCasePageTypeSingular}}.queries'\r\nimport DateComponent from '@/app/components/Date'\r\nimport OnBoarding from '@/app/components/Onboarding'\r\nimport Avatar from '@/app/components/Avatar'\r\nimport { createDataAttribute } from 'next-sanity'\r\n\r\ntype {{.PascalCasePageTypeSingular}}ListItem = {\r\n  _id: string\r\n  title?: string\r\n  name?: string\r\n  slug: string\r\n  excerpt?: string | null\r\n  subheading?: string | null\r\n  coverImage?: unknown\r\n  date?: string\r\n  author?:\r\n    | {\r\n        firstName?: string\r\n        lastName?: string\r\n        picture?: unknown\r\n      }\r\n    | null\r\n}\r\n\r\nconst {{.PascalCasePageTypeSingular}}Card = ({ item }: { item: {{.PascalCasePageTypeSingular}}ListItem }) => {\r\n  const { _id, slug, date, author } = item\r\n  const title = item.title ?? item.name ?? 'Untitled'\r\n  const excerpt = (item.excerpt ?? item.subheading) ?? null\r\n\r\n  const attr = createDataAttribute({\r\n    id: _id,\r\n    type: '{{.LowerCasePageTypeSingular}}',\r\n    path: (item.title ? 'title' : 'name') as 'title' | 'name',\r\n  })\r\n\r\n  return (\r\n    <article\r\n      data-sanity={attr()}\r\n      key={_id}\r\n      className=\"border border-gray-200 rounded-sm p-6 bg-gray-50 flex flex-col justify-between transition-colors hover:bg-white relative\"\r\n    >\r\n      <Link className=\"hover:text-brand underline transition-colors\" href={`/{{.LowerCasePageTypePlural}}/${slug}`}>\r\n        <span className=\"absolute inset-0 z-10\" />\r\n      </Link>\r\n\r\n      <div>\r\n        <h3 className=\"text-2xl font-bold mb-4 leading-tight\">{title}</h3>\r\n\r\n        {excerpt && (\r\n          <p className=\"line-clamp-3 text-sm leading-6 text-gray-600 max-w-[70ch]\">{excerpt}</p>\r\n        )}\r\n      </div>\r\n\r\n      <div className=\"flex items-center justify-between mt-6 pt-4 border-t border-gray-100\">\r\n        {author?.firstName && author?.lastName && (\r\n          <div className=\"flex items-center\">\r\n            <Avatar person={author as any} small={true} />\r\n          </div>\r\n        )}\r\n        {date && (\r\n          <time className=\"text-gray-500 text-xs font-mono\" dateTime={date}>\r\n            <DateComponent dateString={date} />\r\n          </time>\r\n        )}\r\n      </div>\r\n    </article>\r\n  )\r\n}\r\n\r\nconst {{.PascalCasePageTypePlural}} = ({\r\n  children,\r\n  heading,\r\n  subHeading,\r\n}: {\r\n  children: React.ReactNode\r\n  heading?: string\r\n  subHeading?: string\r\n}) => (\r\n  <div>\r\n    {heading && (\r\n      <h2 className=\"text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl lg:text-5xl\">\r\n        {heading}\r\n      </h2>\r\n    )}\r\n    {subHeading && <p className=\"mt-2 text-lg leading-8 text-gray-600\">{subHeading}</p>}\r\n\r\n    <div className=\"pt-6 space-y-6\">{children}</div>\r\n  </div>\r\n)\r\n\r\nexport const All{{.PascalCasePageTypePlural}} = async () => {\r\n  const { data } = await sanityFetch({ query: all{{.PascalCasePageTypePlural}}Query })\r\n\r\n  if (!data || data.length === 0) {\r\n    return <OnBoarding />\r\n  }\r\n\r\n  const list = data as unknown as {{.PascalCasePageTypeSingular}}ListItem[]\r\n\r\n  return (\r\n    <{{.PascalCasePageTypePlural}}\r\n      heading=\"{{.PascalCasePageTypePlural}}\"\r\n      subHeading=\"{{.PascalCasePageTypePlural}} populated from your Sanity Studio.\"\r\n    >\r\n      {list.map((item) => (\r\n        <{{.PascalCasePageTypeSingular}}Card key={item._id} item={item} />\r\n      ))}\r\n    </{{.PascalCasePageTypePlural}}>\r\n  )\r\n}\r\n",
-                    "isIndexer": false,
-                    "markers": [],
-                    "children": []
-                  },
-              {
-                "_key": "1756989436755-t8zcsbyvk",
-                "_type": "treeNode",
-                "id": "file-1756989436755",
-                "name": "Header.tsx",
-                "type": "file",
-                "code": "//THIS IS AN INDEXER FILE \r\n\r\nimport Link from 'next/link'\r\nimport {settingsQuery} from '@/sanity/lib/queries'\r\nimport {sanityFetch} from '@/sanity/lib/live'\r\n\r\nexport default async function Header() {\r\n  const {data: settings} = await sanityFetch({\r\n    query: settingsQuery,\r\n  })\r\n\r\n  return (\r\n    <header className=\"fixed z-50 h-24 inset-0 bg-white/80 flex items-center backdrop-blur-lg\">\r\n      <div className=\"container py-6 px-2 sm:px-6\">\r\n        <div className=\"flex items-center justify-between gap-5\">\r\n          <Link className=\"flex items-center gap-2\" href=\"/\">\r\n            <span className=\"text-lg sm:text-2xl pl-2 font-semibold\">\r\n              {settings?.title || 'Sanity + Next.js'}\r\n            </span>\r\n          </Link>\r\n\r\n          <nav>\r\n            <ul\r\n              role=\"list\"\r\n              className=\"flex items-center gap-4 md:gap-6 leading-5 text-xs sm:text-base tracking-tight font-mono\"\r\n            >\r\n              <li>\r\n              // START OF PAGETYPE ARCHIVE LINK\r\n               <Link href=\"/{{.LowerCasePageTypePlural}}\" className=\"ml-8 hover:underline\">{{.LowerCasePageTypePlural}}</Link>\r\n              // END OF PAGETYPE ARCHIVE LINK\r\n                <Link href=\"/about\" className=\"hover:underline\">\r\n                  About\r\n                </Link>\r\n              </li>\r\n\r\n              <li className=\"sm:before:w-[1px] sm:before:bg-gray-200 before:block flex sm:gap-4 md:gap-6\">\r\n                <Link\r\n                  className=\"rounded-full flex gap-4 items-center bg-black hover:bg-blue focus:bg-blue py-2 px-4 justify-center sm:py-3 sm:px-6 text-white transition-colors duration-200\"\r\n                  href=\"https://github.com/sanity-io/sanity-template-nextjs-clean\"\r\n                  target=\"_blank\"\r\n                  rel=\"noopener noreferrer\"\r\n                >\r\n                  <span className=\"whitespace-nowrap\">View on GitHub</span>\r\n                  <svg\r\n                    xmlns=\"http://www.w3.org/2000/svg\"\r\n                    viewBox=\"0 0 24 24\"\r\n                    fill=\"currentColor\"\r\n                    className=\"hidden sm:block h-4 sm:h-6\"\r\n                  >\r\n                    <path d=\"M12.001 2C6.47598 2 2.00098 6.475 2.00098 12C2.00098 16.425 4.86348 20.1625 8.83848 21.4875C9.33848 21.575 9.52598 21.275 9.52598 21.0125C9.52598 20.775 9.51348 19.9875 9.51348 19.15C7.00098 19.6125 6.35098 18.5375 6.15098 17.975C6.03848 17.6875 5.55098 16.8 5.12598 16.5625C4.77598 16.375 4.27598 15.9125 5.11348 15.9C5.90098 15.8875 6.46348 16.625 6.65098 16.925C7.55098 18.4375 8.98848 18.0125 9.56348 17.75C9.65098 17.1 9.91348 16.6625 10.201 16.4125C7.97598 16.1625 5.65098 15.3 5.65098 11.475C5.65098 10.3875 6.03848 9.4875 6.67598 8.7875C6.57598 8.5375 6.22598 7.5125 6.77598 6.1375C6.77598 6.1375 7.61348 5.875 9.52598 7.1625C10.326 6.9375 11.176 6.825 12.026 6.825C12.876 6.825 13.726 6.9375 14.526 7.1625C16.4385 5.8625 17.276 6.1375 17.276 6.1375C17.826 7.5125 17.476 8.5375 17.376 8.7875C18.0135 9.4875 18.401 10.375 18.401 11.475C18.401 15.3125 16.0635 16.1625 13.8385 16.4125C14.201 16.725 14.5135 17.325 14.5135 18.2625C14.5135 19.6 14.501 20.675 14.501 21.0125C14.501 21.275 14.6885 21.5875 15.1885 21.4875C19.259 20.1133 21.9999 16.2963 22.001 12C22.001 6.475 17.526 2 12.001 2Z\"></path>\r\n                  </svg>\r\n                </Link>\r\n              </li>\r\n            </ul>\r\n          </nav>\r\n        </div>\r\n      </div>\r\n    </header>\r\n  )\r\n}\r\n",
-                "isIndexer": false,
-                "actions": [
-                  {
-                    "title": "PAGETYPE ARCHIVE LINK",
-                    "logic": {
-                      "target": "<Link href",
-                      "behaviour": "addMarkerAboveTarget",
-                      "fallbackOnly": true,
-                      "content": "<Link href=\"/{{.LowerCasePageTypePlural}}\" className=\"mr-6 hover:underline\">{{.PascalCasePageTypePlural}}</Link>"
-                    }
-                  }
-                ],
-                "children": []
-              }
-            ]
-          },
-          {
-            "_key": "1757178490805-i33etco7z",
-            "_type": "filePathGroup",
-            "id": "path-1757178490805-cd0fcb7",
-            "path": "frontend/app",
-            "nodes": [
-              {
-                "_key": "20250903-front-index-folder",
-                "_type": "treeNode",
-                "id": "folder-frontend-index",
-                "name": "{{.KebabCasePageTypePlural}}",
-                "type": "folder",
-                "code": "",
-                "isIndexer": false,
-                "markers": [],
-                "children": [
-                  {
-                    "_key": "1757178527060-uga95spuh",
-                    "_type": "treeNode",
-                    "id": "folder-1757178527060",
-                    "name": "(index)",
-                    "type": "folder",
-                    "code": "",
-                    "isIndexer": false,
-                    "markers": [],
-                    "children": [
-                      {
-                        "_key": "20250903-front-index-file",
-                        "_type": "treeNode",
-                        "id": "file-frontend-index",
-                        "name": "page.tsx",
-                        "type": "file",
-                        "code": "import Link from \"next/link\";\r\nimport type { Metadata } from \"next\";\r\nimport { client } from \"@/sanity/lib/client\";\r\nimport { all{{.PascalCasePageTypePlural}}Query } from \"@/sanity/lib/pagetype-queries/{{.KebabCasePageTypeSingular}}.queries\";\r\nimport { All{{.PascalCasePageTypePlural}} } from \"@/app/components/{{.PascalCasePageTypePlural}}\";\r\n\r\nexport const metadata: Metadata = {\r\n  title: \"{{.PascalCasePageTypePlural}}\",\r\n  description: \"All {{.LowerCasePageTypePlural}}\"\r\n};\r\n\r\nexport default async function {{.PascalCasePageTypeSingular}}IndexPage() {\r\n  const items = await client.fetch(all{{.PascalCasePageTypePlural}}Query);\r\n\r\n  if (!items?.length) {\r\n    return (\r\n      <main className=\"container mx-auto p-6\">\r\n        <h1 className=\"text-2xl font-semibold\">{{.PascalCasePageTypePlural}}</h1>\r\n        <p className=\"opacity-70 mt-2\">No {{.LowerCasePageTypePlural}} yet.</p>\r\n      </main>\r\n    );\r\n  }\r\n\r\n  return (\r\n    <main className=\"container mx-auto p-6\">\r\n    <All{{.PascalCasePageTypePlural}} />\r\n    </main>\r\n  );\r\n}\r\n",
-                        "isIndexer": false,
-                        "markers": [],
-                        "children": []
-                      }
-                    ]
-                  },
-                  {
-                    "_key": "1757178518306-5reh6n8zd",
-                    "_type": "treeNode",
-                    "id": "folder-1757178518306",
-                    "name": "[slug]",
-                    "type": "folder",
-                    "code": "",
-                    "isIndexer": false,
-                    "markers": [],
-                    "children": [
-                      {
-                        "_key": "20250903-front-slug-page",
-                        "_type": "treeNode",
-                        "id": "file-frontend-slug-page",
-                        "name": "page.tsx",
-                        "type": "file",
-                        "code": "import type {Metadata, ResolvingMetadata} from 'next'\r\nimport {notFound} from 'next/navigation'\r\nimport {type PortableTextBlock} from 'next-sanity'\r\nimport {Suspense} from 'react'\r\n\r\nimport Avatar from '@/app/components/Avatar'\r\nimport CoverImage from '@/app/components/CoverImage'\r\nimport {MorePosts} from '@/app/components/Posts'\r\nimport PortableText from '@/app/components/PortableText'\r\nimport {sanityFetch} from '@/sanity/lib/live'\r\nimport { {{.LowerCasePageTypeSingular}}Slugs, {{.LowerCasePageTypeSingular}}BySlugQuery } from '@/sanity/lib/pagetype-queries/{{.KebabCasePageTypeSingular}}.queries'\r\nimport {resolveOpenGraphImage} from '@/sanity/lib/utils'\r\n\r\nexport type Props = { params: Promise<{slug: string}> }\r\n\r\nexport async function generateStaticParams() {\r\n  const {data} = await sanityFetch({\r\n    query: {{.LowerCasePageTypeSingular}}Slugs,\r\n    perspective: 'published',\r\n    stega: false,\r\n  })\r\n  return data\r\n}\r\n\r\nexport async function generateMetadata(props: Props, parent: ResolvingMetadata): Promise<Metadata> {\r\n  const params = await props.params\r\n  const {data: doc} = await sanityFetch({\r\n    query: {{.LowerCasePageTypeSingular}}BySlugQuery,\r\n    params,\r\n    stega: false,\r\n  })\r\n\r\n  const previousImages = (await parent).openGraph?.images || []\r\n  const ogImage = resolveOpenGraphImage(doc?.coverImage)\r\n\r\n  return {\r\n    authors:\r\n      doc?.author?.firstName && doc?.author?.lastName\r\n        ? [{name: `${doc.author.firstName} ${doc.author.lastName}`}] \r\n        : [],\r\n    title: doc?.title,\r\n    description: doc?.excerpt,\r\n    openGraph: {\r\n      images: ogImage ? [ogImage, ...previousImages] : previousImages,\r\n    },\r\n  } satisfies Metadata\r\n}\r\n\r\nexport default async function {{.PascalCasePageTypeSingular}}Page(props: Props) {\r\n  const params = await props.params\r\n  const [{data: doc}] = await Promise.all([\r\n    sanityFetch({ query: {{.LowerCasePageTypeSingular}}BySlugQuery, params })\r\n  ])\r\n\r\n  if (!doc?._id) {\r\n    return notFound()\r\n  }\r\n\r\n  return (\r\n    <>\r\n      <div className=\"\">\r\n        <div className=\"container my-12 lg:my-24 grid gap-12\">\r\n          <div>\r\n            <div className=\"pb-6 grid gap-6 mb-6 border-b border-gray-100\">\r\n              <div className=\"max-w-3xl flex flex-col gap-6\">\r\n                <h2 className=\"text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-7xl\">\r\n                  {doc.title}\r\n                </h2>\r\n              </div>\r\n              <div className=\"max-w-3xl flex gap-4 items-center\">\r\n                {doc.author && doc.author.firstName && doc.author.lastName && (\r\n                  <Avatar person={doc.author} date={doc.date} />\r\n                )}\r\n              </div>\r\n            </div>\r\n            <article className=\"gap-6 grid max-w-4xl\">\r\n              <div className=\"\">\r\n                {doc?.coverImage && <CoverImage image={doc.coverImage} priority />}\r\n              </div>\r\n              {doc?.content?.length ? (\r\n                <PortableText className=\"max-w-2xl\" value={doc.content as PortableTextBlock[]} />\r\n              ) : null}\r\n            </article>\r\n          </div>\r\n        </div>\r\n      </div>\r\n      <div className=\"border-t border-gray-100 bg-gray-50\">\r\n        <div className=\"container py-12 lg:py-24 grid gap-12\">\r\n          <aside>\r\n            <Suspense>{await MorePosts({skip: doc._id, limit: 2})}</Suspense>\r\n          </aside>\r\n        </div>\r\n      </div>\r\n    </>\r\n  )\r\n}\r\n",
-                        "isIndexer": false,
-                        "markers": [],
-                        "children": []
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          },
-      {
-        "_key": "1756910010585-v96qm9f3v",
-        "_type": "filePathGroup",
-        "id": "path-1756910010585-3xq0wiv",
-        "path": "frontend/sanity/lib",
-        "nodes": [
-          {
-            "_key": "node-utils-linktype-case",
-            "_type": "treeNode",
-            "id": "node-utils-linktype-case",
-            "name": "utils.ts",
-            "type": "file",
-            "isIndexer": false,
-            "code": "import createImageUrlBuilder from '@sanity/image-url'\nimport {Link} from '@/sanity.types'\nimport {dataset, projectId, studioUrl} from '@/sanity/lib/api'\nimport {createDataAttribute, CreateDataAttributeProps} from 'next-sanity'\nimport {getImageDimensions} from '@sanity/asset-utils'\n\nconst imageBuilder = createImageUrlBuilder({\n  projectId: projectId || '',\n  dataset: dataset || '',\n})\n\nexport const urlForImage = (source: any) => {\n  // Ensure that source image contains a valid reference\n  if (!source?.asset?._ref) {\n    return undefined\n  }\n\n  const imageRef = source?.asset?._ref\n  const crop = source.crop\n\n  // get the image's og dimensions\n  const {width, height} = getImageDimensions(imageRef)\n\n  if (Boolean(crop)) {\n    // compute the cropped image's area\n    const croppedWidth = Math.floor(width * (1 - (crop.right + crop.left)))\n\n    const croppedHeight = Math.floor(height * (1 - (crop.top + crop.bottom)))\n\n    // compute the cropped image's position\n    const left = Math.floor(width * crop.left)\n    const top = Math.floor(height * crop.top)\n\n    // gather into a url\n    return imageBuilder?.image(source).rect(left, top, croppedWidth, croppedHeight).auto('format')\n  }\n\n  return imageBuilder?.image(source).auto('format')\n}\n\nexport function resolveOpenGraphImage(image: any, width = 1200, height = 627) {\n  if (!image) return\n  const url = urlForImage(image)?.width(1200).height(627).fit('crop').url()\n  if (!url) return\n  return {url, alt: image?.alt as string, width, height}\n}\n\n// Depending on the type of link, we need to fetch the corresponding page, post, or URL.  Otherwise return null.\nexport function linkResolver(link: Link | undefined) {\n  if (!link) return null\n\n  // If linkType is not set but href is, lets set linkType to \"href\".  This comes into play when pasting links into the portable text editor because a link type is not assumed.\n  if (!link.linkType && link.href) {\n    link.linkType = 'href'\n  }\n\n  switch (link.linkType) {\n    case 'href':\n      return link.href || null\n    case 'page':\n      if (link?.page && typeof link.page === 'string') {\n        return `/${link.page}`\n      }\n    case 'post':\n      if (link?.post && typeof link.post === 'string') {\n        return `/posts/${link.post}`\n      }\n\n    // START OF LINKTYPE ROUTES ITEM\n    case '{{.LowerCasePageTypeSingular}}': {\n      const slug = (link as any)?.['{{.LowerCasePageTypeSingular}}']\n      return typeof slug === 'string' ? `/{{.LowerCasePageTypePlural}}/${slug}` : null\n    }\n    // END OF LINKTYPE ROUTES ITEM\n\n    default:\n      return null\n  }\n}\n\ntype DataAttributeConfig = CreateDataAttributeProps &\n  Required<Pick<CreateDataAttributeProps, 'id' | 'type' | 'path'>>\n\nexport function dataAttr(config: DataAttributeConfig) {\n  return createDataAttribute({\n    projectId,\n    dataset,\n    baseUrl: studioUrl,\n  }).combine(config)\n}\n",
-            "actions": [
-              {
-                "title": "LINKTYPE ROUTES ITEM",
-                "logic": {
-                  "behaviour": "addMarkerAboveTarget",
-                  "target": "default:",
-                  "occurrence": "first"
-                }
-              }
-            ],
-            "children": []
-          },
-            {
-                "_key": "1757064566263-k9lklr230",
-                "_type": "treeNode",
-                "id": "folder-1757064566263",
-                "name": "pagetype-queries",
-                "type": "folder",
-                "code": "",
-                "isIndexer": false,
-                "markers": [],
-                "children": [
-                    {
-                        "_key": "20250903-front-queries-file",
-                        "_type": "treeNode",
-                        "id": "file-frontend-queries",
-                        "name": "{{.KebabCasePageTypeSingular}}.queries.ts",
-                        "type": "file",
-                        "code": "import { defineQuery } from \"next-sanity\";\nimport { linkReference, postFields } from \"../queries\";\n\n\nexport const all{{.PascalCasePageTypePlural}}Query = defineQuery(`\n  *[_type == \"{{.LowerCasePageTypeSingular}}\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageTypeSingular}}BySlugQuery = defineQuery(`\n  *[_type == \"{{.LowerCasePageTypeSingular}}\" && slug.current == $slug] [0] {\n    content[]{\n    ...,\n    markDefs[]{\n      ...,\n      ${linkReference}\n    }\n  },\n    ${postFields}\n  }\n`);\n\nexport const {{.LowerCasePageTypeSingular}}Slugs = defineQuery(`\n  *[_type == \"{{.LowerCasePageTypeSingular}}\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`);\n",
-                        "isIndexer": false,
-                        "markers": [],
-                        "children": []
-                      }
-                ]
-              },
-              {
-                "_key": "1756919951450-hqircx415",
-                "_type": "treeNode",
-                "id": "file-1756919951450",
-                "name": "queries.ts",
-                "type": "file",
-                "code": "//THIS IS AN INDEXER FILE \nimport {defineQuery} from 'next-sanity'\n\nexport const settingsQuery = defineQuery(`*[_type == \"settings\"][0]`)\n\nexport const postFields = /* groq */ `\n  _id,\n  \"status\": select(_originalId in path(\"drafts.**\") => \"draft\", \"published\"),\n  \"title\": coalesce(title, \"Untitled\"),\n  \"slug\": slug.current,\n  excerpt,\n  coverImage,\n  \"date\": coalesce(date, _updatedAt),\n  \"author\": author->{firstName, lastName, picture},\n`\n\nexport const linkReference = /* groq */ `\n  _type == \"link\" => {\n    \"page\": page->slug.current,\n    \"post\": post->slug.current,\n    // START OF LINK REFERENCES \n    \"{{.LowerCasePageTypeSingular}}\": {{.LowerCasePageTypeSingular}}->slug.current,\n    // END OF LINK REFERENCES\n\n  }\n`\n\nexport const linkFields = /* groq */ `\n  link {\n      ...,\n      ${linkReference}\n      }\n`\n\nexport const pageBuilderFields = /* groq */ `\n  ...,\n  _type == \"callToAction\" => {\n    ${linkFields},\n  },\n  _type == \"infoSection\" => {\n    content[]{\n      ...,\n      markDefs[]{\n        ...,\n        ${linkReference}\n      }\n    }\n  }\n`\n\nexport const getPageQuery = defineQuery(`\n  *[_type == 'page' && slug.current == $slug][0]{\n    _id,\n    _type,\n    name,\n    slug,\n    heading,\n    subheading,\n    \"pageBuilder\": pageBuilder[]{\n      ${pageBuilderFields}\n    },\n  }\n`)\n\n\n\nexport const sitemapData = defineQuery(`\n  *[_type == \"page\" || _type == \"post\" && defined(slug.current)] | order(_type asc) {\n    \"slug\": slug.current,\n    _type,\n    _updatedAt,\n  }\n`)\n\nexport const allPostsQuery = defineQuery(`\n  *[_type == \"post\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\n    ${postFields}\n  }\n`)\n\nexport const morePostsQuery = defineQuery(`\n  *[_type == \"post\" && _id != $skip && defined(slug.current)] | order(date desc, _updatedAt desc) [0...$limit] {\n    ${postFields}\n  }\n`)\n\nexport const postQuery = defineQuery(`\n  *[_type == \"post\" && slug.current == $slug] [0] {\n    content[]{\n    ...,\n    markDefs[]{\n      ...,\n      ${linkReference}\n    }\n  },\n    ${postFields}\n  }\n`)\n\nexport const postPagesSlugs = defineQuery(`\n  *[_type == \"post\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`)\n\nexport const pagesSlugs = defineQuery(`\n  *[_type == \"page\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`)\n",
-                "isIndexer": false,
-                "actions": [
-                  {
-                    "title": "set linkFields to Export",
-                    "logic": {
-                      "behaviour": "replaceIfMissing",
-                      "target": "const linkFields = /* groq */ `",
-                      "requireAbsent": "export const linkFields = /* groq */ `",
-                      "replacement": "export const linkFields = /* groq */ `",
-                      "occurrence": "first"
-                    }
-                  },
-                  {
-                    "title": "Set postFields to Export",
-                    "logic": {
-                      "behaviour": "replaceIfMissing",
-                      "target": "const postFields = /* groq */ `",
-                      "requireAbsent": "export const postFields = /* groq */ `",
-                      "replacement": "export const postFields = /* groq */ p`",
-                      "occurrence": "first"
-                    }
-                  },
-                  {
-                    "title": "Set linkReference to Export",
-                    "logic": {
-                      "behaviour": "replaceIfMissing",
-                      "target": "const linkReference = /* groq */ `",
-                      "requireAbsent": "export const linkReference = /* groq */ `",
-                      "replacement": "export const linkReference = /* groq */ `",
-                      "occurrence": "first"
-                    }
-                  },
-                  {
-                    "title": "connect up PageType as linkReference",
-                    "logic": {
-                      "target": "_type == \"link\" => {",
-                      "behaviour": "addMarkerBelowTarget",
-                      "occurrence": "first",
-                      "content": "\"{{.LowerCasePageTypeSingular}}\": {{.LowerCasePageTypeSingular}}->slug.current,"
-                    }
-                  },
-                  {
-                    "title": "adding PageType to Sitemap",
-                    "logic": {
-                      "target": "&& defined(slug.current)] | order(_type asc) {",
-                      "behaviour": "insertBeforeInline",
-                      "content": " || _type == \"{{.LowerCasePageTypeSingular}}\"",
-                      "fallbackOnly": true,
-                      "occurrence": "first"
-                    }
-                  },
-                  {
-                    "title": "Exportable PageBuilder Fields",
-                    "logic": {
-                      "behaviour": "replaceBetween",
-                      "targetStart": "export const getPageQuery = defineQuery(`",
-                      "targetEnd": "`)",
-                      "occurrence": "first",
-                      "requireAbsent": "export const pageBuilderFields = /* groq */ `",
-                      "replacement": "export const pageBuilderFields = /* groq */ `\n  ...,\n  _type == \"callToAction\" => {\n    ${linkFields},\n  },\n  _type == \"infoSection\" => {\n    content[]{\n      ...,\n      markDefs[]{\n        ...,\n        ${linkReference}\n      }\n    }\n  }\n`\n\nexport const getPageQuery = defineQuery(`\n  *[_type == 'page' && slug.current == $slug][0]{\n    _id,\n    _type,\n    name,\n    slug,\n    heading,\n    subheading,\n    \"pageBuilder\": pageBuilder[]{\n      ${pageBuilderFields}\n    },\n  }\n`)"
-                    }
-                  }
-                ],
-                "children": []
-              }
-        
-              
-        ]
       },
       {
-        "_key": "1756910010585-7vkhg6dmi",
-        "_type": "filePathGroup",
-        "id": "path-1756910010585-cf0a4l4",
-        "path": "studio/src/schemaTypes/documents",
-        "nodes": [
-          {
-            "_key": "20250903-studio-schema-file",
-            "_type": "treeNode",
-            "id": "file-studio-schema",
-            "name": "{{.KebabCasePageTypeSingular}}.ts",
-            "type": "file",
-            "code": "import {DocumentTextIcon} from '@sanity/icons'\nimport {format, parseISO} from 'date-fns'\nimport {defineField, defineType} from 'sanity'\n\nexport const {{.LowerCasePageTypeSingular}} = defineType({\n  name: '{{.LowerCasePageTypeSingular}}',\n  title: '{{.PascalCasePageTypeSingular}}',\n  icon: DocumentTextIcon,\n  type: 'document',\n  fields: [\n    defineField({\n      name: 'title',\n      title: 'Title',\n      type: 'string',\n      validation: (rule) => rule.required(),\n    }),\n    defineField({\n      name: 'slug',\n      title: 'Slug',\n      type: 'slug',\n      description: 'A slug is required for the page to show up in the preview',\n      options: {\n        source: 'title',\n        maxLength: 96,\n        isUnique: (value, context) => context.defaultIsUnique(value, context),\n      },\n      validation: (rule) => rule.required(),\n    }),\n    defineField({\n      name: 'content',\n      title: 'Content',\n      type: 'blockContent',\n    }),\n    defineField({\n      name: 'excerpt',\n      title: 'Excerpt',\n      type: 'text',\n    }),\n    defineField({\n      name: 'coverImage',\n      title: 'Cover Image',\n      type: 'image',\n      options: {\n        hotspot: true,\n        aiAssist: {\n          imageDescriptionField: 'alt',\n        },\n      },\n      fields: [\n        {\n          name: 'alt',\n          type: 'string',\n          title: 'Alternative text',\n          description: 'Important for SEO and accessibility.',\n          validation: (rule) => {\n            // Custom validation to ensure alt text is provided if the image is present. https://www.sanity.io/docs/validation\n            return rule.custom((alt, context) => {\n              if ((context.document?.coverImage as any)?.asset?._ref && !alt) {\n                return 'Required'\n              }\n              return true\n            })\n          },\n        },\n      ],\n      validation: (rule) => rule.required(),\n    }),\n    defineField({\n      name: 'date',\n      title: 'Date',\n      type: 'datetime',\n      initialValue: () => new Date().toISOString(),\n    }),\n    defineField({\n      name: 'author',\n      title: 'Author',\n      type: 'reference',\n      to: [{type: 'person'}],\n    }),\n  ],\n  // List preview configuration. https://www.sanity.io/docs/previews-list-views\n  preview: {\n    select: {\n      title: 'title',\n      authorFirstName: 'author.firstName',\n      authorLastName: 'author.lastName',\n      date: 'date',\n      media: 'coverImage',\n    },\n    prepare({title, media, authorFirstName, authorLastName, date}) {\n      const subtitles = [\n        authorFirstName && authorLastName && `by ${authorFirstName} ${authorLastName}`,\n        date && `on ${format(parseISO(date), 'LLL d, yyyy')}`,\n      ].filter(Boolean)\n\n      return {title, media, subtitle: subtitles.join(' ')}\n    },\n  },\n})\n",
-            "isIndexer": false,
-            "children": []
-          }
-        ]
+        "packageJsonArrayContains": {
+          "nextgen-identifiers": "never"
+        }
       },
       {
-        "_key": "1756910010585-qbjt3ype1",
-        "_type": "filePathGroup",
-        "id": "path-1756910010585-qntg5zw",
-        "path": "studio/src/schemaTypes",
-        "nodes": [
-          {
-            "_key": "20250903-studio-indexer-file",
-            "_type": "treeNode",
-            "id": "file-studio-indexer",
-            "name": "index.ts",
-            "type": "file",
-            "isIndexer": false,
-            "code": "import {person} from './documents/person'\nimport {page} from './documents/page'\nimport {post} from './documents/post'\nimport {callToAction} from './objects/callToAction'\nimport {infoSection} from './objects/infoSection'\nimport {settings} from './singletons/settings'\nimport {link} from './objects/link'\nimport {blockContent} from './objects/blockContent'\n\n// START OF DOCUMENT IMPORT\nimport { {{.LowerCasePageTypeSingular}} } from './documents/{{.KebabCasePageTypeSingular}}'\n// END OF DOCUMENT IMPORT\n\n// START OF OBJECT IMPORT\n// (reserved for pagebuilder blocks)\n// END OF OBJECT IMPORT\n\n// Export an array of all the schema types.  This is used in the Sanity Studio configuration. https://www.sanity.io/docs/schema-types\n\nexport const schemaTypes = [\n  // Singletons\n  settings,\n  // Documents\n  page,\n  post,\n  person,\n  // START OF DOCUMENT ARRAY ITEM\n  {{.LowerCasePageTypeSingular}},\n  // END OF DOCUMENT ARRAY ITEM\n  // Objects\n  blockContent,\n  infoSection,\n  callToAction,\n  link,\n  // START OF OBJECT ARRAY ITEM\n  // (reserved for pagebuilder blocks)\n  // END OF OBJECT ARRAY ITEM\n]\n",
-            "actions": [
-              {
-                "title": "DOCUMENT IMPORT",
-                "logic": {
-                  "behaviour": "addMarkerBelowTarget",
-                  "target": "import {post} from './documents/post'",
-                  "occurrence": "last",
-                  "content": "\nimport { {{.LowerCasePageTypeSingular}} } from './documents/{{.KebabCasePageTypeSingular}}'"
-                }
-              },
-              {
-                "title": "DOCUMENT ARRAY ITEM",
-                "logic": {
-                  "behaviour": "addMarkerBelowTarget",
-                  "target": "person,",
-                  "occurrence": "last",
-                  "content": "\n  {{.LowerCasePageTypeSingular}},"
-                }
-              },
-              {
-                "title": "OBJECT IMPORT",
-                "logic": {
-                  "behaviour": "addMarkerBelowTarget",
-                  "target": "import {blockContent} from './objects/blockContent'",
-                  "occurrence": "last",
-                  "content": "\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.KebabCaseBlockTypeSingular}}'"
-                }
-              },
-              {
-                "title": "OBJECT ARRAY ITEM",
-                "logic": {
-                  "behaviour": "addMarkerBelowTarget",
-                  "target": "link,",
-                  "occurrence": "last",
-                  "content": "\n  {{.LowerCaseBlockTypeSingular}},"
-                }
-              }
-            ],
-            "children": []
-          }
-          
-        ]
-      },
-      {
-        "_key": "1757202633375-q9y6d7y1z",
-        "_type": "filePathGroup",
-        "id": "path-1757202633375-vdcos67",
-        "path": "studio\\src\\schemaTypes\\objects",
-        "nodes": [
-          {
-            "_key": "node-blockcontent-fixes",
-            "_type": "treeNode",
-            "id": "node-blockcontent-fixes",
-            "name": "blockContent.tsx",
-            "type": "file",
-            "code": "import {defineArrayMember, defineType, defineField} from 'sanity'\r\n\r\n/**\r\n * This is the schema definition for the rich text fields used for\r\n * for this blog studio. When you import it in schemas.js it can be\r\n * reused in other parts of the studio with:\r\n *  {\r\n *    name: 'someName',\r\n *    title: 'Some title',\r\n *    type: 'blockContent'\r\n *  }\r\n *\r\n * Learn more: https://www.sanity.io/docs/block-content\r\n */\r\nexport const blockContent = defineType({\r\n  title: 'Block Content',\r\n  name: 'blockContent',\r\n  type: 'array',\r\n  of: [\r\n    defineArrayMember({\r\n      type: 'block',\r\n      marks: {\r\n        annotations: [\r\n          {\r\n            name: 'link',\r\n            type: 'object',\r\n            title: 'Link',\r\n            fields: [\r\n              defineField({\r\n                name: 'linkType',\r\n                title: 'Link Type',\r\n                type: 'string',\r\n                initialValue: 'href',\r\n                options: {\r\n                  list: [\r\n                    {title: 'URL', value: 'href'},\r\n                    {title: 'Page', value: 'page'},\r\n                    {title: 'Post', value: 'post'},\r\n                    // START OF LINK TYPE OPTION\r\n                    {title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},\r\n                    // END OF LINK TYPE OPTION\r\n                  ],\r\n                  layout: 'radio',\r\n                },\r\n              }),\r\n\r\n              defineField({\r\n                name: 'href',\r\n                title: 'URL',\r\n                type: 'url',\r\n                hidden: ({parent}) => parent?.linkType !== 'href' && parent?.linkType != null,\r\n                validation: (Rule) =>\r\n                  Rule.custom((value, context: any) => {\r\n                    if (context.parent?.linkType === 'href' && !value) {\r\n                      return 'URL is required when Link Type is URL'\r\n                    }\r\n                    return true\r\n                  }),\r\n              }),\r\n\r\n              defineField({\r\n                name: 'page',\r\n                title: 'Page',\r\n                type: 'reference',\r\n                to: [{type: 'page'}],\r\n                hidden: ({parent}) => parent?.linkType !== 'page',\r\n                validation: (Rule) =>\r\n                  Rule.custom((value, context: any) => {\r\n                    if (context.parent?.linkType === 'page' && !value) {\r\n                      return 'Page reference is required when Link Type is Page'\r\n                    }\r\n                    return true\r\n                  }),\r\n              }),\r\n\r\n              defineField({\r\n                name: 'post',\r\n                title: 'Post',\r\n                type: 'reference',\r\n                to: [{type: 'post'}],\r\n                hidden: ({parent}) => parent?.linkType !== 'post',\r\n                validation: (Rule) =>\r\n                  Rule.custom((value, context: any) => {\r\n                    if (context.parent?.linkType === 'post' && !value) {\r\n                      return 'Post reference is required when Link Type is Post'\r\n                    }\r\n                    return true\r\n                  }),\r\n              }),\r\n\r\n              // START OF EXTRA INTERNAL LINK FIELD\r\n              defineField({\r\n                name: '{{.LowerCasePageTypeSingular}}',\r\n                title: '{{.PascalCasePageTypeSingular}}',\r\n                type: 'reference',\r\n                to: [{type: '{{.LowerCasePageTypeSingular}}'}],\r\n                hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\r\n                validation: (Rule) =>\r\n                  Rule.custom((value, context: any) => {\r\n                    if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\r\n                      return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\r\n                    }\r\n                    return true\r\n                  }),\r\n              }),\r\n              // END OF EXTRA INTERNAL LINK FIELD\r\n\r\n              defineField({\r\n                name: 'openInNewTab',\r\n                title: 'Open in new tab',\r\n                type: 'boolean',\r\n                initialValue: false,\r\n              }),\r\n            ],\r\n          },\r\n        ],\r\n      },\r\n    }),\r\n  ],\r\n})\r\n\r\n",
-            "isIndexer": false,
-            "actions": [
-              {
-                "title": "LINK TYPE OPTION",
-                "logic": {
-                  "behaviour": "addMarkerBelowTarget",
-                  "target": "{title: 'Post', value: 'post'},",
-                  "occurrence": "last"
-                }
-              },
-              {
-                "title": "EXTRA INTERNAL LINK FIELD",
-                "logic": {
-                  "behaviour": "addMarkerAboveTarget",
-                  "target": "defineField({",
-                  "occurrence": "last"
-                }
-              }
-            ],
-            "children": []
-          },
-          
-          
-          
-          
-          {
-            "_key": "node-link-schema-fixes",
-            "_type": "treeNode",
-            "id": "node-link-schema-fixes",
-            "name": "link.ts",
-            "type": "file",
-            "code": "import {defineField, defineType} from 'sanity'\nimport {LinkIcon} from '@sanity/icons'\n\n/**\n * Link schema object. This link object lets the user first select the type of link and then\n * then enter the URL, page reference, or post reference - depending on the type selected.\n * Learn more: https://www.sanity.io/docs/object-type\n */\nexport const link = defineType({\n  name: 'link',\n  title: 'Link',\n  type: 'object',\n  icon: LinkIcon,\n  fields: [\n    defineField({\n      name: 'linkType',\n      title: 'Link Type',\n      type: 'string',\n      initialValue: 'url',\n      options: {\n        list: [\n          {title: 'URL', value: 'href'},\n          {title: 'Page', value: 'page'},\n          {title: 'Post', value: 'post'},\n          // START OF LINK TYPE OPTION\n          {title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},\n          // END OF LINK TYPE OPTION\n          // ADD LINK TYPE OPTION BELOW\n        ],\n        layout: 'radio',\n      },\n    }),\n\n    // URL\n    defineField({\n      name: 'href',\n      title: 'URL',\n      type: 'url',\n      hidden: ({parent}) => parent?.linkType !== 'href',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === 'href' && !value) {\n            return 'URL is required when Link Type is URL'\n          }\n          return true\n        }),\n    }),\n\n    // Page\n    defineField({\n      name: 'page',\n      title: 'Page',\n      type: 'reference',\n      to: [{type: 'page'}],\n      hidden: ({parent}) => parent?.linkType !== 'page',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === 'page' && !value) {\n            return 'Page reference is required when Link Type is Page'\n          }\n          return true\n        }),\n    }),\n\n    // Post\n    defineField({\n      name: 'post',\n      title: 'Post',\n      type: 'reference',\n      to: [{type: 'post'}],\n      hidden: ({parent}) => parent?.linkType !== 'post',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === 'post' && !value) {\n            return 'Post reference is required when Link Type is Post'\n          }\n          return true\n        }),\n    }),\n\n    // START OF EXTRA INTERNAL LINK FIELD\n    defineField({\n      name: '{{.LowerCasePageTypeSingular}}',\n      title: '{{.PascalCasePageTypeSingular}}',\n      type: 'reference',\n      to: [{type: '{{.LowerCasePageTypeSingular}}'}],\n      hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\n            return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\n          }\n          return true\n        }),\n    }),\n    // END OF EXTRA INTERNAL LINK FIELD\n\n    defineField({\n      name: 'openInNewTab',\n      title: 'Open in new tab',\n      type: 'boolean',\n      initialValue: false,\n    }),\n  ],\n})\n\n\n\n",
-            "isIndexer": false,
-            "markers": [
-              {
-                "mark": "LINK TYPE OPTION",
-                "fallback": {
-                  "behaviour": "addMarkerBelowTarget",
-                  "target": "{title: 'Post', value: 'post'},",
-                  "occurrence": "last"
-                }
-              },
-              {
-                "mark": "EXTRA INTERNAL LINK FIELD",
-                "fallback": {
-                  "behaviour": "addMarkerAboveTarget",
-                  "target": "defineField({",
-                  "occurrence": "last"
-                }
-              }
-            ],
-            "children": []
-          }
-          
-          
-          
-          
+        "commandPackagesContains": [
+          "never"
         ]
       }
     ]
-  }
+  },
+  "ignoredPatterns": [],
+  "variables": {
+    "PageTypeSingular": {
+      "title": "Name your page type",
+      "priority": 1,
+      "description": "This is the name of the \"_type\" we use in Sanity. This dictates a lot of the naming conventions elsewhere.",
+      "examples": [
+        "author",
+        "event",
+        "product",
+        "service"
+      ]
+    },
+    "PageTypePlural": {
+      "title": "Pluralize your page type",
+      "priority": 2,
+      "description": "This helps cases where we need to pluralize. No worries if it's the same as the singular.",
+      "examples": [
+        "authors",
+        "events",
+        "products",
+        "services"
+      ]
+    }
+  },
+  "filePaths": [
+    {
+      "_key": "1757021003924-q3au3rnnx",
+      "_type": "filePathGroup",
+      "id": "path-1757021003924-sa8u1fy",
+      "path": "frontend/app/components",
+      "nodes": [
+        {
+          "_key": "1757176137674-q3yigc355",
+          "_type": "treeNode",
+          "id": "file-1757176137674",
+          "name": "{{.PascalCasePageTypePlural}}.tsx",
+          "code": "import Link from 'next/link'\r\n\r\nimport { sanityFetch } from '@/sanity/lib/live'\r\nimport { all{{.PascalCasePageTypePlural}}Query } from '@/sanity/lib/pagetype-queries/{{.KebabCasePageTypeSingular}}.queries'\r\nimport DateComponent from '@/app/components/Date'\r\nimport OnBoarding from '@/app/components/Onboarding'\r\nimport Avatar from '@/app/components/Avatar'\r\nimport { createDataAttribute } from 'next-sanity'\r\n\r\ntype {{.PascalCasePageTypeSingular}}ListItem = {\r\n  _id: string\r\n  title?: string\r\n  name?: string\r\n  slug: string\r\n  excerpt?: string | null\r\n  subheading?: string | null\r\n  coverImage?: unknown\r\n  date?: string\r\n  author?:\r\n    | {\r\n        firstName?: string\r\n        lastName?: string\r\n        picture?: unknown\r\n      }\r\n    | null\r\n}\r\n\r\nconst {{.PascalCasePageTypeSingular}}Card = ({ item }: { item: {{.PascalCasePageTypeSingular}}ListItem }) => {\r\n  const { _id, slug, date, author } = item\r\n  const title = item.title ?? item.name ?? 'Untitled'\r\n  const excerpt = (item.excerpt ?? item.subheading) ?? null\r\n\r\n  const attr = createDataAttribute({\r\n    id: _id,\r\n    type: '{{.LowerCasePageTypeSingular}}',\r\n    path: (item.title ? 'title' : 'name') as 'title' | 'name',\r\n  })\r\n\r\n  return (\r\n    <article\r\n      data-sanity={attr()}\r\n      key={_id}\r\n      className=\"border border-gray-200 rounded-sm p-6 bg-gray-50 flex flex-col justify-between transition-colors hover:bg-white relative\"\r\n    >\r\n      <Link className=\"hover:text-brand underline transition-colors\" href={`/{{.LowerCasePageTypePlural}}/${slug}`}>\r\n        <span className=\"absolute inset-0 z-10\" />\r\n      </Link>\r\n\r\n      <div>\r\n        <h3 className=\"text-2xl font-bold mb-4 leading-tight\">{title}</h3>\r\n\r\n        {excerpt && (\r\n          <p className=\"line-clamp-3 text-sm leading-6 text-gray-600 max-w-[70ch]\">{excerpt}</p>\r\n        )}\r\n      </div>\r\n\r\n      <div className=\"flex items-center justify-between mt-6 pt-4 border-t border-gray-100\">\r\n        {author?.firstName && author?.lastName && (\r\n          <div className=\"flex items-center\">\r\n            <Avatar person={author as any} small={true} />\r\n          </div>\r\n        )}\r\n        {date && (\r\n          <time className=\"text-gray-500 text-xs font-mono\" dateTime={date}>\r\n            <DateComponent dateString={date} />\r\n          </time>\r\n        )}\r\n      </div>\r\n    </article>\r\n  )\r\n}\r\n\r\nconst {{.PascalCasePageTypePlural}} = ({\r\n  children,\r\n  heading,\r\n  subHeading,\r\n}: {\r\n  children: React.ReactNode\r\n  heading?: string\r\n  subHeading?: string\r\n}) => (\r\n  <div>\r\n    {heading && (\r\n      <h2 className=\"text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl lg:text-5xl\">\r\n        {heading}\r\n      </h2>\r\n    )}\r\n    {subHeading && <p className=\"mt-2 text-lg leading-8 text-gray-600\">{subHeading}</p>}\r\n\r\n    <div className=\"pt-6 space-y-6\">{children}</div>\r\n  </div>\r\n)\r\n\r\nexport const All{{.PascalCasePageTypePlural}} = async () => {\r\n  const { data } = await sanityFetch({ query: all{{.PascalCasePageTypePlural}}Query })\r\n\r\n  if (!data || data.length === 0) {\r\n    return <OnBoarding />\r\n  }\r\n\r\n  const list = data as unknown as {{.PascalCasePageTypeSingular}}ListItem[]\r\n\r\n  return (\r\n    <{{.PascalCasePageTypePlural}}\r\n      heading=\"{{.PascalCasePageTypePlural}}\"\r\n      subHeading=\"{{.PascalCasePageTypePlural}} populated from your Sanity Studio.\"\r\n    >\r\n      {list.map((item) => (\r\n        <{{.PascalCasePageTypeSingular}}Card key={item._id} item={item} />\r\n      ))}\r\n    </{{.PascalCasePageTypePlural}}>\r\n  )\r\n}\r\n",
+          "isIndexer": false,
+          "nodeType": "file",
+          "actions": [],
+          "children": []
+        },
+        {
+          "_key": "1756989436755-t8zcsbyvk",
+          "_type": "treeNode",
+          "id": "file-1756989436755",
+          "name": "Header.tsx",
+          "code": "//THIS IS AN INDEXER FILE \r\n\r\nimport Link from 'next/link'\r\nimport {settingsQuery} from '@/sanity/lib/queries'\r\nimport {sanityFetch} from '@/sanity/lib/live'\r\n\r\nexport default async function Header() {\r\n  const {data: settings} = await sanityFetch({\r\n    query: settingsQuery,\r\n  })\r\n\r\n  return (\r\n    <header className=\"fixed z-50 h-24 inset-0 bg-white/80 flex items-center backdrop-blur-lg\">\r\n      <div className=\"container py-6 px-2 sm:px-6\">\r\n        <div className=\"flex items-center justify-between gap-5\">\r\n          <Link className=\"flex items-center gap-2\" href=\"/\">\r\n            <span className=\"text-lg sm:text-2xl pl-2 font-semibold\">\r\n              {settings?.title || 'Sanity + Next.js'}\r\n            </span>\r\n          </Link>\r\n\r\n          <nav>\r\n            <ul\r\n              role=\"list\"\r\n              className=\"flex items-center gap-4 md:gap-6 leading-5 text-xs sm:text-base tracking-tight font-mono\"\r\n            >\r\n              <li>\r\n              // START OF PAGETYPE ARCHIVE LINK\r\n               <Link href=\"/{{.LowerCasePageTypePlural}}\" className=\"ml-8 hover:underline\">{{.LowerCasePageTypePlural}}</Link>\r\n              // END OF PAGETYPE ARCHIVE LINK\r\n                <Link href=\"/about\" className=\"hover:underline\">\r\n                  About\r\n                </Link>\r\n              </li>\r\n\r\n              <li className=\"sm:before:w-[1px] sm:before:bg-gray-200 before:block flex sm:gap-4 md:gap-6\">\r\n                <Link\r\n                  className=\"rounded-full flex gap-4 items-center bg-black hover:bg-blue focus:bg-blue py-2 px-4 justify-center sm:py-3 sm:px-6 text-white transition-colors duration-200\"\r\n                  href=\"https://github.com/sanity-io/sanity-template-nextjs-clean\"\r\n                  target=\"_blank\"\r\n                  rel=\"noopener noreferrer\"\r\n                >\r\n                  <span className=\"whitespace-nowrap\">View on GitHub</span>\r\n                  <svg\r\n                    xmlns=\"http://www.w3.org/2000/svg\"\r\n                    viewBox=\"0 0 24 24\"\r\n                    fill=\"currentColor\"\r\n                    className=\"hidden sm:block h-4 sm:h-6\"\r\n                  >\r\n                    <path d=\"M12.001 2C6.47598 2 2.00098 6.475 2.00098 12C2.00098 16.425 4.86348 20.1625 8.83848 21.4875C9.33848 21.575 9.52598 21.275 9.52598 21.0125C9.52598 20.775 9.51348 19.9875 9.51348 19.15C7.00098 19.6125 6.35098 18.5375 6.15098 17.975C6.03848 17.6875 5.55098 16.8 5.12598 16.5625C4.77598 16.375 4.27598 15.9125 5.11348 15.9C5.90098 15.8875 6.46348 16.625 6.65098 16.925C7.55098 18.4375 8.98848 18.0125 9.56348 17.75C9.65098 17.1 9.91348 16.6625 10.201 16.4125C7.97598 16.1625 5.65098 15.3 5.65098 11.475C5.65098 10.3875 6.03848 9.4875 6.67598 8.7875C6.57598 8.5375 6.22598 7.5125 6.77598 6.1375C6.77598 6.1375 7.61348 5.875 9.52598 7.1625C10.326 6.9375 11.176 6.825 12.026 6.825C12.876 6.825 13.726 6.9375 14.526 7.1625C16.4385 5.8625 17.276 6.1375 17.276 6.1375C17.826 7.5125 17.476 8.5375 17.376 8.7875C18.0135 9.4875 18.401 10.375 18.401 11.475C18.401 15.3125 16.0635 16.1625 13.8385 16.4125C14.201 16.725 14.5135 17.325 14.5135 18.2625C14.5135 19.6 14.501 20.675 14.501 21.0125C14.501 21.275 14.6885 21.5875 15.1885 21.4875C19.259 20.1133 21.9999 16.2963 22.001 12C22.001 6.475 17.526 2 12.001 2Z\"></path>\r\n                  </svg>\r\n                </Link>\r\n              </li>\r\n            </ul>\r\n          </nav>\r\n        </div>\r\n      </div>\r\n    </header>\r\n  )\r\n}\r\n",
+          "isIndexer": false,
+          "nodeType": "file",
+          "actions": [
+            {
+              "title": "PAGETYPE ARCHIVE LINK",
+              "logic": {
+                "target": "<li>",
+                "behaviour": "addMarkerBelowTarget",
+                "fallbackOnly": true,
+                "content": "<Link href=\"/{{.LowerCasePageTypePlural}}\" className=\"mr-6 hover:underline\">{{.PascalCasePageTypePlural}}</Link>",
+                "occurrence": "first"
+              }
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "_key": "1757178490805-i33etco7z",
+      "_type": "filePathGroup",
+      "id": "path-1757178490805-cd0fcb7",
+      "path": "frontend/app",
+      "nodes": [
+        {
+          "_key": "20250903-front-index-folder",
+          "_type": "treeNode",
+          "id": "folder-frontend-index",
+          "name": "{{.KebabCasePageTypePlural}}",
+          "code": "",
+          "isIndexer": false,
+          "nodeType": "folder",
+          "actions": [],
+          "children": [
+            {
+              "_key": "1757178527060-uga95spuh",
+              "_type": "treeNode",
+              "id": "folder-1757178527060",
+              "name": "(index)",
+              "code": "",
+              "isIndexer": false,
+              "nodeType": "folder",
+              "actions": [],
+              "children": [
+                {
+                  "_key": "20250903-front-index-file",
+                  "_type": "treeNode",
+                  "id": "file-frontend-index",
+                  "name": "page.tsx",
+                  "code": "import Link from \"next/link\";\r\nimport type { Metadata } from \"next\";\r\nimport { client } from \"@/sanity/lib/client\";\r\nimport { all{{.PascalCasePageTypePlural}}Query } from \"@/sanity/lib/pagetype-queries/{{.KebabCasePageTypeSingular}}.queries\";\r\nimport { All{{.PascalCasePageTypePlural}} } from \"@/app/components/{{.PascalCasePageTypePlural}}\";\r\n\r\nexport const metadata: Metadata = {\r\n  title: \"{{.PascalCasePageTypePlural}}\",\r\n  description: \"All {{.LowerCasePageTypePlural}}\"\r\n};\r\n\r\nexport default async function {{.PascalCasePageTypeSingular}}IndexPage() {\r\n  const items = await client.fetch(all{{.PascalCasePageTypePlural}}Query);\r\n\r\n  if (!items?.length) {\r\n    return (\r\n      <main className=\"container mx-auto p-6\">\r\n        <h1 className=\"text-2xl font-semibold\">{{.PascalCasePageTypePlural}}</h1>\r\n        <p className=\"opacity-70 mt-2\">No {{.LowerCasePageTypePlural}} yet.</p>\r\n      </main>\r\n    );\r\n  }\r\n\r\n  return (\r\n    <main className=\"container mx-auto p-6\">\r\n    <All{{.PascalCasePageTypePlural}} />\r\n    </main>\r\n  );\r\n}\r\n",
+                  "isIndexer": false,
+                  "nodeType": "file",
+                  "actions": [],
+                  "children": []
+                }
+              ]
+            },
+            {
+              "_key": "1757178518306-5reh6n8zd",
+              "_type": "treeNode",
+              "id": "folder-1757178518306",
+              "name": "[slug]",
+              "code": "",
+              "isIndexer": false,
+              "nodeType": "folder",
+              "actions": [],
+              "children": [
+                {
+                  "_key": "20250903-front-slug-page",
+                  "_type": "treeNode",
+                  "id": "file-frontend-slug-page",
+                  "name": "page.tsx",
+                  "code": "import type {Metadata, ResolvingMetadata} from 'next'\r\nimport {notFound} from 'next/navigation'\r\nimport {type PortableTextBlock} from 'next-sanity'\r\nimport {Suspense} from 'react'\r\n\r\nimport Avatar from '@/app/components/Avatar'\r\nimport CoverImage from '@/app/components/CoverImage'\r\nimport {MorePosts} from '@/app/components/Posts'\r\nimport PortableText from '@/app/components/PortableText'\r\nimport {sanityFetch} from '@/sanity/lib/live'\r\nimport { {{.LowerCasePageTypeSingular}}Slugs, {{.LowerCasePageTypeSingular}}BySlugQuery } from '@/sanity/lib/pagetype-queries/{{.KebabCasePageTypeSingular}}.queries'\r\nimport {resolveOpenGraphImage} from '@/sanity/lib/utils'\r\n\r\nexport type Props = { params: Promise<{slug: string}> }\r\n\r\nexport async function generateStaticParams() {\r\n  const {data} = await sanityFetch({\r\n    query: {{.LowerCasePageTypeSingular}}Slugs,\r\n    perspective: 'published',\r\n    stega: false,\r\n  })\r\n  return data\r\n}\r\n\r\nexport async function generateMetadata(props: Props, parent: ResolvingMetadata): Promise<Metadata> {\r\n  const params = await props.params\r\n  const {data: doc} = await sanityFetch({\r\n    query: {{.LowerCasePageTypeSingular}}BySlugQuery,\r\n    params,\r\n    stega: false,\r\n  })\r\n\r\n  const previousImages = (await parent).openGraph?.images || []\r\n  const ogImage = resolveOpenGraphImage(doc?.coverImage)\r\n\r\n  return {\r\n    authors:\r\n      doc?.author?.firstName && doc?.author?.lastName\r\n        ? [{name: `${doc.author.firstName} ${doc.author.lastName}`}] \r\n        : [],\r\n    title: doc?.title,\r\n    description: doc?.excerpt,\r\n    openGraph: {\r\n      images: ogImage ? [ogImage, ...previousImages] : previousImages,\r\n    },\r\n  } satisfies Metadata\r\n}\r\n\r\nexport default async function {{.PascalCasePageTypeSingular}}Page(props: Props) {\r\n  const params = await props.params\r\n  const [{data: doc}] = await Promise.all([\r\n    sanityFetch({ query: {{.LowerCasePageTypeSingular}}BySlugQuery, params })\r\n  ])\r\n\r\n  if (!doc?._id) {\r\n    return notFound()\r\n  }\r\n\r\n  return (\r\n    <>\r\n      <div className=\"\">\r\n        <div className=\"container my-12 lg:my-24 grid gap-12\">\r\n          <div>\r\n            <div className=\"pb-6 grid gap-6 mb-6 border-b border-gray-100\">\r\n              <div className=\"max-w-3xl flex flex-col gap-6\">\r\n                <h2 className=\"text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-7xl\">\r\n                  {doc.title}\r\n                </h2>\r\n              </div>\r\n              <div className=\"max-w-3xl flex gap-4 items-center\">\r\n                {doc.author && doc.author.firstName && doc.author.lastName && (\r\n                  <Avatar person={doc.author} date={doc.date} />\r\n                )}\r\n              </div>\r\n            </div>\r\n            <article className=\"gap-6 grid max-w-4xl\">\r\n              <div className=\"\">\r\n                {doc?.coverImage && <CoverImage image={doc.coverImage} priority />}\r\n              </div>\r\n              {doc?.content?.length ? (\r\n                <PortableText className=\"max-w-2xl\" value={doc.content as PortableTextBlock[]} />\r\n              ) : null}\r\n            </article>\r\n          </div>\r\n        </div>\r\n      </div>\r\n      <div className=\"border-t border-gray-100 bg-gray-50\">\r\n        <div className=\"container py-12 lg:py-24 grid gap-12\">\r\n          <aside>\r\n            <Suspense>{await MorePosts({skip: doc._id, limit: 2})}</Suspense>\r\n          </aside>\r\n        </div>\r\n      </div>\r\n    </>\r\n  )\r\n}\r\n",
+                  "isIndexer": false,
+                  "nodeType": "file",
+                  "actions": [],
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "_key": "1756910010585-v96qm9f3v",
+      "_type": "filePathGroup",
+      "id": "path-1756910010585-3xq0wiv",
+      "path": "frontend/sanity/lib",
+      "nodes": [
+        {
+          "_key": "1757064566263-k9lklr230",
+          "_type": "treeNode",
+          "id": "folder-1757064566263",
+          "name": "pagetype-queries",
+          "code": "",
+          "isIndexer": false,
+          "nodeType": "folder",
+          "actions": [],
+          "children": [
+            {
+              "_key": "20250903-front-queries-file",
+              "_type": "treeNode",
+              "id": "file-frontend-queries",
+              "name": "{{.KebabCasePageTypeSingular}}.queries.ts",
+              "code": "import { defineQuery } from \"next-sanity\";\r\nimport { linkReference, postFields } from \"../queries\";\r\n\r\n\r\nexport const all{{.PascalCasePageTypePlural}}Query = defineQuery(`\r\n  *[_type == \"{{.LowerCasePageTypeSingular}}\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\r\n    ${postFields}\r\n  }\r\n`);\r\n\r\nexport const {{.LowerCasePageTypeSingular}}BySlugQuery = defineQuery(`\r\n  *[_type == \"{{.LowerCasePageTypeSingular}}\" && slug.current == $slug] [0] {\r\n    content[]{\r\n    ...,\r\n    titleDefs[]{\r\n      ...,\r\n      ${linkReference}\r\n    }\r\n  },\r\n    ${postFields}\r\n  }\r\n`);\r\n\r\nexport const {{.LowerCasePageTypeSingular}}Slugs = defineQuery(`\r\n  *[_type == \"{{.LowerCasePageTypeSingular}}\" && defined(slug.current)]\r\n  {\"slug\": slug.current}\r\n`);\r\n",
+              "isIndexer": false,
+              "nodeType": "file",
+              "actions": [],
+              "children": []
+            }
+          ]
+        },
+        {
+          "_key": "1756919951450-hqircx415",
+          "_type": "treeNode",
+          "id": "file-1756919951450",
+          "name": "queries.ts",
+          "code": "//THIS IS AN INDEXER FILE \r\nimport {defineQuery} from 'next-sanity'\r\n\r\nexport const settingsQuery = defineQuery(`*[_type == \"settings\"][0]`)\r\n\r\nexport const postFields = /* groq */ `\r\n  _id,\r\n  \"status\": select(_originalId in path(\"drafts.**\") => \"draft\", \"published\"),\r\n  \"title\": coalesce(title, \"Untitled\"),\r\n  \"slug\": slug.current,\r\n  excerpt,\r\n  coverImage,\r\n  \"date\": coalesce(date, _updatedAt),\r\n  \"author\": author->{firstName, lastName, picture},\r\n`\r\n\r\nexport const linkReference = /* groq */ `\r\n  _type == \"link\" => {\r\n    \"page\": page->slug.current,\r\n    \"post\": post->slug.current,\r\n    // START OF LINK REFERENCES \r\n    \"{{.LowerCasePageTypeSingular}}\": {{.LowerCasePageTypeSingular}}->slug.current,\r\n    // END OF LINK REFERENCES\r\n\r\n  }\r\n`\r\n\r\nexport const linkFields = /* groq */ `\r\n  link {\r\n      ...,\r\n      ${linkReference}\r\n      }\r\n`\r\n\r\nexport const pageBuilderFields = /* groq */ `\r\n  ...,\r\n  _type == \"callToAction\" => {\r\n    ${linkFields},\r\n  },\r\n  _type == \"infoSection\" => {\r\n    content[]{\r\n      ...,\r\n      titleDefs[]{\r\n        ...,\r\n        ${linkReference}\r\n      }\r\n    }\r\n  }\r\n`\r\n\r\nexport const getPageQuery = defineQuery(`\r\n  *[_type == 'page' && slug.current == $slug][0]{\r\n    _id,\r\n    _type,\r\n    name,\r\n    slug,\r\n    heading,\r\n    subheading,\r\n    \"pageBuilder\": pageBuilder[]{\r\n      ${pageBuilderFields}\r\n    },\r\n  }\r\n`)\r\n\r\n\r\n\r\nexport const sitemapData = defineQuery(`\r\n  *[_type == \"page\" || _type == \"post\" && defined(slug.current)] | order(_type asc) {\r\n    \"slug\": slug.current,\r\n    _type,\r\n    _updatedAt,\r\n  }\r\n`)\r\n\r\nexport const allPostsQuery = defineQuery(`\r\n  *[_type == \"post\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\r\n    ${postFields}\r\n  }\r\n`)\r\n\r\nexport const morePostsQuery = defineQuery(`\r\n  *[_type == \"post\" && _id != $skip && defined(slug.current)] | order(date desc, _updatedAt desc) [0...$limit] {\r\n    ${postFields}\r\n  }\r\n`)\r\n\r\nexport const postQuery = defineQuery(`\r\n  *[_type == \"post\" && slug.current == $slug] [0] {\r\n    content[]{\r\n    ...,\r\n    titleDefs[]{\r\n      ...,\r\n      ${linkReference}\r\n    }\r\n  },\r\n    ${postFields}\r\n  }\r\n`)\r\n\r\nexport const postPagesSlugs = defineQuery(`\r\n  *[_type == \"post\" && defined(slug.current)]\r\n  {\"slug\": slug.current}\r\n`)\r\n\r\nexport const pagesSlugs = defineQuery(`\r\n  *[_type == \"page\" && defined(slug.current)]\r\n  {\"slug\": slug.current}\r\n`)\r\n",
+          "isIndexer": false,
+          "nodeType": "file",
+          "actions": [
+            {
+              "title": "set linkFields to Export",
+              "logic": {
+                "behaviour": "replaceIfMissing",
+                "target": "const linkFields = /* groq */ `",
+                "requireAbsent": "export const linkFields = /* groq */ `",
+                "replacement": "export const linkFields = /* groq */ `",
+                "occurrence": "first"
+              }
+            },
+            {
+              "title": "Set postFields to Export",
+              "logic": {
+                "behaviour": "replaceIfMissing",
+                "target": "const postFields = /* groq */ `",
+                "requireAbsent": "export const postFields = /* groq */ `",
+                "replacement": "export const postFields = /* groq */ p`",
+                "occurrence": "first"
+              }
+            },
+            {
+              "title": "Set linkReference to Export",
+              "logic": {
+                "behaviour": "replaceIfMissing",
+                "target": "const linkReference = /* groq */ `",
+                "requireAbsent": "export const linkReference = /* groq */ `",
+                "replacement": "export const linkReference = /* groq */ `",
+                "occurrence": "first"
+              }
+            },
+            {
+              "title": "connect up PageType as linkReference",
+              "logic": {
+                "target": "_type == \"link\" => {",
+                "behaviour": "addMarkerBelowTarget",
+                "occurrence": "first",
+                "content": "\"{{.LowerCasePageTypeSingular}}\": {{.LowerCasePageTypeSingular}}->slug.current,"
+              }
+            },
+            {
+              "title": "adding PageType to Sitemap",
+              "logic": {
+                "target": "&& defined(slug.current)] | order(_type asc) {",
+                "behaviour": "insertBeforeInline",
+                "content": " || _type == \"{{.LowerCasePageTypeSingular}}\"",
+                "fallbackOnly": true,
+                "occurrence": "first"
+              }
+            },
+            {
+              "title": "Exportable PageBuilder Fields",
+              "logic": {
+                "behaviour": "replaceBetween",
+                "targetStart": "export const getPageQuery = defineQuery(`",
+                "targetEnd": "`)",
+                "occurrence": "first",
+                "requireAbsent": "export const pageBuilderFields = /* groq */ `",
+                "replacement": "export const pageBuilderFields = /* groq */ `\n  ...,\n  _type == \"callToAction\" => {\n    ${linkFields},\n  },\n  _type == \"infoSection\" => {\n    content[]{\n      ...,\n      titleDefs[]{\n        ...,\n        ${linkReference}\n      }\n    }\n  }\n`\n\nexport const getPageQuery = defineQuery(`\n  *[_type == 'page' && slug.current == $slug][0]{\n    _id,\n    _type,\n    name,\n    slug,\n    heading,\n    subheading,\n    \"pageBuilder\": pageBuilder[]{\n      ${pageBuilderFields}\n    },\n  }\n`)"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "_key": "node-utils-linktype-case",
+          "_type": "treeNode",
+          "id": "node-utils-linktype-case",
+          "name": "utils.ts",
+          "code": "import createImageUrlBuilder from '@sanity/image-url'\nimport {Link} from '@/sanity.types'\nimport {dataset, projectId, studioUrl} from '@/sanity/lib/api'\nimport {createDataAttribute, CreateDataAttributeProps} from 'next-sanity'\nimport {getImageDimensions} from '@sanity/asset-utils'\n\nconst imageBuilder = createImageUrlBuilder({\n  projectId: projectId || '',\n  dataset: dataset || '',\n})\n\nexport const urlForImage = (source: any) => {\n  // Ensure that source image contains a valid reference\n  if (!source?.asset?._ref) {\n    return undefined\n  }\n\n  const imageRef = source?.asset?._ref\n  const crop = source.crop\n\n  // get the image's og dimensions\n  const {width, height} = getImageDimensions(imageRef)\n\n  if (Boolean(crop)) {\n    // compute the cropped image's area\n    const croppedWidth = Math.floor(width * (1 - (crop.right + crop.left)))\n\n    const croppedHeight = Math.floor(height * (1 - (crop.top + crop.bottom)))\n\n    // compute the cropped image's position\n    const left = Math.floor(width * crop.left)\n    const top = Math.floor(height * crop.top)\n\n    // gather into a url\n    return imageBuilder?.image(source).rect(left, top, croppedWidth, croppedHeight).auto('format')\n  }\n\n  return imageBuilder?.image(source).auto('format')\n}\n\nexport function resolveOpenGraphImage(image: any, width = 1200, height = 627) {\n  if (!image) return\n  const url = urlForImage(image)?.width(1200).height(627).fit('crop').url()\n  if (!url) return\n  return {url, alt: image?.alt as string, width, height}\n}\n\n// Depending on the type of link, we need to fetch the corresponding page, post, or URL.  Otherwise return null.\nexport function linkResolver(link: Link | undefined) {\n  if (!link) return null\n\n  // If linkType is not set but href is, lets set linkType to \"href\".  This comes into play when pasting links into the portable text editor because a link type is not assumed.\n  if (!link.linkType && link.href) {\n    link.linkType = 'href'\n  }\n\n  switch (link.linkType) {\n    case 'href':\n      return link.href || null\n    case 'page':\n      if (link?.page && typeof link.page === 'string') {\n        return `/${link.page}`\n      }\n    case 'post':\n      if (link?.post && typeof link.post === 'string') {\n        return `/posts/${link.post}`\n      }\n\n    // START OF LINKTYPE ROUTES ITEM\n    case '{{.LowerCasePageTypeSingular}}': {\n      const slug = (link as any)?.['{{.LowerCasePageTypeSingular}}']\n      return typeof slug === 'string' ? `/{{.LowerCasePageTypePlural}}/${slug}` : null\n    }\n    // END OF LINKTYPE ROUTES ITEM\n\n    default:\n      return null\n  }\n}\n\ntype DataAttributeConfig = CreateDataAttributeProps &\n  Required<Pick<CreateDataAttributeProps, 'id' | 'type' | 'path'>>\n\nexport function dataAttr(config: DataAttributeConfig) {\n  return createDataAttribute({\n    projectId,\n    dataset,\n    baseUrl: studioUrl,\n  }).combine(config)\n}\n",
+          "isIndexer": false,
+          "nodeType": "file",
+          "actions": [
+            {
+              "title": "LINKTYPE ROUTES ITEM",
+              "logic": {
+                "behaviour": "addMarkerAboveTarget",
+                "target": "default:",
+                "occurrence": "first"
+              }
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "_key": "1756910010585-7vkhg6dmi",
+      "_type": "filePathGroup",
+      "id": "path-1756910010585-cf0a4l4",
+      "path": "studio/src/schemaTypes/documents",
+      "nodes": [
+        {
+          "_key": "20250903-studio-schema-file",
+          "_type": "treeNode",
+          "id": "file-studio-schema",
+          "name": "{{.KebabCasePageTypeSingular}}.ts",
+          "code": "import {DocumentTextIcon} from '@sanity/icons'\nimport {format, parseISO} from 'date-fns'\nimport {defineField, defineType} from 'sanity'\n\nexport const {{.LowerCasePageTypeSingular}} = defineType({\n  name: '{{.LowerCasePageTypeSingular}}',\n  title: '{{.PascalCasePageTypeSingular}}',\n  icon: DocumentTextIcon,\n  type: 'document',\n  fields: [\n    defineField({\n      name: 'title',\n      title: 'Title',\n      type: 'string',\n      validation: (rule) => rule.required(),\n    }),\n    defineField({\n      name: 'slug',\n      title: 'Slug',\n      type: 'slug',\n      description: 'A slug is required for the page to show up in the preview',\n      options: {\n        source: 'title',\n        maxLength: 96,\n        isUnique: (value, context) => context.defaultIsUnique(value, context),\n      },\n      validation: (rule) => rule.required(),\n    }),\n    defineField({\n      name: 'content',\n      title: 'Content',\n      type: 'blockContent',\n    }),\n    defineField({\n      name: 'excerpt',\n      title: 'Excerpt',\n      type: 'text',\n    }),\n    defineField({\n      name: 'coverImage',\n      title: 'Cover Image',\n      type: 'image',\n      options: {\n        hotspot: true,\n        aiAssist: {\n          imageDescriptionField: 'alt',\n        },\n      },\n      fields: [\n        {\n          name: 'alt',\n          type: 'string',\n          title: 'Alternative text',\n          description: 'Important for SEO and accessibility.',\n          validation: (rule) => {\n            // Custom validation to ensure alt text is provided if the image is present. https://www.sanity.io/docs/validation\n            return rule.custom((alt, context) => {\n              if ((context.document?.coverImage as any)?.asset?._ref && !alt) {\n                return 'Required'\n              }\n              return true\n            })\n          },\n        },\n      ],\n      validation: (rule) => rule.required(),\n    }),\n    defineField({\n      name: 'date',\n      title: 'Date',\n      type: 'datetime',\n      initialValue: () => new Date().toISOString(),\n    }),\n    defineField({\n      name: 'author',\n      title: 'Author',\n      type: 'reference',\n      to: [{type: 'person'}],\n    }),\n  ],\n  // List preview configuration. https://www.sanity.io/docs/previews-list-views\n  preview: {\n    select: {\n      title: 'title',\n      authorFirstName: 'author.firstName',\n      authorLastName: 'author.lastName',\n      date: 'date',\n      media: 'coverImage',\n    },\n    prepare({title, media, authorFirstName, authorLastName, date}) {\n      const subtitles = [\n        authorFirstName && authorLastName && `by ${authorFirstName} ${authorLastName}`,\n        date && `on ${format(parseISO(date), 'LLL d, yyyy')}`,\n      ].filter(Boolean)\n\n      return {title, media, subtitle: subtitles.join(' ')}\n    },\n  },\n})\n",
+          "isIndexer": false,
+          "nodeType": "file",
+          "actions": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "_key": "1756910010585-qbjt3ype1",
+      "_type": "filePathGroup",
+      "id": "path-1756910010585-qntg5zw",
+      "path": "studio/src/schemaTypes",
+      "nodes": [
+        {
+          "_key": "20250903-studio-indexer-file",
+          "_type": "treeNode",
+          "id": "file-studio-indexer",
+          "name": "index.ts",
+          "code": "import {person} from './documents/person'\nimport {page} from './documents/page'\nimport {post} from './documents/post'\nimport {callToAction} from './objects/callToAction'\nimport {infoSection} from './objects/infoSection'\nimport {settings} from './singletons/settings'\nimport {link} from './objects/link'\nimport {blockContent} from './objects/blockContent'\n\n// START OF DOCUMENT IMPORT\nimport { {{.LowerCasePageTypeSingular}} } from './documents/{{.KebabCasePageTypeSingular}}'\n// END OF DOCUMENT IMPORT\n\n// START OF OBJECT IMPORT\n// (reserved for pagebuilder blocks)\n// END OF OBJECT IMPORT\n\n// Export an array of all the schema types.  This is used in the Sanity Studio configuration. https://www.sanity.io/docs/schema-types\n\nexport const schemaTypes = [\n  // Singletons\n  settings,\n  // Documents\n  page,\n  post,\n  person,\n  // START OF DOCUMENT ARRAY ITEM\n  {{.LowerCasePageTypeSingular}},\n  // END OF DOCUMENT ARRAY ITEM\n  // Objects\n  blockContent,\n  infoSection,\n  callToAction,\n  link,\n  // START OF OBJECT ARRAY ITEM\n  // (reserved for pagebuilder blocks)\n  // END OF OBJECT ARRAY ITEM\n]\n",
+          "isIndexer": false,
+          "nodeType": "file",
+          "actions": [
+            {
+              "title": "DOCUMENT IMPORT",
+              "logic": {
+                "behaviour": "addMarkerBelowTarget",
+                "target": "import {post} from './documents/post'",
+                "occurrence": "last",
+                "content": "\nimport { {{.LowerCasePageTypeSingular}} } from './documents/{{.KebabCasePageTypeSingular}}'"
+              }
+            },
+            {
+              "title": "DOCUMENT ARRAY ITEM",
+              "logic": {
+                "behaviour": "addMarkerBelowTarget",
+                "target": "person,",
+                "occurrence": "last",
+                "content": "\n  {{.LowerCasePageTypeSingular}},"
+              }
+            },
+            {
+              "title": "OBJECT IMPORT",
+              "logic": {
+                "behaviour": "addMarkerBelowTarget",
+                "target": "import {blockContent} from './objects/blockContent'",
+                "occurrence": "last",
+                "content": "\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.KebabCaseBlockTypeSingular}}'"
+              }
+            },
+            {
+              "title": "OBJECT ARRAY ITEM",
+              "logic": {
+                "behaviour": "addMarkerBelowTarget",
+                "target": "link,",
+                "occurrence": "last",
+                "content": "\n  {{.LowerCaseBlockTypeSingular}},"
+              }
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "_key": "1757202633375-q9y6d7y1z",
+      "_type": "filePathGroup",
+      "id": "path-1757202633375-vdcos67",
+      "path": "studio\\src\\schemaTypes\\objects",
+      "nodes": [
+        {
+          "_key": "node-blockcontent-fixes",
+          "_type": "treeNode",
+          "id": "node-blockcontent-fixes",
+          "name": "blockContent.tsx",
+          "code": "import {defineArrayMember, defineType, defineField} from 'sanity'\r\n\r\n/**\r\n * This is the schema definition for the rich text fields used for\r\n * for this blog studio. When you import it in schemas.js it can be\r\n * reused in other parts of the studio with:\r\n *  {\r\n *    name: 'someName',\r\n *    title: 'Some title',\r\n *    type: 'blockContent'\r\n *  }\r\n *\r\n * Learn more: https://www.sanity.io/docs/block-content\r\n */\r\nexport const blockContent = defineType({\r\n  title: 'Block Content',\r\n  name: 'blockContent',\r\n  type: 'array',\r\n  of: [\r\n    defineArrayMember({\r\n      type: 'block',\r\n      titles: {\r\n        annotations: [\r\n          {\r\n            name: 'link',\r\n            type: 'object',\r\n            title: 'Link',\r\n            fields: [\r\n              defineField({\r\n                name: 'linkType',\r\n                title: 'Link Type',\r\n                type: 'string',\r\n                initialValue: 'href',\r\n                options: {\r\n                  list: [\r\n                    {title: 'URL', value: 'href'},\r\n                    {title: 'Page', value: 'page'},\r\n                    {title: 'Post', value: 'post'},\r\n                    // START OF LINK TYPE OPTION\r\n                    {title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},\r\n                    // END OF LINK TYPE OPTION\r\n                  ],\r\n                  layout: 'radio',\r\n                },\r\n              }),\r\n\r\n              defineField({\r\n                name: 'href',\r\n                title: 'URL',\r\n                type: 'url',\r\n                hidden: ({parent}) => parent?.linkType !== 'href' && parent?.linkType != null,\r\n                validation: (Rule) =>\r\n                  Rule.custom((value, context: any) => {\r\n                    if (context.parent?.linkType === 'href' && !value) {\r\n                      return 'URL is required when Link Type is URL'\r\n                    }\r\n                    return true\r\n                  }),\r\n              }),\r\n\r\n              defineField({\r\n                name: 'page',\r\n                title: 'Page',\r\n                type: 'reference',\r\n                to: [{type: 'page'}],\r\n                hidden: ({parent}) => parent?.linkType !== 'page',\r\n                validation: (Rule) =>\r\n                  Rule.custom((value, context: any) => {\r\n                    if (context.parent?.linkType === 'page' && !value) {\r\n                      return 'Page reference is required when Link Type is Page'\r\n                    }\r\n                    return true\r\n                  }),\r\n              }),\r\n\r\n              defineField({\r\n                name: 'post',\r\n                title: 'Post',\r\n                type: 'reference',\r\n                to: [{type: 'post'}],\r\n                hidden: ({parent}) => parent?.linkType !== 'post',\r\n                validation: (Rule) =>\r\n                  Rule.custom((value, context: any) => {\r\n                    if (context.parent?.linkType === 'post' && !value) {\r\n                      return 'Post reference is required when Link Type is Post'\r\n                    }\r\n                    return true\r\n                  }),\r\n              }),\r\n\r\n              // START OF EXTRA INTERNAL LINK FIELD\r\n              defineField({\r\n                name: '{{.LowerCasePageTypeSingular}}',\r\n                title: '{{.PascalCasePageTypeSingular}}',\r\n                type: 'reference',\r\n                to: [{type: '{{.LowerCasePageTypeSingular}}'}],\r\n                hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\r\n                validation: (Rule) =>\r\n                  Rule.custom((value, context: any) => {\r\n                    if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\r\n                      return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\r\n                    }\r\n                    return true\r\n                  }),\r\n              }),\r\n              // END OF EXTRA INTERNAL LINK FIELD\r\n\r\n              defineField({\r\n                name: 'openInNewTab',\r\n                title: 'Open in new tab',\r\n                type: 'boolean',\r\n                initialValue: false,\r\n              }),\r\n            ],\r\n          },\r\n        ],\r\n      },\r\n    }),\r\n  ],\r\n})\r\n\r\n",
+          "isIndexer": false,
+          "nodeType": "file",
+          "actions": [
+            {
+              "title": "LINK TYPE OPTION",
+              "logic": {
+                "behaviour": "addMarkerBelowTarget",
+                "target": "{title: 'Post', value: 'post'},",
+                "occurrence": "last"
+              }
+            },
+            {
+              "title": "EXTRA INTERNAL LINK FIELD",
+              "logic": {
+                "behaviour": "addMarkerAboveTarget",
+                "target": "defineField({",
+                "occurrence": "last"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "_key": "node-link-schema-fixes",
+          "_type": "treeNode",
+          "id": "node-link-schema-fixes",
+          "name": "link.ts",
+          "code": "import {defineField, defineType} from 'sanity'\nimport {LinkIcon} from '@sanity/icons'\n\n/**\n * Link schema object. This link object lets the user first select the type of link and then\n * then enter the URL, page reference, or post reference - depending on the type selected.\n * Learn more: https://www.sanity.io/docs/object-type\n */\nexport const link = defineType({\n  name: 'link',\n  title: 'Link',\n  type: 'object',\n  icon: LinkIcon,\n  fields: [\n    defineField({\n      name: 'linkType',\n      title: 'Link Type',\n      type: 'string',\n      initialValue: 'url',\n      options: {\n        list: [\n          {title: 'URL', value: 'href'},\n          {title: 'Page', value: 'page'},\n          {title: 'Post', value: 'post'},\n          // START OF LINK TYPE OPTION\n          {title: '{{.PascalCasePageTypeSingular}}', value: '{{.LowerCasePageTypeSingular}}'},\n          // END OF LINK TYPE OPTION\n          // ADD LINK TYPE OPTION BELOW\n        ],\n        layout: 'radio',\n      },\n    }),\n\n    // URL\n    defineField({\n      name: 'href',\n      title: 'URL',\n      type: 'url',\n      hidden: ({parent}) => parent?.linkType !== 'href',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === 'href' && !value) {\n            return 'URL is required when Link Type is URL'\n          }\n          return true\n        }),\n    }),\n\n    // Page\n    defineField({\n      name: 'page',\n      title: 'Page',\n      type: 'reference',\n      to: [{type: 'page'}],\n      hidden: ({parent}) => parent?.linkType !== 'page',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === 'page' && !value) {\n            return 'Page reference is required when Link Type is Page'\n          }\n          return true\n        }),\n    }),\n\n    // Post\n    defineField({\n      name: 'post',\n      title: 'Post',\n      type: 'reference',\n      to: [{type: 'post'}],\n      hidden: ({parent}) => parent?.linkType !== 'post',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === 'post' && !value) {\n            return 'Post reference is required when Link Type is Post'\n          }\n          return true\n        }),\n    }),\n\n    // START OF EXTRA INTERNAL LINK FIELD\n    defineField({\n      name: '{{.LowerCasePageTypeSingular}}',\n      title: '{{.PascalCasePageTypeSingular}}',\n      type: 'reference',\n      to: [{type: '{{.LowerCasePageTypeSingular}}'}],\n      hidden: ({parent}) => parent?.linkType !== '{{.LowerCasePageTypeSingular}}',\n      validation: (Rule) =>\n        Rule.custom((value, context: any) => {\n          if (context.parent?.linkType === '{{.LowerCasePageTypeSingular}}' && !value) {\n            return '{{.PascalCasePageTypeSingular}} reference is required when Link Type is {{.PascalCasePageTypeSingular}}'\n          }\n          return true\n        }),\n    }),\n    // END OF EXTRA INTERNAL LINK FIELD\n\n    defineField({\n      name: 'openInNewTab',\n      title: 'Open in new tab',\n      type: 'boolean',\n      initialValue: false,\n    }),\n  ],\n})\n\n\n\n",
+          "isIndexer": false,
+          "nodeType": "file",
+          "actions": [
+            {
+              "title": "LINK TYPE OPTION",
+              "fallback": {
+                "behaviour": "addMarkerBelowTarget",
+                "target": "{title: 'Post', value: 'post'},",
+                "occurrence": "last"
+              }
+            },
+            {
+              "title": "EXTRA INTERNAL LINK FIELD",
+              "fallback": {
+                "behaviour": "addMarkerAboveTarget",
+                "target": "defineField({",
+                "occurrence": "last"
+              }
+            }
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
+}
