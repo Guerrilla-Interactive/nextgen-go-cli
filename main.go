@@ -37,7 +37,7 @@ import (
 )
 
 // Define Version (will be set via linker flags during build)
-var Version = "v1.0.129"
+var Version = "v1.0.130"
 
 // exitLog holds a log-style summary printed after the TUI exits.
 var exitLog string
