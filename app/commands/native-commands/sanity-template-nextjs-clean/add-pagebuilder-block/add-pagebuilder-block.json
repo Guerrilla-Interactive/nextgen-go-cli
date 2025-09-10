@@ -3,6 +3,7 @@
     "_type": "command",
     "title": "Add Pagebuilder Block",
     "slug": "add-pagebuilder-block",
+    
     "show": { "anyOf": [
       { "packageJson": { "name": "never" } },
       { "packageJsonArrayContains": { "nextgen-identifiers": "never" } },
@@ -40,20 +41,20 @@
             "type": "file",
             "isIndexer": false,
             "code": "import React from 'react'\n\nimport Cta from '@/app/components/Cta'\nimport Info from '@/app/components/InfoSection'\nimport {dataAttr} from '@/sanity/lib/utils'\n\n\ntype BlocksType = {\n  [key: string]: React.FC<any>\n}\n\ntype BlockType = {\n  _type: string\n  _key: string\n}\n\ntype BlockProps = {\n  index: number\n  block: BlockType\n  pageId: string\n  pageType: string\n}\n\nconst Blocks: BlocksType = {\n  callToAction: Cta,\n  infoSection: Info,\n}\n\nexport default function BlockRenderer({block, index, pageId, pageType}: BlockProps) {\n  if (typeof Blocks[block._type] !== 'undefined') {\n    return (\n      <div\n        key={block._key}\n        data-sanity={dataAttr({\n          id: pageId,\n          type: pageType,\n          path: `pageBuilder[_key==\\\"${block._key}\\\"]`,\n        }).toString()}\n      >\n        {React.createElement(Blocks[block._type], {\n          key: block._key,\n          block: block,\n          index: index,\n        })}\n      </div>\n    )}\n  return (\n    <div className=\"w-full bg-gray-100 text-center text-gray-500 p-20 rounded\">\n      A &ldquo;{block._type}&rdquo; block hasn\\'t been created\n    </div>\n  )\n}\n",
-            "markers": [
+            "actions": [
               {
-                "mark": "BLOCKS IMPORT",
-                "fallback": {
-                  "behaviour": "insertAfter",
+                "title": "BLOCKS IMPORT",
+                "logic": {
+                  "behaviour": "addMarkerBelowTarget",
                   "target": "import {dataAttr} from '@/sanity/lib/utils'",
                   "occurrence": "last",
                   "content": "\n// START OF BLOCKS IMPORT\nimport {{.PascalCaseBlockTypeSingular}} from '@/app/components/{{.PascalCaseBlockTypeSingular}}'\n// END OF BLOCKS IMPORT"
                 }
               },
               {
-                "mark": "BLOCKS MAP ITEM",
-                "fallback": {
-                  "behaviour": "insertAfter",
+                "title": "BLOCKS MAP ITEM",
+                "logic": {
+                  "behaviour": "addMarkerBelowTarget",
                   "target": "infoSection: Info,",
                   "occurrence": "last",
                   "content": "\n  // START OF BLOCKS MAP ITEM\n  {{.LowerCaseBlockTypeSingular}}: {{.PascalCaseBlockTypeSingular}},\n  // END OF BLOCKS MAP ITEM"
@@ -79,12 +80,12 @@
             "id": "file-1756919951450",
             "name": "queries.ts",
             "type": "file",
-            "code": "//THIS IS AN INDEXER FILE \nimport {defineQuery} from 'next-sanity'\n\nexport const settingsQuery = defineQuery(`*[_type == \"settings\"][0]`)\n\nexport const postFields = /* groq */ `\n  _id,\n  \"status\": select(_originalId in path(\"drafts.**\") => \"draft\", \"published\"),\n  \"title\": coalesce(title, \"Untitled\"),\n  \"slug\": slug.current,\n  excerpt,\n  coverImage,\n  \"date\": coalesce(date, _updatedAt),\n  \"author\": author->{firstName, lastName, picture},\n`\n\nexport const linkReference = /* groq */ `\n  _type == \"link\" => {\n    \"page\": page->slug.current,\n    \"post\": post->slug.current,\n  }\n`\n\nexport const linkFields = /* groq */ `\n  link {\n      ...,\n      ${linkReference}\n      }\n`\n\nexport const pageBuilderFields = /* groq */ `\n  ...,\n  _type == \"callToAction\" => {\n    ${linkFields},\n  },\n  _type == \"infoSection\" => {\n    content[]{\n      ...,\n      markDefs[]{\n        ...,\n        ${linkReference}\n      }\n    }\n  }\n`\n\nexport const getPageQuery = defineQuery(`\n  *[_type == 'page' && slug.current == $slug][0]{\n    _id,\n    _type,\n    name,\n    slug,\n    heading,\n    subheading,\n    \"pageBuilder\": pageBuilder[]{\n      ${pageBuilderFields}\n    },\n  }\n`)\n\n\n\nexport const sitemapData = defineQuery(`\n  *[_type == \"page\" || _type == \"post\" && defined(slug.current)] | order(_type asc) {\n    \"slug\": slug.current,\n    _type,\n    _updatedAt,\n  }\n`)\n\nexport const allPostsQuery = defineQuery(`\n  *[_type == \"post\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\n    ${postFields}\n  }\n`)\n\nexport const morePostsQuery = defineQuery(`\n  *[_type == \"post\" && _id != $skip && defined(slug.current)] | order(date desc, _updatedAt desc) [0...$limit] {\n    ${postFields}\n  }\n`)\n\nexport const postQuery = defineQuery(`\n  *[_type == \"post\" && slug.current == $slug] [0] {\n    content[]{\n    ...,\n    markDefs[]{\n      ...,\n      ${linkReference}\n    }\n  },\n    ${postFields}\n  }\n`)\n\nexport const postPagesSlugs = defineQuery(`\n  *[_type == \"post\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`)\n\nexport const pagesSlugs = defineQuery(`\n  *[_type == \"page\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`)\n",
+            "code": "//THIS IS AN INDEXER FILE \nimport {defineQuery} from 'next-sanity'\n\nexport const settingsQuery = defineQuery(`*[_type == \"settings\"][0]`)\n\nexport const postFields = /* groq */ `\n  _id,\n  \"status\": select(_originalId in path(\"drafts.**\") => \"draft\", \"published\"),\n  \"title\": coalesce(title, \"Untitled\"),\n  \"slug\": slug.current,\n  excerpt,\n  coverImage,\n  \"date\": coalesce(date, _updatedAt),\n  \"author\": author->{firstName, lastName, picture},\n`\n\nexport const linkReference = /* groq */ `\n  _type == \"link\" => {\n    \"page\": page->slug.current,\n    \"post\": post->slug.current,\n  }\n`\n\nexport const linkFields = /* groq */ `\n  link {\n      ...,\n      ${linkReference}\n      }\n`\n\nexport const pageBuilderFields = /* groq */ `\n  ...,\n  _type == \"callToAction\" => {\n    ${linkFields},\n  },\n  _type == \"infoSection\" => {\n    content[]{\n      ...,\n      titleDefs[]{\n        ...,\n        ${linkReference}\n      }\n    }\n  }\n`\n\nexport const getPageQuery = defineQuery(`\n  *[_type == 'page' && slug.current == $slug][0]{\n    _id,\n    _type,\n    name,\n    slug,\n    heading,\n    subheading,\n    \"pageBuilder\": pageBuilder[]{\n      ${pageBuilderFields}\n    },\n  }\n`)\n\n\n\nexport const sitemapData = defineQuery(`\n  *[_type == \"page\" || _type == \"post\" && defined(slug.current)] | order(_type asc) {\n    \"slug\": slug.current,\n    _type,\n    _updatedAt,\n  }\n`)\n\nexport const allPostsQuery = defineQuery(`\n  *[_type == \"post\" && defined(slug.current)] | order(date desc, _updatedAt desc) {\n    ${postFields}\n  }\n`)\n\nexport const morePostsQuery = defineQuery(`\n  *[_type == \"post\" && _id != $skip && defined(slug.current)] | order(date desc, _updatedAt desc) [0...$limit] {\n    ${postFields}\n  }\n`)\n\nexport const postQuery = defineQuery(`\n  *[_type == \"post\" && slug.current == $slug] [0] {\n    content[]{\n    ...,\n    titleDefs[]{\n      ...,\n      ${linkReference}\n    }\n  },\n    ${postFields}\n  }\n`)\n\nexport const postPagesSlugs = defineQuery(`\n  *[_type == \"post\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`)\n\nexport const pagesSlugs = defineQuery(`\n  *[_type == \"page\" && defined(slug.current)]\n  {\"slug\": slug.current}\n`)\n",
             "isIndexer": false,
-            "markers": [
+            "actions": [
               {
-                "mark": "Setting \"linkFields\" to Export",
-                "fallback": {
+                "title": "Setting \"linkFields\" to Export",
+                "logic": {
                   "behaviour": "replaceIfMissing",
                   "target": "const linkFields = /* groq */ `",
                   "requireAbsent": "export const linkFields = /* groq */ `",
@@ -93,8 +94,8 @@
                 }
               },
               {
-                "mark": "Setting \"postFields\" to Export",
-                "fallback": {
+                "title": "Setting \"postFields\" to Export",
+                "logic": {
                   "behaviour": "replaceIfMissing",
                   "target": "const postFields = /* groq */ `",
                   "requireAbsent": "export const postFields = /* groq */ `",
@@ -103,8 +104,8 @@
                 }
               },
               {
-                "mark": "Setting \"linkReference\" to Export",
-                "fallback": {
+                "title": "Setting \"linkReference\" to Export",
+                "logic": {
                   "behaviour": "replaceIfMissing",
                   "target": "const linkReference = /* groq */ `",
                   "requireAbsent": "export const linkReference = /* groq */ `",
@@ -113,8 +114,8 @@
                 }
               },
               {
-                "mark": "Making \"PageBuilder Fields\" exportable",
-                "fallback": {
+                "title": "Making \"PageBuilder Fields\" exportable",
+                "logic": {
                   "behaviour": "replaceBetween",
                   "targetStart": "export const getPageQuery = defineQuery(`",
                   "targetEnd": "`)",
@@ -124,9 +125,10 @@
                 }
               },
               {
-                "mark": "Adding \"BlockType\" to \"pageBuilderFields\"",
-                "fallback": {
+                "title": "Adding \"BlockType\" to \"pageBuilderFields\"",
+                "logic": {
                   "behaviour": "insertNextLine",
+                  "mark": "BLOCKTYPES FOR PAGEBUILDER",
                   "target": "export const pageBuilderFields = /* groq */ `",
                   "occurrence": "first",
                   "fallbackOnly": false,
@@ -171,20 +173,20 @@
             "type": "file",
             "code": "import {person} from './documents/person'\nimport {page} from './documents/page'\nimport {post} from './documents/post'\nimport {callToAction} from './objects/callToAction'\nimport {infoSection} from './objects/infoSection'\nimport {settings} from './singletons/settings'\nimport {link} from './objects/link'\nimport {blockContent} from './objects/blockContent'\n\n// START OF OBJECT IMPORT\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.KebabCaseBlockTypeSingular}}'\n// END OF OBJECT IMPORT\n\n// Export an array of all the schema types.  This is used in the Sanity Studio configuration. https://www.sanity.io/docs/schema-types\n\nexport const schemaTypes = [\n  // Singletons\n  settings,\n  // Documents\n  page,\n  post,\n  person,\n  // Objects\n  blockContent,\n  infoSection,\n  callToAction,\n  link,\n  // START OF OBJECT ARRAY ITEM\n  {{.LowerCaseBlockTypeSingular}},\n  // END OF OBJECT ARRAY ITEM\n]\n",
             "isIndexer": false,
-            "markers": [
+            "actions": [
               {
-                "mark": "OBJECT IMPORT",
-                "fallback": {
-                  "behaviour": "insertAfter",
+                "title": "OBJECT IMPORT",
+                "logic": {
+                  "behaviour": "addMarkerBelowTarget",
                   "target": "import {blockContent} from './objects/blockContent'",
                   "occurrence": "last",
                   "content": "\nimport { {{.LowerCaseBlockTypeSingular}} } from './objects/{{.KebabCaseBlockTypeSingular}}'"
                 }
               },
               {
-                "mark": "OBJECT ARRAY ITEM",
-                "fallback": {
-                  "behaviour": "insertAfter",
+                "title": "OBJECT ARRAY ITEM",
+                "logic": {
+                  "behaviour": "addMarkerBelowTarget",
                   "target": "link,",
                   "occurrence": "last",
                   "content": "\n  {{.LowerCaseBlockTypeSingular}},"

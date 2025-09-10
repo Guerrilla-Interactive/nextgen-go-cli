@@ -183,10 +183,10 @@ func insertAddMarkerAfterFallback(existingContent, key, fallback string) (string
 			lastIndent = ln[:idx]
 		}
 	}
-    if lastMatchEnd == -1 {
-    // Avoid hard-coded special cases. If fallback block isn't found,
-    // default to appending a marker at a sensible location (below the last
-    // non-empty line, preserving indentation).
+	if lastMatchEnd == -1 {
+		// Avoid hard-coded special cases. If fallback block isn't found,
+		// default to appending a marker at a sensible location (below the last
+		// non-empty line, preserving indentation).
 		for i := len(lines) - 1; i >= 0; i-- {
 			if strings.TrimSpace(lines[i]) != "" {
 				ln := lines[i]
@@ -198,10 +198,10 @@ func insertAddMarkerAfterFallback(existingContent, key, fallback string) (string
 				break
 			}
 		}
-        marker := lastIndent + "// ADD " + key + " BELOW"
-        lines = append(lines, marker)
-        return strings.Join(lines, "\n"), true
-    }
+		marker := lastIndent + "// ADD " + key + " BELOW"
+		lines = append(lines, marker)
+		return strings.Join(lines, "\n"), true
+	}
 
 	marker := lastIndent + "// ADD " + key + " BELOW"
 	insertAt := lastMatchEnd + 1
@@ -221,9 +221,10 @@ func insertAddMarkerRelativeToTarget(existingContent, key, target, behaviour, oc
 	if target == "" {
 		return existingContent, false
 	}
-	behaviour = strings.ToLower(strings.TrimSpace(behaviour))
-	if behaviour != "insertbefore" && behaviour != "insertafter" {
-		behaviour = "insertafter"
+	// Normalize to canonical marker behaviours
+	behLower := strings.ToLower(strings.TrimSpace(behaviour))
+	if behLower != "addmarkerabovetarget" && behLower != "addmarkerbelowtarget" {
+		return existingContent, false
 	}
 	lines := strings.Split(existingContent, "\n")
 	anchorIdx := -1
@@ -249,7 +250,7 @@ func insertAddMarkerRelativeToTarget(existingContent, key, target, behaviour, oc
 	}
 	indent := ln[:j]
 	marker := indent + "// ADD " + key + " "
-	if behaviour == "insertafter" {
+	if behLower == "addmarkerbelowtarget" {
 		marker += "BELOW"
 		insertAt := anchorIdx + 1
 		if insertAt < 0 {
@@ -403,77 +404,292 @@ func insertSnippetInlineRelativeToTarget(existingContent, snippet, target, behav
 // anchor line for the inserted block. Occurrence can be "first" or anything else
 // (treated as "last").
 func insertSnippetOnNewLineRelativeToTarget(existingContent, snippet, target, behaviour, occurrence string) (string, bool) {
-    target = strings.TrimSpace(target)
-    if target == "" || strings.TrimSpace(snippet) == "" {
-        return existingContent, false
-    }
-    behaviour = strings.ToLower(strings.TrimSpace(behaviour))
-    if behaviour == "insertnextline" { behaviour = "insertafterline" }
-    if behaviour != "insertbeforeline" && behaviour != "insertafterline" {
-        behaviour = "insertafterline"
-    }
-    lines := strings.Split(existingContent, "\n")
-    occ := strings.ToLower(strings.TrimSpace(occurrence))
-    anchorLine := -1
-    if occ == "first" {
-        for i := 0; i < len(lines); i++ {
-            if strings.Contains(lines[i], target) { anchorLine = i; break }
-        }
-    } else {
-        for i := 0; i < len(lines); i++ {
-            if strings.Contains(lines[i], target) { anchorLine = i }
-        }
-    }
-    if anchorLine == -1 { return existingContent, false }
+	target = strings.TrimSpace(target)
+	if target == "" || strings.TrimSpace(snippet) == "" {
+		return existingContent, false
+	}
+	behaviour = strings.ToLower(strings.TrimSpace(behaviour))
+	if behaviour == "insertnextline" {
+		behaviour = "insertafterline"
+	}
+	if behaviour != "insertbeforeline" && behaviour != "insertafterline" {
+		behaviour = "insertafterline"
+	}
+	lines := strings.Split(existingContent, "\n")
+	occ := strings.ToLower(strings.TrimSpace(occurrence))
+	anchorLine := -1
+	if occ == "first" {
+		for i := 0; i < len(lines); i++ {
+			if strings.Contains(lines[i], target) {
+				anchorLine = i
+				break
+			}
+		}
+	} else {
+		for i := 0; i < len(lines); i++ {
+			if strings.Contains(lines[i], target) {
+				anchorLine = i
+			}
+		}
+	}
+	if anchorLine == -1 {
+		return existingContent, false
+	}
 
-    // Determine indentation from anchor line
-    ln := lines[anchorLine]
-    j := 0
-    for j < len(ln) && (ln[j] == ' ' || ln[j] == '\t') { j++ }
-    indent := ln[:j]
+	// Determine indentation from anchor line
+	ln := lines[anchorLine]
+	j := 0
+	for j < len(ln) && (ln[j] == ' ' || ln[j] == '\t') {
+		j++
+	}
+	indent := ln[:j]
 
-    // Normalize snippet newlines
-    sn := strings.ReplaceAll(strings.ReplaceAll(snippet, "\r\n", "\n"), "\r", "\n")
-    snLines := strings.Split(sn, "\n")
-    // Trim trailing empty lines in snippet
-    for len(snLines) > 0 && strings.TrimSpace(snLines[len(snLines)-1]) == "" { snLines = snLines[:len(snLines)-1] }
-    if len(snLines) == 0 { return existingContent, false }
+	// Normalize snippet newlines
+	sn := strings.ReplaceAll(strings.ReplaceAll(snippet, "\r\n", "\n"), "\r", "\n")
+	snLines := strings.Split(sn, "\n")
+	// Trim trailing empty lines in snippet
+	for len(snLines) > 0 && strings.TrimSpace(snLines[len(snLines)-1]) == "" {
+		snLines = snLines[:len(snLines)-1]
+	}
+	if len(snLines) == 0 {
+		return existingContent, false
+	}
 
-    // Apply indentation to each snippet line if it doesn't already start with whitespace
-    var toInsert []string
-    for _, sl := range snLines {
-        if strings.TrimSpace(sl) == "" {
-            toInsert = append(toInsert, sl)
-        } else if len(sl) > 0 && (sl[0] == ' ' || sl[0] == '\t') {
-            toInsert = append(toInsert, sl)
-        } else {
-            toInsert = append(toInsert, indent+sl)
-        }
-    }
+	// Apply indentation to each snippet line if it doesn't already start with whitespace
+	var toInsert []string
+	for _, sl := range snLines {
+		if strings.TrimSpace(sl) == "" {
+			toInsert = append(toInsert, sl)
+		} else if len(sl) > 0 && (sl[0] == ' ' || sl[0] == '\t') {
+			toInsert = append(toInsert, sl)
+		} else {
+			toInsert = append(toInsert, indent+sl)
+		}
+	}
 
-    // Choose insertion position
-    insertAt := anchorLine
-    if behaviour == "insertafterline" { insertAt = anchorLine + 1 }
-    if insertAt < 0 { insertAt = 0 }
-    if insertAt > len(lines) { insertAt = len(lines) }
+	// Choose insertion position
+	insertAt := anchorLine
+	if behaviour == "insertafterline" {
+		insertAt = anchorLine + 1
+	}
+	if insertAt < 0 {
+		insertAt = 0
+	}
+	if insertAt > len(lines) {
+		insertAt = len(lines)
+	}
 
-    // Avoid duplicate immediate insertion (exact block already present at position)
-    sameBlock := func(start int) bool {
-        if start < 0 || start+len(toInsert) > len(lines) { return false }
-        for i := 0; i < len(toInsert); i++ {
-            if strings.TrimRight(lines[start+i], " \t") != strings.TrimRight(toInsert[i], " \t") { return false }
-        }
-        return true
-    }
-    if sameBlock(insertAt) {
-        return existingContent, false
-    }
+	// Avoid duplicate immediate insertion (exact block already present at position)
+	sameBlock := func(start int) bool {
+		if start < 0 || start+len(toInsert) > len(lines) {
+			return false
+		}
+		for i := 0; i < len(toInsert); i++ {
+			if strings.TrimRight(lines[start+i], " \t") != strings.TrimRight(toInsert[i], " \t") {
+				return false
+			}
+		}
+		return true
+	}
+	if sameBlock(insertAt) {
+		return existingContent, false
+	}
 
-    // Insert
-    newLines := append([]string{}, lines[:insertAt]...)
-    newLines = append(newLines, toInsert...)
-    newLines = append(newLines, lines[insertAt:]...)
-    return strings.Join(newLines, "\n"), true
+	// Insert
+	newLines := append([]string{}, lines[:insertAt]...)
+	newLines = append(newLines, toInsert...)
+	newLines = append(newLines, lines[insertAt:]...)
+	return strings.Join(newLines, "\n"), true
+}
+
+// insertSnippetBelowMarker inserts snippet on a new line immediately below the
+// ADD marker line for the given key. Occurrence can be "first" or anything else
+// (treated as "last"). Indentation of the marker line is applied to snippet lines.
+func insertSnippetBelowMarker(existingContent, key, snippet, occurrence string) (string, bool) {
+	key = strings.TrimSpace(key)
+	if key == "" || strings.TrimSpace(snippet) == "" {
+		return existingContent, false
+	}
+	// Locate marker lines for this key (ABOVE or BELOW)
+	pattern := regexp.MustCompile(`(?m)^[ \t]*//\s*ADD\s+` + regexp.QuoteMeta(key) + `\s+(?:BELOW|ABOVE)\s*$`)
+	lines := strings.Split(existingContent, "\n")
+	var matches []int
+	for i := 0; i < len(lines); i++ {
+		if pattern.MatchString(lines[i]) {
+			matches = append(matches, i)
+		}
+	}
+	if len(matches) == 0 {
+		return existingContent, false
+	}
+	anchorLine := matches[len(matches)-1]
+	if strings.ToLower(strings.TrimSpace(occurrence)) == "first" {
+		anchorLine = matches[0]
+	}
+
+	// Determine indentation from anchor line
+	ln := lines[anchorLine]
+	j := 0
+	for j < len(ln) && (ln[j] == ' ' || ln[j] == '\t') {
+		j++
+	}
+	indent := ln[:j]
+
+	// Normalize snippet newlines
+	sn := strings.ReplaceAll(strings.ReplaceAll(snippet, "\r\n", "\n"), "\r", "\n")
+	snLines := strings.Split(sn, "\n")
+	for len(snLines) > 0 && strings.TrimSpace(snLines[len(snLines)-1]) == "" {
+		snLines = snLines[:len(snLines)-1]
+	}
+	if len(snLines) == 0 {
+		return existingContent, false
+	}
+
+	// Apply indentation
+	var toInsert []string
+	for _, sl := range snLines {
+		if strings.TrimSpace(sl) == "" {
+			toInsert = append(toInsert, sl)
+		} else if len(sl) > 0 && (sl[0] == ' ' || sl[0] == '\t') {
+			toInsert = append(toInsert, sl)
+		} else {
+			toInsert = append(toInsert, indent+sl)
+		}
+	}
+
+	insertAt := anchorLine + 1
+	if insertAt < 0 {
+		insertAt = 0
+	}
+	if insertAt > len(lines) {
+		insertAt = len(lines)
+	}
+
+	// Avoid duplicating the exact block
+	sameBlock := func(start int) bool {
+		if start < 0 || start+len(toInsert) > len(lines) {
+			return false
+		}
+		for i := 0; i < len(toInsert); i++ {
+			if strings.TrimRight(lines[start+i], " \t") != strings.TrimRight(toInsert[i], " \t") {
+				return false
+			}
+		}
+		return true
+	}
+	if sameBlock(insertAt) {
+		return existingContent, false
+	}
+
+	newLines := append([]string{}, lines[:insertAt]...)
+	newLines = append(newLines, toInsert...)
+	newLines = append(newLines, lines[insertAt:]...)
+	return strings.Join(newLines, "\n"), true
+}
+
+// insertMarkerAndSnippetAtTarget inserts a marker line immediately before the
+// inserted snippet block relative to the target line. The marker is always of
+// the form "// ADD <key> BELOW" so future merges insert below the marker.
+// behaviour controls whether the block is placed before or after the target line
+// (insertbeforeline | insertafterline). Occurrence can be "first" or anything else
+// (treated as "last").
+func insertMarkerAndSnippetAtTarget(existingContent, key, snippet, target, behaviour, occurrence string) (string, bool) {
+	target = strings.TrimSpace(target)
+	if target == "" || strings.TrimSpace(snippet) == "" {
+		return existingContent, false
+	}
+	behaviour = strings.ToLower(strings.TrimSpace(behaviour))
+	if behaviour == "insertnextline" {
+		behaviour = "insertafterline"
+	}
+	if behaviour != "insertbeforeline" && behaviour != "insertafterline" {
+		behaviour = "insertafterline"
+	}
+	lines := strings.Split(existingContent, "\n")
+	occ := strings.ToLower(strings.TrimSpace(occurrence))
+	anchorLine := -1
+	if occ == "first" {
+		for i := 0; i < len(lines); i++ {
+			if strings.Contains(lines[i], target) {
+				anchorLine = i
+				break
+			}
+		}
+	} else {
+		for i := 0; i < len(lines); i++ {
+			if strings.Contains(lines[i], target) {
+				anchorLine = i
+			}
+		}
+	}
+	if anchorLine == -1 {
+		return existingContent, false
+	}
+
+	// Determine indentation from anchor line
+	ln := lines[anchorLine]
+	j := 0
+	for j < len(ln) && (ln[j] == ' ' || ln[j] == '\t') {
+		j++
+	}
+	indent := ln[:j]
+
+	// Normalize snippet newlines
+	sn := strings.ReplaceAll(strings.ReplaceAll(snippet, "\r\n", "\n"), "\r", "\n")
+	snLines := strings.Split(sn, "\n")
+	for len(snLines) > 0 && strings.TrimSpace(snLines[len(snLines)-1]) == "" {
+		snLines = snLines[:len(snLines)-1]
+	}
+	if len(snLines) == 0 {
+		return existingContent, false
+	}
+
+	// Apply indentation
+	var toInsert []string
+	marker := indent + "// ADD " + key + " BELOW"
+	toInsert = append(toInsert, marker)
+	for _, sl := range snLines {
+		if strings.TrimSpace(sl) == "" {
+			toInsert = append(toInsert, sl)
+		} else if len(sl) > 0 && (sl[0] == ' ' || sl[0] == '\t') {
+			toInsert = append(toInsert, sl)
+		} else {
+			toInsert = append(toInsert, indent+sl)
+		}
+	}
+
+	// Choose insertion position (marker goes immediately before snippet)
+	insertAt := anchorLine
+	if behaviour == "insertafterline" {
+		insertAt = anchorLine + 1
+	}
+	if insertAt < 0 {
+		insertAt = 0
+	}
+	if insertAt > len(lines) {
+		insertAt = len(lines)
+	}
+
+	// Avoid duplicate immediate insertion
+	sameBlock := func(start int) bool {
+		if start < 0 || start+len(toInsert) > len(lines) {
+			return false
+		}
+		for i := 0; i < len(toInsert); i++ {
+			if strings.TrimRight(lines[start+i], " \t") != strings.TrimRight(toInsert[i], " \t") {
+				return false
+			}
+		}
+		return true
+	}
+	if sameBlock(insertAt) {
+		return existingContent, false
+	}
+
+	newLines := append([]string{}, lines[:insertAt]...)
+	newLines = append(newLines, toInsert...)
+	newLines = append(newLines, lines[insertAt:]...)
+	return strings.Join(newLines, "\n"), true
 }
 
 // conditionalReplace performs a one-time replacement of target with replacement
@@ -504,42 +720,44 @@ func conditionalReplace(existingContent, target, requireAbsent, replacement, occ
 // which anchored region to replace. If requireAbsent is non-empty and present in
 // existingContent, no replacement is performed.
 func replaceBetweenAnchors(existingContent, start, end, requireAbsent, replacement, occurrence string) (string, bool) {
-    start = strings.TrimSpace(start)
-    end = strings.TrimSpace(end)
-    if start == "" || end == "" || replacement == "" {
-        return existingContent, false
-    }
-    if strings.TrimSpace(requireAbsent) != "" && strings.Contains(existingContent, requireAbsent) {
-        return existingContent, false
-    }
+	start = strings.TrimSpace(start)
+	end = strings.TrimSpace(end)
+	if start == "" || end == "" || replacement == "" {
+		return existingContent, false
+	}
+	if strings.TrimSpace(requireAbsent) != "" && strings.Contains(existingContent, requireAbsent) {
+		return existingContent, false
+	}
 
-    // Find occurrence of start anchor
-    var startIdx int
-    var found bool
-    occ := strings.ToLower(strings.TrimSpace(occurrence))
-    if occ == "first" {
-        if i := strings.Index(existingContent, start); i >= 0 {
-            startIdx = i
-            found = true
-        }
-    } else {
-        if i := strings.LastIndex(existingContent, start); i >= 0 {
-            startIdx = i
-            found = true
-        }
-    }
-    if !found { return existingContent, false }
+	// Find occurrence of start anchor
+	var startIdx int
+	var found bool
+	occ := strings.ToLower(strings.TrimSpace(occurrence))
+	if occ == "first" {
+		if i := strings.Index(existingContent, start); i >= 0 {
+			startIdx = i
+			found = true
+		}
+	} else {
+		if i := strings.LastIndex(existingContent, start); i >= 0 {
+			startIdx = i
+			found = true
+		}
+	}
+	if !found {
+		return existingContent, false
+	}
 
-    // Find end anchor after start
-    afterStart := existingContent[startIdx+len(start):]
-    endRel := strings.Index(afterStart, end)
-    if endRel < 0 {
-        return existingContent, false
-    }
-    endIdx := startIdx + len(start) + endRel + len(end)
+	// Find end anchor after start
+	afterStart := existingContent[startIdx+len(start):]
+	endRel := strings.Index(afterStart, end)
+	if endRel < 0 {
+		return existingContent, false
+	}
+	endIdx := startIdx + len(start) + endRel + len(end)
 
-    // Replace from startIdx to endIdx with replacement
-    return existingContent[:startIdx] + replacement + existingContent[endIdx:], true
+	// Replace from startIdx to endIdx with replacement
+	return existingContent[:startIdx] + replacement + existingContent[endIdx:], true
 }
 
 // removeSnippetMarkers removes the marker lines (START/END) from the content.
@@ -591,65 +809,24 @@ func extractSnippets(content string) (map[string]string, error) {
 	return result, nil
 }
 
-// removeSnippetsByKeys removes snippet groups delimited by START/END markers for provided keys.
-func removeSnippetsByKeys(content string, keys []string) string {
-	if len(keys) == 0 {
-		return content
-	}
-	keySet := map[string]bool{}
-	for _, k := range keys {
-		keySet[strings.TrimSpace(k)] = true
-	}
-	var out []string
-	lines := strings.Split(content, "\n")
-	collecting := false
-	keep := true
-	for _, ln := range lines {
-		if m := startMarkerRegex.FindStringSubmatch(ln); m != nil {
-			k := strings.TrimSpace(m[1])
-			collecting = true
-			keep = !keySet[k]
-			if keep {
-				out = append(out, ln)
-			}
-			continue
-		}
-		if collecting {
-			if endMarkerRegex.MatchString(ln) {
-				if keep {
-					out = append(out, ln)
-				}
-				collecting = false
-				keep = true
-				continue
-			}
-			if keep {
-				out = append(out, ln)
-			}
-			continue
-		}
-		out = append(out, ln)
-	}
-	return strings.Join(out, "\n")
-}
-
 // augmentTemplateWithFallbackSnippets adds snippet groups from fallback markers so marker-less
 // fallback insertions have their code available during smartMerge.
-func augmentTemplateWithFallbackSnippets(templateContent string, markers []InsertionMarker, placeholders map[string]string) string {
-	if len(markers) == 0 {
+func augmentTemplateWithFallbackSnippets(templateContent string, actions []InsertionAction, placeholders map[string]string) string {
+	if len(actions) == 0 {
 		return templateContent
 	}
 	snippetMap, _ := extractSnippets(templateContent)
-	for _, m := range markers {
-		mk := strings.TrimSpace(m.Mark)
+	for _, m := range actions {
+		nm := m.normalized()
+		mk := strings.TrimSpace(nm.Title)
 		if mk == "" {
 			continue
 		}
 		if _, exists := snippetMap[mk]; exists {
 			continue
 		}
-		if m.Fallback.Spec != nil && strings.TrimSpace(m.Fallback.Spec.Content) != "" {
-			snippetMap[mk] = replacePlaceholders(m.Fallback.Spec.Content, placeholders)
+		if nm.Logic.Spec != nil && strings.TrimSpace(nm.Logic.Spec.Content) != "" {
+			snippetMap[mk] = replacePlaceholders(nm.Logic.Spec.Content, placeholders)
 		}
 	}
 	if len(snippetMap) == 0 {
@@ -671,6 +848,14 @@ func augmentTemplateWithFallbackSnippets(templateContent string, markers []Inser
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// canonicalizeSlugAliases normalizes alias forms so merges treat
+// `slug.current as slug` and `"slug": slug.current` as equivalent.
+func canonicalizeSlugAliases(s string) string {
+	s = strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
+	re := regexp.MustCompile(`slug\.current\s+as\s+slug`)
+	return re.ReplaceAllString(s, `"slug": slug.current`)
 }
 
 // smartMerge merges template content into an existing file based on markers.
@@ -697,9 +882,19 @@ func smartMerge(existingContent, templateContent string) (string, error) {
 		return strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(s), "\t", ""), " ", ""), "\r", "")
 	}
 	existingNormalized := normalizeForContains(existingContent)
+	existingNormalized = canonicalizeSlugAliases(existingNormalized)
 	existingLineSetNoSpaces := map[string]bool{}
 	for _, ln := range lines {
 		existingLineSetNoSpaces[normalizeNoSpaces(ln)] = true
+		// cache canonicalized variant for slug alias lines
+		if strings.Contains(strings.ToLower(ln), "slug.current as slug") {
+			canonical := strings.ReplaceAll(ln, "slug.current as slug", "\"slug\": slug.current")
+			existingLineSetNoSpaces[normalizeNoSpaces(canonical)] = true
+			trimmed := strings.TrimSpace(canonical)
+			if !strings.HasSuffix(trimmed, ",") {
+				existingLineSetNoSpaces[normalizeNoSpaces(canonical+",")] = true
+			}
+		}
 	}
 
 	var mergedLines []string
@@ -715,6 +910,7 @@ func smartMerge(existingContent, templateContent string) (string, error) {
 			if snippet, ok := findSnippetForKey(key); ok && snippet != "" {
 				snippetLines := strings.Split(snippet, "\n")
 				snippetNormalized := normalizeForContains(snippet)
+				snippetNormalized = canonicalizeSlugAliases(snippetNormalized)
 				alreadyPresent := strings.Contains(existingNormalized, snippetNormalized)
 				if !alreadyPresent && len(snippetLines) > 0 {
 					first := strings.TrimSpace(snippetLines[0])

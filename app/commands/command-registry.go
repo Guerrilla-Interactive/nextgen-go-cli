@@ -27,7 +27,89 @@ var templateRegistry = map[string][]byte{}
 
 // Regex to find placeholders like {{.VarName}}, {{.PascalCaseVarName}}, etc.
 // Captures the full identifier after the dot.
-var placeholderRegex = regexp.MustCompile(`{{\s*\.\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*}}`)
+var placeholderRegex = regexp.MustCompile(`{{\s*\.\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*}}`)
+
+// splitCamelWordsToken splits a PascalCase/CamelCase string into words at uppercase boundaries.
+func splitCamelWordsToken(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var words []string
+	var curr []rune
+	for i, r := range s {
+		if i > 0 && r >= 'A' && r <= 'Z' && len(curr) > 0 {
+			words = append(words, string(curr))
+			curr = []rune{r}
+		} else {
+			curr = append(curr, r)
+		}
+	}
+	if len(curr) > 0 {
+		words = append(words, string(curr))
+	}
+	return words
+}
+
+// normalizeBaseVarName strips recognized transform prefixes (case-insensitive, separators allowed)
+// and returns a canonical PascalCase base variable name (e.g., "ComponentName").
+func normalizeBaseVarName(identifier string) string {
+	id := strings.TrimSpace(identifier)
+	if id == "" {
+		return ""
+	}
+	lowerCompacted := strings.ReplaceAll(strings.ReplaceAll(strings.ToLower(id), "-", ""), "_", "")
+	// Ordered by specificity
+	prefixes := []string{
+		"screamingsnakecase", "screamingsnake",
+		"snakecase", "snake",
+		"kebabcase", "kebab",
+		"pascalcase", "pascal",
+		"camelcase", "camel",
+		"uppercase", "upper",
+		"lowercase", "lower",
+	}
+	cutIndex := 0
+	for _, p := range prefixes {
+		if strings.HasPrefix(lowerCompacted, p) {
+			cutIndex = len(p)
+			break
+		}
+	}
+	remainder := id
+	if cutIndex > 0 {
+		// Walk the original string to skip cutIndex non-separator chars
+		count := 0
+		pos := 0
+		for pos < len(id) && count < cutIndex {
+			c := id[pos]
+			if c != '-' && c != '_' {
+				count++
+			}
+			pos++
+		}
+		remainder = id[pos:]
+		// Skip one optional separator
+		if strings.HasPrefix(remainder, "-") || strings.HasPrefix(remainder, "_") {
+			remainder = remainder[1:]
+		}
+	}
+	rem := strings.TrimSpace(remainder)
+	if rem == "" {
+		return ""
+	}
+	// Turn separators into spaces; if still single token, attempt camel split
+	remSpaced := strings.NewReplacer("-", " ", "_", " ").Replace(rem)
+	words := strings.Fields(remSpaced)
+	if len(words) <= 1 {
+		if cw := splitCamelWordsToken(rem); len(cw) > 1 {
+			words = cw
+		}
+	}
+	if len(words) == 0 {
+		return ToPascalCase(rem)
+	}
+	return ToPascalCase(strings.Join(words, " "))
+}
 
 func init() {
 	// Walk the embedded FS and store each .json file in our registry map
@@ -99,7 +181,6 @@ func init() {
 		// --- Category-level synthetic command: native-commands/<category>
 		// Category folders are identifiers only; do not register as commands
 		categoryKey := strings.Join(parts[:2], "/") // native-commands/<category>
-		category := parts[1]
 		if !categoriesAdded[categoryKey] {
 			categoriesAdded[categoryKey] = true
 		}
@@ -111,7 +192,7 @@ func init() {
 		dirsAdded[folderKey] = true
 		// Build synthetic template bytes with autoBrowseRoot (for future browsing) or minimal marker
 		bundle := parts[2]
-		category = parts[1]
+		category := parts[1]
 		// Title derived from bundle
 		title := strings.ReplaceAll(bundle, "-", " ")
 		if !strings.HasPrefix(strings.ToLower(title), "add ") && !strings.HasPrefix(strings.ToLower(title), "remove ") {
@@ -296,33 +377,16 @@ func TemplatePathFor(cmdName string) (string, bool) {
 func InferVariableKeys(content string) []string {
 	matches := placeholderRegex.FindAllStringSubmatch(content, -1)
 	keys := make(map[string]bool)
-
-	// Known prefixes to strip
-	prefixes := []string{"PascalCase", "CamelCase", "KebabCase", "LowerCase", "UpperCase"}
-
 	for _, match := range matches {
 		if len(match) > 1 {
-			fullIdentifier := match[1]
-			baseName := fullIdentifier
-			// Attempt to strip known prefixes
-			for _, prefix := range prefixes {
-				if strings.HasPrefix(baseName, prefix) {
-					// Ensure the part after the prefix starts with an uppercase letter
-					// or that the prefix matches the whole identifier (e.g. {{.Name}} vs {{.PascalCaseName}})
-					suffix := baseName[len(prefix):]
-					if len(suffix) > 0 && (suffix[0] >= 'A' && suffix[0] <= 'Z') {
-						baseName = suffix
-						break // Found prefix, stop checking
-					} else if len(suffix) == 0 { // Handle cases like {{.PascalCase}} where prefix IS the name
-						// Keep baseName as the prefix itself in this case
-						break
-					}
-				}
+			token := match[1]
+			base := normalizeBaseVarName(token)
+			if base == "" {
+				base = ToPascalCase(strings.NewReplacer("-", " ", "_", " ").Replace(token))
 			}
-			keys[baseName] = true // Add the derived base name
+			keys[base] = true
 		}
 	}
-
 	var uniqueKeys []string
 	for k := range keys {
 		uniqueKeys = append(uniqueKeys, k)
