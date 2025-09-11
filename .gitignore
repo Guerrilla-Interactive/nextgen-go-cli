@@ -6,6 +6,12 @@ dist/
 *.out
 *.log
 
+.env
+.env.local
+.env.test
+.env.example
+.cursor/mcp.json
+
 # System files
 .DS_Store
 .env

@@ -1,36 +1,62 @@
 ---
-description: How to use the Nextgen CLI
-globs: **/*
+description: Usage and conventions for the Nextgen CLI (`ng`) including syntax, casing, and command catalog
+globs: "**/*"
 alwaysApply: false
 ---
-# Nextgen CLI Usage Guide
 
-This guide covers basic usage of the Nextgen CLI for listing and running commands directly from your terminal.
+- **Use kebab-case for positional variables**
+  - Variables like `<component-name>` and `<route-name>` must be kebab-case
+  - Never use PascalCase, camelCase, or spaces in variables
+- **Quote command names only when they contain spaces**
+  - Example: `ng "Add Nextgen Pagebuilder Block" about-us`
+  - Do not quote variables
+- **Run multiple commands by separating with `;` (PowerShell/Unix)**
+  - Example: `ng add-nextgen-pagebuilder-block hero; ng add-nextgen-pagebuilder-block about-us`
+- **Discover commands with `ng list-all`**
+  - Shows built-in templates, args-based commands, native/user commands, clipboard, and project-specific commands
+- **Check help for args-based commands**
+  - `ng <command-name> --help` shows flags for commands in `app/commands/args`
 
-## Listing Available Commands
+## Overview
 
-*   **Command:** `ng list-all`
-*   **Description:** Displays a prioritized list of all commands currently recognized and executable directly via the CLI. This includes built-in template commands, args-based commands, user-saved native commands, clipboard commands, and project-specific commands.
-*   **Usage:**
-    ```bash
-    ng list-all
-    ```
+Nextgen is installed and available as `ng`. This guide covers day-to-day usage and the strict conventions the CLI expects so your commands run consistently.
 
-## Running Commands (Especially Template-Based)
+Check [nextgen-cli-commands.mdc](.mdc:.nextgen/nexgen-cli-commands.mdc) to learn all commands.
 
-*   **Syntax:** `ng <command-name> [variables...] [--flags...]`
-*   **`<command-name>`:** The name of the command to execute (e.g., `add page`, `"Add Nextgen Pagebuilder Block"`). Use quotes if the name contains spaces.
-*   **`[variables...]`:** Positional arguments required by template commands. These map to the template's placeholders (like `{{.ComponentName}}`) in order.
-    *   Example: `ng "add hello" MyNewComponent`
-    *   Check the template source or `list-all` output for clues on required variables.
-*   **`[--flags...]`:** Optional flags (less common for template commands, more for args-based ones like `config set`).
 
-## Getting Help
+## Running commands (templates and args-based)
 
-*   **General Help:**
-    *   **Command:** `ng --help` or `ng -h`
-    *   **Description:** Shows general usage and global flags. Does *not* list all commands.
-*   **Command-Specific Help (for args-based commands):**
-    *   **Command:** `ng <command-name> --help`
-    *   **Description:** Shows detailed help only for commands defined in `app/commands/args` (e.g., `config`, `native-cmd`, `clipboard-paste`).
-    *   **Example:** `ng native-cmd run --help`
+- **Syntax**: `ng <command-name> [variables...] [--flags...]`
+- **Command name**: Use quotes if it contains spaces, e.g. `ng "Add Nextgen Pagebuilder Block" about-us`
+- **Variables**: Positional arguments map to template placeholders in order (e.g. `{{.ComponentName}}`)
+- **Flags**: Primarily for args-based commands (see help)
+
+### Non-negotiable casing rule
+
+- **ALWAYS** use kebab-case for every positional value you pass to `ng`
+- **NEVER** use PascalCase, camelCase, or spaces
+- Convert any provided name to kebab-case before running
+
+#### ✅ Correct
+- `ng add-nextgen-pagebuilder-block about-us`
+- `ng add-nextgen-pagebuilder-block hero-banner`
+- `ng add-nextgen-slug-route product-categories`
+
+#### ❌ Incorrect (do not generate)
+- `ng add-nextgen-pagebuilder-block AboutUs`
+- `ng add-nextgen-pagebuilder-block aboutUs`
+- `ng add-nextgen-pagebuilder-block "About Us"`
+
+### Running multiple commands in one line
+
+PowerShell and most shells support `;` as a separator:
+```bash
+ng add-nextgen-pagebuilder-block hero; ng add-nextgen-pagebuilder-block about-us; ng add-nextgen-pagebuilder-block contact-us
+```
+
+## Getting help
+
+- **General help**: `ng --help` or `ng -h` (shows global usage/flags; does not list all commands)
+- **Command help (args-based only)**: `ng <command-name> --help`
+  - Applies to commands defined in `app/commands/args` (e.g., `config`, `native-cmd`, `clipboard-paste`)
+  - Example: `ng native-cmd run --help`
